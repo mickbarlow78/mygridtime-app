@@ -9,6 +9,11 @@ import { NextResponse, type NextRequest } from 'next/server'
  * supabase.auth.getUser() — this pattern is required by @supabase/ssr.
  */
 export async function updateSession(request: NextRequest) {
+  // Defensive guard — middleware.ts checks this too, but belt-and-braces.
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+    return NextResponse.next({ request })
+  }
+
   let supabaseResponse = NextResponse.next({ request })
 
   const supabase = createServerClient(
