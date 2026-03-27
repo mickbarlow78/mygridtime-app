@@ -1,16 +1,18 @@
 import { NextResponse, type NextRequest } from 'next/server'
-import { updateSession } from '@/lib/supabase/middleware'
 
-export async function middleware(request: NextRequest) {
-  // Supabase is not configured until Phase 2.
-  // Skip session management so Phase 0/1 deploys cleanly without env vars.
-  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
-    return NextResponse.next()
-  }
-
-  // Phase 2: Route protection added here.
-  // /admin/* routes will redirect to /auth/login if no valid session.
-  return await updateSession(request)
+/**
+ * Phase 1: Pure pass-through. No Supabase dependency.
+ *
+ * Phase 2 will replace this with:
+ *   import { updateSession } from '@/lib/supabase/middleware'
+ *   ...and add route protection for /admin/* → /auth/login
+ *
+ * Supabase must NOT be imported here until Phase 2 env vars are configured —
+ * the Netlify edge runtime can invoke this before env vars are available,
+ * and @supabase/ssr throws at createServerClient() call time if URL/key are falsy.
+ */
+export async function middleware(_request: NextRequest) {
+  return NextResponse.next()
 }
 
 export const config = {
