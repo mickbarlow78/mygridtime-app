@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 30" width="300" height="30">
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400&amp;display=swap');
+    .wm { font-family: 'JetBrains Mono', 'DejaVu Sans Mono', 'Consolas', monospace; font-weight: 300; letter-spacing: 2.5px; }
+    .tag { font-family: 'JetBrains Mono', 'DejaVu Sans Mono', 'Consolas', monospace; font-weight: 400; letter-spacing: 3.5px; }
+  </style>
+  <text class="tag" x="150" y="20" text-anchor="middle" font-size="10" fill="#6B7280">powered by mygridtime</text>
+</svg>

@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 220" width="300" height="220">
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400&amp;display=swap');
+    .wm { font-family: 'JetBrains Mono', 'DejaVu Sans Mono', 'Consolas', monospace; font-weight: 300; letter-spacing: 2.5px; }
+    .tag { font-family: 'JetBrains Mono', 'DejaVu Sans Mono', 'Consolas', monospace; font-weight: 400; letter-spacing: 3.5px; }
+  </style>
+  
+  <rect x="110" y="30" width="24" height="24" rx="4" fill="#1E293B"/>
+  <rect x="138" y="30" width="24" height="24" rx="4" fill="#1E293B"/>
+  <rect x="166" y="30" width="24" height="24" rx="4" fill="#1E293B"/>
+  <rect x="110" y="58" width="24" height="24" rx="4" fill="#1E293B"/>
+  <rect x="138" y="58" width="24" height="24" rx="4" fill="#00C853"/>
+  <rect x="166" y="58" width="24" height="24" rx="4" fill="#1E293B"/>
+  <rect x="110" y="86" width="24" height="24" rx="4" fill="#1E293B"/>
+  <rect x="138" y="86" width="24" height="24" rx="4" fill="#1E293B"/>
+  <rect x="166" y="86" width="24" height="24" rx="4" fill="#1E293B"/>
+  <text class="wm" x="150" y="160" text-anchor="middle" font-size="20">
+    <tspan fill="#0F1A2E">my</tspan><tspan fill="#00C853">grid</tspan><tspan fill="#0F1A2E">time</tspan>
+  </text>
+</svg>
