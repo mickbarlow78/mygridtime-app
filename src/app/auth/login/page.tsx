@@ -1,13 +1,22 @@
 'use client'
 
 import { createClient } from '@/lib/supabase/client'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
   const [submitted, setSubmitted] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  // Read ?error= from the URL after mount.
+  // Avoids useSearchParams() + Suspense, which prevents useState setters
+  // from committing during the Suspense hydration cycle.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const urlError = params.get('error')
+    if (urlError) setError(decodeURIComponent(urlError))
+  }, [])
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -18,8 +27,6 @@ export default function LoginPage() {
     const { error: otpError } = await supabase.auth.signInWithOtp({
       email,
       options: {
-        // Supabase redirects here after the user clicks the magic link.
-        // Must match an allowed URL in your Supabase project's Auth settings.
         emailRedirectTo: `${window.location.origin}/auth/callback`,
       },
     })
@@ -48,7 +55,7 @@ export default function LoginPage() {
             Didn&apos;t arrive? Check your spam folder. The link expires in 1 hour.
           </p>
           <button
-            onClick={() => { setSubmitted(false); setEmail('') }}
+            onClick={() => { setSubmitted(false); setEmail(''); setError(null) }}
             className="mt-6 text-xs text-gray-500 underline hover:text-gray-700"
           >
             Try a different email
