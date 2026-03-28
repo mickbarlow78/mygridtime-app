@@ -48,7 +48,7 @@ async function writeAuditLog(
   userId: string,
   eventId: string,
   action: string,
-  detail?: Record<string, string>
+  detail?: Record<string, unknown>
 ) {
   await supabase.from('audit_log').insert({
     user_id: userId,
@@ -147,6 +147,13 @@ export async function updateEventMetadata(
 ): Promise<ActionResult> {
   const { supabase, user } = await requireUser()
 
+  // Fetch current values so we can diff what actually changed
+  const { data: current } = await supabase
+    .from('events')
+    .select('title, venue, start_date, end_date, timezone, notes')
+    .eq('id', eventId)
+    .single()
+
   const { error } = await supabase
     .from('events')
     .update({
@@ -161,9 +168,30 @@ export async function updateEventMetadata(
 
   if (error) return { success: false, error: error.message }
 
-  await writeAuditLog(supabase, user.id, eventId, 'event.updated', {
-    title: input.title,
-  })
+  // Build a diff of changed fields only
+  if (current) {
+    const next = {
+      title:      input.title.trim(),
+      venue:      input.venue.trim() || null,
+      start_date: input.start_date,
+      end_date:   input.end_date,
+      timezone:   input.timezone || 'Europe/London',
+      notes:      input.notes.trim() || null,
+    }
+    const changes: Record<string, { from: string | null; to: string | null }> = {}
+    for (const key of Object.keys(next) as (keyof typeof next)[]) {
+      const oldVal = current[key] ?? null
+      const newVal = next[key] ?? null
+      if (oldVal !== newVal) {
+        changes[key] = { from: oldVal, to: newVal }
+      }
+    }
+    await writeAuditLog(supabase, user.id, eventId, 'event.updated',
+      Object.keys(changes).length > 0 ? { changes } : undefined
+    )
+  } else {
+    await writeAuditLog(supabase, user.id, eventId, 'event.updated')
+  }
 
   return { success: true, data: undefined }
 }

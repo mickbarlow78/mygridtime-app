@@ -16,6 +16,32 @@ const actionLabels: Record<string, string> = {
   'event.duplicated':  'Duplicated from another event',
 }
 
+const fieldLabels: Record<string, string> = {
+  title:      'Title',
+  venue:      'Venue',
+  start_date: 'Start date',
+  end_date:   'End date',
+  timezone:   'Timezone',
+  notes:      'Notes',
+}
+
+type FieldChange = { from: string | null; to: string | null }
+type ChangesDetail = { changes: Record<string, FieldChange> }
+
+function isChangesDetail(d: unknown): d is ChangesDetail {
+  return (
+    typeof d === 'object' &&
+    d !== null &&
+    'changes' in d &&
+    typeof (d as ChangesDetail).changes === 'object'
+  )
+}
+
+function formatValue(val: string | null): string {
+  if (val === null || val === '') return '—'
+  return `"${val}"`
+}
+
 function formatTimestamp(ts: string): string {
   return new Date(ts).toLocaleString('en-GB', {
     day: 'numeric',
@@ -50,21 +76,45 @@ export function AuditLogView({ entries }: AuditLogViewProps) {
           {entries.length === 0 ? (
             <p className="px-4 py-3 text-sm text-gray-400">No audit entries yet.</p>
           ) : (
-            entries.map((entry) => (
-              <div key={entry.id} className="px-4 py-2.5 flex items-start justify-between gap-4">
-                <div>
-                  <p className="text-sm text-gray-800">
-                    {actionLabels[entry.action] ?? entry.action}
-                  </p>
-                  {entry.user_email && (
-                    <p className="text-xs text-gray-400 mt-0.5">{entry.user_email}</p>
+            entries.map((entry) => {
+              const detail = entry.detail
+              const hasChanges = isChangesDetail(detail)
+              const changes = hasChanges ? detail.changes : null
+
+              return (
+                <div key={entry.id} className="px-4 py-3">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="min-w-0">
+                      <p className="text-sm text-gray-800">
+                        {actionLabels[entry.action] ?? entry.action}
+                      </p>
+                      {entry.user_email && (
+                        <p className="text-xs text-gray-400 mt-0.5">{entry.user_email}</p>
+                      )}
+                    </div>
+                    <p className="text-xs text-gray-400 whitespace-nowrap shrink-0 mt-0.5">
+                      {formatTimestamp(entry.created_at)}
+                    </p>
+                  </div>
+
+                  {/* Field-level diff for event.updated */}
+                  {changes && Object.keys(changes).length > 0 && (
+                    <ul className="mt-2 space-y-0.5">
+                      {Object.entries(changes).map(([field, change]) => (
+                        <li key={field} className="text-xs text-gray-500 font-mono">
+                          <span className="text-gray-400 not-italic font-sans">
+                            {fieldLabels[field] ?? field}:{' '}
+                          </span>
+                          <span className="text-red-500">{formatValue(change.from)}</span>
+                          <span className="text-gray-400 mx-1">→</span>
+                          <span className="text-green-600">{formatValue(change.to)}</span>
+                        </li>
+                      ))}
+                    </ul>
                   )}
                 </div>
-                <p className="text-xs text-gray-400 whitespace-nowrap shrink-0">
-                  {formatTimestamp(entry.created_at)}
-                </p>
-              </div>
-            ))
+              )
+            })
           )}
         </div>
       )}
