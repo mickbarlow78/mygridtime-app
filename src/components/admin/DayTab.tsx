@@ -15,50 +15,47 @@ import {
   verticalListSortingStrategy,
   arrayMove,
 } from '@dnd-kit/sortable'
-import { EntryRow, type EntryDraft, type EntryValidationError } from './EntryRow'
+import { EntryRow, type EntryDraft, type EntryValidationError, type EntryChangeInfo } from './EntryRow'
 
 interface DayTabProps {
   dayId: string
   entries: EntryDraft[]
   errors: EntryValidationError[]
+  entryChangeInfos?: Record<string, EntryChangeInfo>  // keyed by _localId
+  savedEntriesById?: Record<string, EntryDraft>        // keyed by entry db id
   onEntriesChange: (dayId: string, entries: EntryDraft[]) => void
   onDeleteEntry: (dayId: string, localId: string) => void
+  onRevertEntry?: (dayId: string, localId: string) => void
+  onRevertEntryField?: (dayId: string, localId: string, field: string) => void
 }
 
 export function DayTab({
   dayId,
   entries,
   errors,
+  entryChangeInfos,
   onEntriesChange,
   onDeleteEntry,
+  onRevertEntry,
+  onRevertEntryField,
 }: DayTabProps) {
   const sensors = useSensors(
     useSensor(PointerSensor),
-    useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
-    })
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   )
 
   function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event
     if (!over || active.id === over.id) return
-
     const oldIndex = entries.findIndex((e) => e._localId === active.id)
     const newIndex = entries.findIndex((e) => e._localId === over.id)
     if (oldIndex === -1 || newIndex === -1) return
-
-    const reordered = arrayMove(entries, oldIndex, newIndex).map((e, i) => ({
-      ...e,
-      sort_order: i,
-    }))
+    const reordered = arrayMove(entries, oldIndex, newIndex).map((e, i) => ({ ...e, sort_order: i }))
     onEntriesChange(dayId, reordered)
   }
 
   function handleEntryChange(updated: EntryDraft) {
-    onEntriesChange(
-      dayId,
-      entries.map((e) => (e._localId === updated._localId ? updated : e))
-    )
+    onEntriesChange(dayId, entries.map((e) => (e._localId === updated._localId ? updated : e)))
   }
 
   function handleAddEntry() {
@@ -84,7 +81,6 @@ export function DayTab({
       {/* Column headers */}
       {entries.length > 0 && (
         <div className="flex items-center gap-2 px-3 pb-0.5">
-          {/* drag handle + break toggle spacer */}
           <div className="w-10 shrink-0" />
           <div className="flex-1 grid grid-cols-12 gap-1.5 text-[10px] text-gray-400 font-medium uppercase tracking-wide">
             <span className="col-span-4">Title</span>
@@ -93,27 +89,22 @@ export function DayTab({
             <span className="col-span-2">Category</span>
             <span className="col-span-2">Notes</span>
           </div>
-          {/* delete button spacer */}
           <div className="w-5 shrink-0" />
         </div>
       )}
 
-      <DndContext
-        sensors={sensors}
-        collisionDetection={closestCenter}
-        onDragEnd={handleDragEnd}
-      >
-        <SortableContext
-          items={entries.map((e) => e._localId)}
-          strategy={verticalListSortingStrategy}
-        >
+      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+        <SortableContext items={entries.map((e) => e._localId)} strategy={verticalListSortingStrategy}>
           {entries.map((entry) => (
             <EntryRow
               key={entry._localId}
               entry={entry}
               errors={errorMap[entry._localId]}
+              changeInfo={entryChangeInfos?.[entry._localId]}
               onChange={handleEntryChange}
               onDelete={() => onDeleteEntry(dayId, entry._localId)}
+              onRevertRow={onRevertEntry ? () => onRevertEntry(dayId, entry._localId) : undefined}
+              onRevertField={onRevertEntryField ? (f) => onRevertEntryField(dayId, entry._localId, f) : undefined}
             />
           ))}
         </SortableContext>

@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { DayTab } from './DayTab'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { addEventDay, removeEventDay, updateDayLabel } from '@/app/admin/events/actions'
-import type { EntryDraft, EntryValidationError } from './EntryRow'
+import type { EntryDraft, EntryValidationError, EntryChangeInfo } from './EntryRow'
 import type { EventDay } from '@/lib/types/database'
 import { formatDate } from '@/lib/utils/slug'
 
@@ -12,13 +12,16 @@ interface TimetableBuilderProps {
   eventId: string
   days: EventDay[]
   dayEntries: Record<string, EntryDraft[]>
-  validationErrors: Record<string, EntryValidationError[]>  // keyed by dayId
+  validationErrors: Record<string, EntryValidationError[]>
   saving: boolean
   saveError: string | null
   saveSuccess: boolean
+  entryChangeInfos?: Record<string, EntryChangeInfo>
   onDaysChange: (days: EventDay[]) => void
   onEntriesChange: (dayId: string, entries: EntryDraft[]) => void
   onDeleteEntry: (dayId: string, localId: string) => void
+  onRevertEntry?: (dayId: string, localId: string) => void
+  onRevertEntryField?: (dayId: string, localId: string, field: string) => void
   onSave: () => void
 }
 
@@ -30,30 +33,30 @@ export function TimetableBuilder({
   saving,
   saveError,
   saveSuccess,
+  entryChangeInfos,
   onDaysChange,
   onEntriesChange,
   onDeleteEntry,
+  onRevertEntry,
+  onRevertEntryField,
   onSave,
 }: TimetableBuilderProps) {
   const [activeDayId, setActiveDayId] = useState<string>(days[0]?.id ?? '')
 
-  // Add Day dialog state
   const [showAddDay, setShowAddDay] = useState(false)
   const [newDayDate, setNewDayDate] = useState('')
   const [newDayLabel, setNewDayLabel] = useState('')
   const [addDayError, setAddDayError] = useState<string | null>(null)
   const [addingDay, setAddingDay] = useState(false)
 
-  // Remove Day confirm state
   const [removingDayId, setRemovingDayId] = useState<string | null>(null)
 
-  // Inline label editing
   const [editingLabelDayId, setEditingLabelDayId] = useState<string | null>(null)
   const [labelDraft, setLabelDraft] = useState('')
 
   const activeDay = days.find((d) => d.id === activeDayId) ?? days[0] ?? null
   const activeDayEntries = activeDay ? (dayEntries[activeDay.id] ?? []) : []
-  const activeDayErrors = activeDay ? (validationErrors[activeDay.id] ?? []) : []
+  const activeDayErrors  = activeDay ? (validationErrors[activeDay.id] ?? []) : []
 
   async function handleAddDay() {
     if (!newDayDate) { setAddDayError('Please pick a date.'); return }
@@ -79,15 +82,10 @@ export function TimetableBuilder({
 
   async function handleRemoveDay(dayId: string) {
     const result = await removeEventDay(dayId)
-    if (!result.success) {
-      alert('Failed to remove day: ' + result.error)
-      return
-    }
+    if (!result.success) { alert('Failed to remove day: ' + result.error); return }
     const remaining = days.filter((d) => d.id !== dayId)
     onDaysChange(remaining)
-    if (activeDayId === dayId) {
-      setActiveDayId(remaining[0]?.id ?? '')
-    }
+    if (activeDayId === dayId) setActiveDayId(remaining[0]?.id ?? '')
     setRemovingDayId(null)
   }
 
@@ -101,46 +99,57 @@ export function TimetableBuilder({
     return day.label ?? formatDate(day.date)
   }
 
+  // Does this day have any pending/rejected changes?
+  function dayHasChanges(dayId: string): boolean {
+    const entries = dayEntries[dayId] ?? []
+    return entries.some((e) => !!entryChangeInfos?.[e._localId])
+  }
+
   return (
     <div className="space-y-4">
       {/* Day tabs */}
       <div className="flex items-center gap-1 flex-wrap border-b border-gray-200 pb-0 -mb-px">
-        {days.map((day) => (
-          <button
-            key={day.id}
-            type="button"
-            onClick={() => setActiveDayId(day.id)}
-            onDoubleClick={() => {
-              setEditingLabelDayId(day.id)
-              setLabelDraft(day.label ?? '')
-            }}
-            className={[
-              'px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors whitespace-nowrap',
-              day.id === activeDayId
-                ? 'border-gray-900 text-gray-900'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300',
-              validationErrors[day.id]?.length > 0 ? 'text-red-600' : '',
-            ].join(' ')}
-            title="Double-click to rename"
-          >
-            {editingLabelDayId === day.id ? (
-              <input
-                autoFocus
-                value={labelDraft}
-                onChange={(e) => setLabelDraft(e.target.value)}
-                onBlur={() => handleSaveLabel(day.id)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') handleSaveLabel(day.id)
-                  if (e.key === 'Escape') setEditingLabelDayId(null)
-                }}
-                onClick={(e) => e.stopPropagation()}
-                className="w-28 text-sm border border-gray-300 rounded px-1 py-0 focus:outline-none"
-              />
-            ) : (
-              dayLabel(day)
-            )}
-          </button>
-        ))}
+        {days.map((day) => {
+          const hasChanges = dayHasChanges(day.id)
+          return (
+            <button
+              key={day.id}
+              type="button"
+              onClick={() => setActiveDayId(day.id)}
+              onDoubleClick={() => { setEditingLabelDayId(day.id); setLabelDraft(day.label ?? '') }}
+              className={[
+                'px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors whitespace-nowrap',
+                day.id === activeDayId
+                  ? 'border-gray-900 text-gray-900'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300',
+                validationErrors[day.id]?.length > 0 ? 'text-red-600' : '',
+              ].join(' ')}
+              title="Double-click to rename"
+            >
+              {editingLabelDayId === day.id ? (
+                <input
+                  autoFocus
+                  value={labelDraft}
+                  onChange={(e) => setLabelDraft(e.target.value)}
+                  onBlur={() => handleSaveLabel(day.id)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleSaveLabel(day.id)
+                    if (e.key === 'Escape') setEditingLabelDayId(null)
+                  }}
+                  onClick={(e) => e.stopPropagation()}
+                  className="w-28 text-sm border border-gray-300 rounded px-1 py-0 focus:outline-none"
+                />
+              ) : (
+                <>
+                  {dayLabel(day)}
+                  {hasChanges && (
+                    <span className="ml-1.5 inline-block w-1.5 h-1.5 rounded-full bg-amber-400 align-middle" />
+                  )}
+                </>
+              )}
+            </button>
+          )
+        })}
 
         <button
           type="button"
@@ -155,7 +164,6 @@ export function TimetableBuilder({
       {/* Active day content */}
       {activeDay ? (
         <div className="space-y-3">
-          {/* Day actions */}
           <div className="flex items-center justify-between">
             <p className="text-xs text-gray-400">
               {formatDate(activeDay.date)}
@@ -179,8 +187,11 @@ export function TimetableBuilder({
             dayId={activeDay.id}
             entries={activeDayEntries}
             errors={activeDayErrors}
+            entryChangeInfos={entryChangeInfos}
             onEntriesChange={onEntriesChange}
             onDeleteEntry={onDeleteEntry}
+            onRevertEntry={onRevertEntry}
+            onRevertEntryField={onRevertEntryField}
           />
         </div>
       ) : (
@@ -199,13 +210,8 @@ export function TimetableBuilder({
         >
           {saving ? 'Saving…' : 'Save timetable'}
         </button>
-
-        {saveSuccess && !saving && (
-          <p className="text-sm text-green-600">Saved.</p>
-        )}
-        {saveError && (
-          <p className="text-sm text-red-600">{saveError}</p>
-        )}
+        {saveSuccess && !saving && <p className="text-sm text-green-600">Saved.</p>}
+        {saveError && <p className="text-sm text-red-600">{saveError}</p>}
       </div>
 
       {/* Add Day dialog */}
