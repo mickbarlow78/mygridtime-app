@@ -2,7 +2,13 @@
   "permissions": {
     "allow": [
       "Bash(npm run:*)",
-      "Bash(node -e \":*)"
+      "Bash(node -e \":*)",
+      "Bash(npx tsc:*)",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(d.get\\(''''exports'''',{}\\).get\\(''''.'''',{}\\)\\)\")",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(json.dumps\\(d.get\\(''''exports'''',{}\\), indent=2\\)\\)\")",
+      "Bash(find C:/projects/mygridtime-app/node_modules/@supabase/supabase-js -name *.d.ts -o -name *.d.mts -o -name *.d.cts)",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(''''peerDeps:'''', json.dumps\\(d.get\\(''''peerDependencies'''',{}\\),indent=2\\)\\); print\\(''''version:'''', d.get\\(''''version''''\\)\\)\")",
+      "Bash(python3 -c \"import json; d=json.load\\(open\\(''C:/projects/mygridtime-app/package.json''\\)\\); print\\(json.dumps\\({k: v for k,v in {**d.get\\(''dependencies'',{}\\), **d.get\\(''devDependencies'',{}\\)}.items\\(\\) if ''supabase'' in k.lower\\(\\)}, indent=2\\)\\)\")"
     ]
   }
 }

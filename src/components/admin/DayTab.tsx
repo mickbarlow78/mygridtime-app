@@ -1,0 +1,137 @@
+'use client'
+
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core'
+import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+  arrayMove,
+} from '@dnd-kit/sortable'
+import { EntryRow, type EntryDraft, type EntryValidationError } from './EntryRow'
+
+interface DayTabProps {
+  dayId: string
+  entries: EntryDraft[]
+  errors: EntryValidationError[]
+  onEntriesChange: (dayId: string, entries: EntryDraft[]) => void
+  onDeleteEntry: (dayId: string, localId: string) => void
+}
+
+export function DayTab({
+  dayId,
+  entries,
+  errors,
+  onEntriesChange,
+  onDeleteEntry,
+}: DayTabProps) {
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  )
+
+  function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+
+    const oldIndex = entries.findIndex((e) => e._localId === active.id)
+    const newIndex = entries.findIndex((e) => e._localId === over.id)
+    if (oldIndex === -1 || newIndex === -1) return
+
+    const reordered = arrayMove(entries, oldIndex, newIndex).map((e, i) => ({
+      ...e,
+      sort_order: i,
+    }))
+    onEntriesChange(dayId, reordered)
+  }
+
+  function handleEntryChange(updated: EntryDraft) {
+    onEntriesChange(
+      dayId,
+      entries.map((e) => (e._localId === updated._localId ? updated : e))
+    )
+  }
+
+  function handleAddEntry() {
+    const newEntry: EntryDraft = {
+      _localId: crypto.randomUUID(),
+      id: null,
+      event_day_id: dayId,
+      title: '',
+      start_time: '',
+      end_time: '',
+      category: '',
+      notes: '',
+      sort_order: entries.length,
+      is_break: false,
+    }
+    onEntriesChange(dayId, [...entries, newEntry])
+  }
+
+  const errorMap = Object.fromEntries(errors.map((e) => [e._localId, e]))
+
+  return (
+    <div className="space-y-2">
+      {/* Column headers */}
+      {entries.length > 0 && (
+        <div className="flex items-center gap-2 px-3 pb-0.5">
+          {/* drag handle + break toggle spacer */}
+          <div className="w-10 shrink-0" />
+          <div className="flex-1 grid grid-cols-12 gap-1.5 text-[10px] text-gray-400 font-medium uppercase tracking-wide">
+            <span className="col-span-4">Title</span>
+            <span className="col-span-2">Start</span>
+            <span className="col-span-2">End</span>
+            <span className="col-span-2">Category</span>
+            <span className="col-span-2">Notes</span>
+          </div>
+          {/* delete button spacer */}
+          <div className="w-5 shrink-0" />
+        </div>
+      )}
+
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragEnd={handleDragEnd}
+      >
+        <SortableContext
+          items={entries.map((e) => e._localId)}
+          strategy={verticalListSortingStrategy}
+        >
+          {entries.map((entry) => (
+            <EntryRow
+              key={entry._localId}
+              entry={entry}
+              errors={errorMap[entry._localId]}
+              onChange={handleEntryChange}
+              onDelete={() => onDeleteEntry(dayId, entry._localId)}
+            />
+          ))}
+        </SortableContext>
+      </DndContext>
+
+      {entries.length === 0 && (
+        <p className="text-sm text-gray-400 italic py-4 text-center">
+          No entries yet. Add the first one below.
+        </p>
+      )}
+
+      <button
+        type="button"
+        onClick={handleAddEntry}
+        className="w-full mt-1 py-2 text-sm text-gray-500 border border-dashed border-gray-300 rounded-md hover:border-gray-400 hover:text-gray-700 transition-colors"
+      >
+        + Add entry
+      </button>
+    </div>
+  )
+}
