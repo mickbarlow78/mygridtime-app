@@ -16,15 +16,32 @@ async function requireUser() {
   return { supabase, user }
 }
 
-async function getUserOrg(supabase: Awaited<ReturnType<typeof createClient>>, userId: string) {
-  const { data, error } = await supabase
+/**
+ * Roles permitted to perform write operations in the admin area.
+ * viewer is intentionally excluded — they may read but not mutate.
+ */
+const EDITOR_ROLES = ['owner', 'admin', 'editor'] as const
+
+/**
+ * Requires the calling user to be authenticated AND to hold an allowed role
+ * (owner | admin | editor) in at least one org.
+ *
+ * Returns { supabase, user, membership } where membership is the first
+ * matching org_members row, or membership: null if the user has no
+ * qualifying role.  Every mutation action must check membership !== null
+ * before proceeding — this gives an explicit server-side rejection rather
+ * than relying solely on RLS to silently discard the write.
+ */
+async function requireEditor() {
+  const { supabase, user } = await requireUser()
+  const { data: membership } = await supabase
     .from('org_members')
     .select('org_id, role')
-    .eq('user_id', userId)
+    .eq('user_id', user.id)
+    .in('role', [...EDITOR_ROLES])
     .limit(1)
-    .single()
-  if (error || !data) return null
-  return data
+    .maybeSingle()
+  return { supabase, user, membership: membership ?? null }
 }
 
 async function generateUniqueSlug(
@@ -76,11 +93,9 @@ export interface CreateEventInput {
 }
 
 export async function createEvent(input: CreateEventInput): Promise<ActionResult<{ id: string }>> {
-  const { supabase, user } = await requireUser()
-
-  const membership = await getUserOrg(supabase, user.id)
+  const { supabase, user, membership } = await requireEditor()
   if (!membership) {
-    return { success: false, error: 'You are not a member of any organisation. Ask your administrator to add you.' }
+    return { success: false, error: 'You do not have permission to create events.' }
   }
 
   const slug = await generateUniqueSlug(supabase, input.title)
@@ -145,7 +160,8 @@ export async function updateEventMetadata(
   eventId: string,
   input: UpdateEventMetadataInput
 ): Promise<ActionResult> {
-  const { supabase, user } = await requireUser()
+  const { supabase, user, membership } = await requireEditor()
+  if (!membership) return { success: false, error: 'You do not have permission to perform this action.' }
 
   // Fetch current values so we can diff what actually changed
   const { data: current } = await supabase
@@ -199,7 +215,8 @@ export async function updateEventMetadata(
 // ---------------------------------------------------------------------------
 
 export async function publishEvent(eventId: string): Promise<ActionResult> {
-  const { supabase, user } = await requireUser()
+  const { supabase, user, membership } = await requireEditor()
+  if (!membership) return { success: false, error: 'You do not have permission to perform this action.' }
 
   const { error } = await supabase
     .from('events')
@@ -213,7 +230,8 @@ export async function publishEvent(eventId: string): Promise<ActionResult> {
 }
 
 export async function unpublishEvent(eventId: string): Promise<ActionResult> {
-  const { supabase, user } = await requireUser()
+  const { supabase, user, membership } = await requireEditor()
+  if (!membership) return { success: false, error: 'You do not have permission to perform this action.' }
 
   const { error } = await supabase
     .from('events')
@@ -227,7 +245,8 @@ export async function unpublishEvent(eventId: string): Promise<ActionResult> {
 }
 
 export async function archiveEvent(eventId: string): Promise<ActionResult> {
-  const { supabase, user } = await requireUser()
+  const { supabase, user, membership } = await requireEditor()
+  if (!membership) return { success: false, error: 'You do not have permission to perform this action.' }
 
   const { error } = await supabase
     .from('events')
@@ -252,7 +271,8 @@ export async function duplicateEvent(
   sourceEventId: string,
   input: DuplicateEventInput
 ): Promise<ActionResult<{ id: string }>> {
-  const { supabase, user } = await requireUser()
+  const { supabase, user, membership } = await requireEditor()
+  if (!membership) return { success: false, error: 'You do not have permission to duplicate events.' }
 
   // Fetch source event
   const { data: source, error: srcErr } = await supabase
@@ -361,7 +381,8 @@ export async function addEventDay(
   date: string,
   label?: string
 ): Promise<ActionResult<{ id: string }>> {
-  const { supabase } = await requireUser()
+  const { supabase, membership } = await requireEditor()
+  if (!membership) return { success: false, error: 'You do not have permission to perform this action.' }
 
   // Get current max sort_order for this event
   const { data: existing } = await supabase
@@ -389,7 +410,8 @@ export async function addEventDay(
 }
 
 export async function removeEventDay(dayId: string): Promise<ActionResult> {
-  const { supabase } = await requireUser()
+  const { supabase, membership } = await requireEditor()
+  if (!membership) return { success: false, error: 'You do not have permission to perform this action.' }
 
   // Cascade: delete entries first (RLS may require explicit delete)
   await supabase.from('timetable_entries').delete().eq('event_day_id', dayId)
@@ -400,7 +422,8 @@ export async function removeEventDay(dayId: string): Promise<ActionResult> {
 }
 
 export async function updateDayLabel(dayId: string, label: string): Promise<ActionResult> {
-  const { supabase } = await requireUser()
+  const { supabase, membership } = await requireEditor()
+  if (!membership) return { success: false, error: 'You do not have permission to perform this action.' }
 
   const { error } = await supabase
     .from('event_days')
@@ -439,7 +462,8 @@ export async function saveDayEntries(
   entries: EntryInput[],
   deletedIds: string[]
 ): Promise<ActionResult<{ savedIds: (string | null)[] }>> {
-  const { supabase, user } = await requireUser()
+  const { supabase, user, membership } = await requireEditor()
+  if (!membership) return { success: false, error: 'You do not have permission to perform this action.' }
 
   // ── 1. Snapshot current state BEFORE any mutations ───────────────────────
   const affectedDayIds = Array.from(new Set(entries.map((e) => e.event_day_id)))
