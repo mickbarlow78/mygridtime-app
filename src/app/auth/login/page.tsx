@@ -32,7 +32,12 @@ export default function LoginPage() {
     })
 
     if (otpError) {
-      setError(otpError.message)
+      const isRateLimit = /rate limit/i.test(otpError.message)
+      setError(
+        isRateLimit
+          ? 'Too many sign-in emails were requested. Please wait a few minutes before trying again.'
+          : otpError.message
+      )
       setLoading(false)
       return
     }
