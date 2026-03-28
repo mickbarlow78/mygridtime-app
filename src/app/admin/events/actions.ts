@@ -428,17 +428,45 @@ export interface EntryInput {
 }
 
 /**
- * Saves a complete set of entries for a single day.
+ * Saves a complete set of entries across all days for an event.
+ * - Snapshots current DB state first, so we can diff afterwards.
  * - Upserts entries that have an id (existing) or inserts new ones.
  * - Deletes entries by id that are in deletedIds.
+ * - Writes a detailed audit log entry describing exactly what changed.
  */
 export async function saveDayEntries(
+  eventId: string,
   entries: EntryInput[],
   deletedIds: string[]
 ): Promise<ActionResult<{ savedIds: (string | null)[] }>> {
-  const { supabase } = await requireUser()
+  const { supabase, user } = await requireUser()
 
-  // Delete removed entries
+  // ── 1. Snapshot current state BEFORE any mutations ───────────────────────
+  const affectedDayIds = Array.from(new Set(entries.map((e) => e.event_day_id)))
+
+  let currentRows: import('@/lib/types/database').TimetableEntry[] = []
+  if (affectedDayIds.length > 0) {
+    const { data } = await supabase
+      .from('timetable_entries')
+      .select('*')
+      .in('event_day_id', affectedDayIds)
+    currentRows = data ?? []
+  }
+
+  // Some deleted entries may live in days not in the submission (edge case)
+  const foundIds = new Set(currentRows.map((r) => r.id))
+  const orphanDeleteIds = deletedIds.filter((id) => !foundIds.has(id))
+  if (orphanDeleteIds.length > 0) {
+    const { data } = await supabase
+      .from('timetable_entries')
+      .select('*')
+      .in('id', orphanDeleteIds)
+    currentRows = [...currentRows, ...(data ?? [])]
+  }
+
+  const currentMap = Object.fromEntries(currentRows.map((r) => [r.id, r]))
+
+  // ── 2. Apply mutations ────────────────────────────────────────────────────
   if (deletedIds.length > 0) {
     const { error: delError } = await supabase
       .from('timetable_entries')
@@ -449,13 +477,10 @@ export async function saveDayEntries(
 
   if (entries.length === 0) return { success: true, data: { savedIds: [] } }
 
-  // Split into inserts and updates
   const toInsert = entries.filter((e) => !e.id)
   const toUpdate = entries.filter((e) => !!e.id)
-
   const savedIds: (string | null)[] = new Array(entries.length).fill(null)
 
-  // Batch upsert existing entries
   if (toUpdate.length > 0) {
     const { error: updErr } = await supabase.from('timetable_entries').upsert(
       toUpdate.map((e) => ({
@@ -472,12 +497,10 @@ export async function saveDayEntries(
     )
     if (updErr) return { success: false, error: updErr.message }
     toUpdate.forEach((e) => {
-      const idx = entries.indexOf(e)
-      savedIds[idx] = e.id
+      savedIds[entries.indexOf(e)] = e.id
     })
   }
 
-  // Insert new entries one by one to get their IDs back
   for (const e of toInsert) {
     const { data, error: insErr } = await supabase
       .from('timetable_entries')
@@ -495,9 +518,96 @@ export async function saveDayEntries(
       .single()
 
     if (!insErr && data) {
-      const idx = entries.indexOf(e)
-      savedIds[idx] = data.id
+      savedIds[entries.indexOf(e)] = data.id
     }
+  }
+
+  // ── 3. Compute diff and write audit log ───────────────────────────────────
+  // Normalize helpers: DB returns time as "HH:MM:SS"; form submits "HH:MM"
+  const nTime = (t: string | null | undefined): string | null =>
+    t ? t.slice(0, 5) : null
+  const nStr = (s: string | null | undefined): string | null =>
+    !s || s.trim() === '' ? null : s.trim()
+
+  // Added — new entries (no prior id)
+  const added = entries
+    .filter((e) => !e.id)
+    .sort((a, b) => a.sort_order - b.sort_order)
+    .map((e) => ({
+      title: e.title,
+      start_time: nTime(e.start_time) ?? '',
+      end_time: nTime(e.end_time),
+      category: nStr(e.category),
+      is_break: e.is_break,
+    }))
+
+  // Removed — entries that were deleted
+  const removed = deletedIds
+    .map((id) => currentMap[id])
+    .filter(Boolean)
+    .map((r) => ({
+      title: r.title,
+      start_time: nTime(r.start_time) ?? '',
+      end_time: nTime(r.end_time),
+      category: nStr(r.category),
+    }))
+
+  // Changed / Reordered — existing entries with modifications
+  const changed: Array<{
+    title: string
+    changes: Record<string, { from: unknown; to: unknown }>
+  }> = []
+  const reordered: string[] = []  // titles in new sort order, sort_order-only changes
+
+  for (const entry of [...entries.filter((e) => e.id)].sort(
+    (a, b) => a.sort_order - b.sort_order
+  )) {
+    const cur = currentMap[entry.id as string]
+    if (!cur) continue
+
+    const diff: Record<string, { from: unknown; to: unknown }> = {}
+
+    if ((cur.title ?? null) !== (entry.title ?? null))
+      diff.title = { from: cur.title ?? null, to: entry.title ?? null }
+
+    const [oldStart, newStart] = [nTime(cur.start_time), nTime(entry.start_time)]
+    if (oldStart !== newStart) diff.start_time = { from: oldStart, to: newStart }
+
+    const [oldEnd, newEnd] = [nTime(cur.end_time), nTime(entry.end_time)]
+    if (oldEnd !== newEnd) diff.end_time = { from: oldEnd, to: newEnd }
+
+    const [oldCat, newCat] = [nStr(cur.category), nStr(entry.category)]
+    if (oldCat !== newCat) diff.category = { from: oldCat, to: newCat }
+
+    const [oldNotes, newNotes] = [nStr(cur.notes), nStr(entry.notes)]
+    if (oldNotes !== newNotes) diff.notes = { from: oldNotes, to: newNotes }
+
+    if (cur.is_break !== entry.is_break)
+      diff.is_break = { from: cur.is_break, to: entry.is_break }
+
+    if (cur.sort_order !== entry.sort_order)
+      diff.sort_order = { from: cur.sort_order, to: entry.sort_order }
+
+    const keys = Object.keys(diff)
+    if (keys.length === 0) continue
+
+    if (keys.length === 1 && keys[0] === 'sort_order') {
+      // Only position changed — part of a drag-reorder operation
+      reordered.push(entry.title)
+    } else {
+      // Substantive field change (sort_order included in diff if it also moved)
+      changed.push({ title: entry.title, changes: diff })
+    }
+  }
+
+  const detail: Record<string, unknown> = {}
+  if (added.length > 0)    detail.added    = added
+  if (removed.length > 0)  detail.removed  = removed
+  if (changed.length > 0)  detail.changed  = changed
+  if (reordered.length > 0) detail.reordered = reordered
+
+  if (Object.keys(detail).length > 0) {
+    await writeAuditLog(supabase, user.id, eventId, 'timetable.updated', detail)
   }
 
   return { success: true, data: { savedIds } }

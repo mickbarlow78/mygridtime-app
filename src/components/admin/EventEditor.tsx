@@ -310,7 +310,7 @@ export function EventEditor({ event, days: initialDays, entries: initialEntries,
       })
     }
 
-    const result = await saveDayEntries(allEntries, deletedEntryIds)
+    const result = await saveDayEntries(event.id, allEntries, deletedEntryIds)
 
     if (!result.success) {
       setTimetableSaving(false)
