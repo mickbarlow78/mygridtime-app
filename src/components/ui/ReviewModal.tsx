@@ -22,8 +22,11 @@ interface ReviewModalProps {
   saving: boolean
   onAccept: (id: string) => void
   onReject: (id: string) => void
-  onAcceptAll: () => void   // accepts all pending + triggers save immediately
-  onConfirmSave: () => void // save with current decisions (all pending accepted)
+  onAcceptAll: () => void
+  onConfirmSave: () => void
+  /** Called when the user accepts the final (or only) card while it is rejected —
+   *  parent must un-reject that id AND save inline without relying on async state. */
+  onAcceptAndSave: (id: string) => void
   onCancel: () => void
 }
 
@@ -47,23 +50,50 @@ function entryFieldLabel(field: string): string {
   return labels[field] ?? field
 }
 
+// ── Shared sub-components ─────────────────────────────────────────────────────
+
+/** Tiny uppercase section label */
+function Eyebrow({ children }: { children: React.ReactNode }) {
+  return <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">{children}</p>
+}
+
+/** Calm before/after pair — neutral grey vs soft blue */
+function BeforeAfter({ field, from, to }: { field?: string; from: unknown; to: unknown }) {
+  return (
+    <div className="grid grid-cols-2 gap-3">
+      <div className="space-y-1.5">
+        <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wide">
+          {field ? `${field} — was` : 'Was'}
+        </p>
+        <div className="bg-gray-50 rounded-lg px-3 py-2.5">
+          <p className="text-sm text-gray-500 break-words">{fmtVal(from)}</p>
+        </div>
+      </div>
+      <div className="space-y-1.5">
+        <p className="text-[10px] font-medium text-sky-500 uppercase tracking-wide">
+          {field ? `${field} — now` : 'Now'}
+        </p>
+        <div className="bg-sky-50 rounded-lg px-3 py-2.5">
+          <p className="text-sm text-gray-800 break-words">{fmtVal(to)}</p>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/** Simple detail pill for entry summaries */
+function DetailLine({ children }: { children: React.ReactNode }) {
+  return <p className="text-sm text-gray-500">{children}</p>
+}
+
 // ── Card renderers ────────────────────────────────────────────────────────────
 
 function MetaFieldCard({ card }: { card: Extract<ReviewCard, { kind: 'meta-field' }> }) {
   return (
     <div className="space-y-3">
-      <p className="text-xs font-medium text-gray-400 uppercase tracking-wide">Field changed</p>
+      <Eyebrow>Field changed</Eyebrow>
       <p className="text-base font-semibold text-gray-900">{card.label}</p>
-      <div className="grid grid-cols-2 gap-3">
-        <div className="rounded-md bg-red-50 border border-red-200 px-3 py-2">
-          <p className="text-xs text-red-500 font-medium mb-1">Before</p>
-          <p className="text-sm text-red-800 break-words">{fmtVal(card.from)}</p>
-        </div>
-        <div className="rounded-md bg-green-50 border border-green-200 px-3 py-2">
-          <p className="text-xs text-green-600 font-medium mb-1">After</p>
-          <p className="text-sm text-green-800 break-words">{fmtVal(card.to)}</p>
-        </div>
-      </div>
+      <BeforeAfter from={card.from} to={card.to} />
     </div>
   )
 }
@@ -74,14 +104,12 @@ function EntryAddedCard({ card }: { card: Extract<ReviewCard, { kind: 'entry-add
     : fmtTime(card.start_time)
   return (
     <div className="space-y-3">
-      <span className="inline-flex text-xs font-medium px-2 py-0.5 rounded-full bg-green-100 text-green-700">
-        New entry
-      </span>
+      <Eyebrow>New entry</Eyebrow>
       <p className="text-base font-semibold text-gray-900">{card.title}</p>
-      <div className="rounded-md bg-green-50 border border-green-200 px-3 py-2 space-y-1">
-        <p className="text-sm text-gray-700">{timeStr}</p>
-        {card.category && <p className="text-sm text-gray-500">Category: {card.category}</p>}
-        {card.is_break && <p className="text-sm text-gray-500">Marked as break</p>}
+      <div className="bg-sky-50 rounded-lg px-3 py-2.5 space-y-1">
+        <DetailLine>{timeStr}</DetailLine>
+        {card.category && <DetailLine>Category: {card.category}</DetailLine>}
+        {card.is_break  && <DetailLine>Marked as break</DetailLine>}
       </div>
     </div>
   )
@@ -93,13 +121,11 @@ function EntryRemovedCard({ card }: { card: Extract<ReviewCard, { kind: 'entry-r
     : fmtTime(card.start_time)
   return (
     <div className="space-y-3">
-      <span className="inline-flex text-xs font-medium px-2 py-0.5 rounded-full bg-red-100 text-red-700">
-        Deletion
-      </span>
+      <Eyebrow>Deletion</Eyebrow>
       <p className="text-base font-semibold text-gray-900">{card.title}</p>
-      <div className="rounded-md bg-red-50 border border-red-200 px-3 py-2 space-y-1">
-        <p className="text-sm text-gray-700">{timeStr}</p>
-        {card.category && <p className="text-sm text-gray-500">Category: {card.category}</p>}
+      <div className="bg-gray-50 rounded-lg px-3 py-2.5 space-y-1">
+        <DetailLine>{timeStr}</DetailLine>
+        {card.category && <DetailLine>Category: {card.category}</DetailLine>}
       </div>
     </div>
   )
@@ -108,21 +134,12 @@ function EntryRemovedCard({ card }: { card: Extract<ReviewCard, { kind: 'entry-r
 function EntryEditedCard({ card }: { card: Extract<ReviewCard, { kind: 'entry-edited' }> }) {
   return (
     <div className="space-y-3">
-      <span className="inline-flex text-xs font-medium px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">
-        Edited
-      </span>
+      <Eyebrow>Edited</Eyebrow>
       <p className="text-base font-semibold text-gray-900">{card.title}</p>
-      <ul className="space-y-2">
+      <ul className="space-y-3">
         {Object.entries(card.changes).map(([field, change]) => (
-          <li key={field} className="grid grid-cols-2 gap-2">
-            <div className="rounded-md bg-red-50 border border-red-200 px-3 py-2">
-              <p className="text-xs text-red-500 font-medium mb-1">{entryFieldLabel(field)} — before</p>
-              <p className="text-sm text-red-800 break-words">{fmtVal(change.from)}</p>
-            </div>
-            <div className="rounded-md bg-green-50 border border-green-200 px-3 py-2">
-              <p className="text-xs text-green-600 font-medium mb-1">{entryFieldLabel(field)} — after</p>
-              <p className="text-sm text-green-800 break-words">{fmtVal(change.to)}</p>
-            </div>
+          <li key={field}>
+            <BeforeAfter field={entryFieldLabel(field)} from={change.from} to={change.to} />
           </li>
         ))}
       </ul>
@@ -133,16 +150,14 @@ function EntryEditedCard({ card }: { card: Extract<ReviewCard, { kind: 'entry-ed
 function EntryReorderedCard({ card }: { card: Extract<ReviewCard, { kind: 'entry-reordered' }> }) {
   return (
     <div className="space-y-3">
-      <span className="inline-flex text-xs font-medium px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">
-        Reorder
-      </span>
+      <Eyebrow>Reorder</Eyebrow>
       <p className="text-sm text-gray-500">
         {card.titles.length} entries repositioned. New order:
       </p>
-      <ol className="space-y-1">
+      <ol className="space-y-1.5 pl-1">
         {card.titles.map((t, i) => (
-          <li key={i} className="flex items-center gap-2 text-sm text-gray-700">
-            <span className="text-xs text-gray-400 w-5 text-right shrink-0">{i + 1}.</span>
+          <li key={i} className="flex items-baseline gap-2.5 text-sm text-gray-700">
+            <span className="text-[11px] text-gray-400 w-4 text-right shrink-0 tabular-nums">{i + 1}.</span>
             {t}
           </li>
         ))}
@@ -161,29 +176,12 @@ function CardContent({ card }: { card: ReviewCard }) {
   }
 }
 
-// ── Status badge ──────────────────────────────────────────────────────────────
-
-function StatusBadge({ status }: { status: 'pending' | 'rejected' }) {
-  if (status === 'rejected') {
-    return (
-      <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-red-100 text-red-700">
-        ✕ Rejected
-      </span>
-    )
-  }
-  return (
-    <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">
-      Pending
-    </span>
-  )
-}
-
-// ── Reject label helper ───────────────────────────────────────────────────────
+// ── Reject label helpers ──────────────────────────────────────────────────────
 
 function rejectLabel(kind: ChangeCard['kind']): string {
   if (kind === 'entry-removed')   return 'Restore entry'
   if (kind === 'entry-reordered') return 'Revert order'
-  return 'Reject'
+  return 'Skip'
 }
 
 function acceptLabel(kind: ChangeCard['kind']): string {
@@ -196,14 +194,12 @@ function acceptLabel(kind: ChangeCard['kind']): string {
 
 export function ReviewModal({
   open, title, cards, saving,
-  onAccept, onReject, onAcceptAll, onConfirmSave, onCancel,
+  onAccept, onReject, onAcceptAll, onConfirmSave, onAcceptAndSave, onCancel,
 }: ReviewModalProps) {
   const [index, setIndex] = useState(0)
 
-  // Reset index when modal opens
   useEffect(() => { if (open) setIndex(0) }, [open])
 
-  // Escape → cancel
   useEffect(() => {
     if (!open) return
     const handleKey = (e: KeyboardEvent) => { if (e.key === 'Escape' && !saving) onCancel() }
@@ -213,13 +209,13 @@ export function ReviewModal({
 
   if (!open) return null
 
-  const total = cards.length
-  const safeIndex = Math.min(index, Math.max(0, total - 1))
-  const card = cards[safeIndex]
-
+  const total        = cards.length
+  const safeIndex    = Math.min(index, Math.max(0, total - 1))
+  const card         = cards[safeIndex]
   const pendingCount  = cards.filter(c => c.status === 'pending').length
   const rejectedCount = cards.filter(c => c.status === 'rejected').length
   const allDecided    = total > 0 && pendingCount === 0
+  const isLastCard    = total > 0 && safeIndex === total - 1
 
   function handleAccept(id: string) {
     onAccept(id)
@@ -228,55 +224,105 @@ export function ReviewModal({
 
   function handleReject(id: string) {
     onReject(id)
-    // cards.length may shrink (for entry-removed / entry-reordered)
-    // index clamp in render handles that
     if (safeIndex < cards.length - 1) setIndex(safeIndex + 1)
   }
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/30"
       onClick={(e) => { if (e.target === e.currentTarget && !saving) onCancel() }}
     >
-      <div className="w-full max-w-md bg-white rounded-xl shadow-2xl overflow-hidden flex flex-col">
+      <div className="w-full max-w-md bg-white rounded-2xl shadow-xl overflow-hidden flex flex-col">
 
         {/* Header */}
-        <div className="px-6 pt-5 pb-3 border-b border-gray-100">
-          <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-0.5">{title}</p>
+        <div className="px-6 pt-5 pb-4">
+          <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-1">{title}</p>
           {total === 0 ? (
-            <p className="text-sm text-gray-500">No changes to review.</p>
+            <p className="text-sm text-gray-400">Nothing to review.</p>
           ) : (
             <p className="text-sm text-gray-500">
-              {pendingCount > 0
-                ? `${pendingCount} pending${rejectedCount > 0 ? ` · ${rejectedCount} rejected` : ''}`
-                : `${total - rejectedCount} accepted · ${rejectedCount} rejected`}
+              {allDecided
+                ? rejectedCount > 0
+                  ? `${total - rejectedCount} accepted · ${rejectedCount} skipped`
+                  : 'All changes accepted'
+                : `${safeIndex + 1} of ${total}${rejectedCount > 0 ? ` · ${rejectedCount} skipped` : ''}`}
             </p>
           )}
         </div>
 
+        {/* Progress bar */}
+        {total > 0 && (
+          <div className="mx-6 mb-4 h-1 bg-gray-100 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-gray-900 rounded-full transition-all duration-300"
+              style={{ width: `${((safeIndex + 1) / total) * 100}%` }}
+            />
+          </div>
+        )}
+
         {/* Card area */}
-        <div className="px-6 py-5 min-h-[220px]">
+        <div className="px-6 pb-5 min-h-[200px]">
           {total === 0 ? (
             <p className="text-sm text-gray-400 italic">Nothing has changed.</p>
           ) : card ? (
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <StatusBadge status={card.status} />
-                <span className="text-xs text-gray-400">{safeIndex + 1} of {total}</span>
-              </div>
+            <div className={card.status === 'rejected' ? 'opacity-50' : ''}>
               <CardContent card={card} />
+              {card.status === 'rejected' && (
+                <p className="mt-3 text-xs text-gray-400">This change will be skipped on save.</p>
+              )}
             </div>
           ) : null}
         </div>
 
+        {/* Per-card Accept / Skip row */}
+        {card && (
+          <div className="px-6 pb-4 flex items-center gap-2">
+            {card.status === 'pending' ? (
+              <>
+                {/* Skip — secondary outline */}
+                <button
+                  type="button"
+                  onClick={() => handleReject(card.id)}
+                  disabled={saving}
+                  className="flex-1 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-40 transition-colors"
+                >
+                  {rejectLabel(card.kind)}
+                </button>
+                {/* Accept (or Accept & save on last card) — primary solid */}
+                <button
+                  type="button"
+                  onClick={() => isLastCard ? onConfirmSave() : handleAccept(card.id)}
+                  disabled={saving}
+                  className="flex-1 py-2 text-sm font-medium text-white bg-gray-900 rounded-lg hover:bg-gray-700 disabled:opacity-40 transition-colors"
+                >
+                  {isLastCard ? acceptLabel(card.kind).replace('Accept', 'Accept & save') : acceptLabel(card.kind)}
+                </button>
+              </>
+            ) : (
+              card.kind !== 'entry-removed' && card.kind !== 'entry-reordered' ? (
+                <button
+                  type="button"
+                  onClick={() => isLastCard ? onAcceptAndSave(card.id) : handleAccept(card.id)}
+                  disabled={saving}
+                  className="flex-1 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-40 transition-colors"
+                >
+                  {isLastCard ? 'Undo skip & save' : 'Undo skip'}
+                </button>
+              ) : (
+                <p className="flex-1 text-sm text-gray-400 text-center">Change reverted</p>
+              )
+            )}
+          </div>
+        )}
+
         {/* Navigation */}
         {total > 1 && (
-          <div className="px-6 pb-3 flex items-center justify-between">
+          <div className="px-6 pb-4 flex items-center justify-between">
             <button
               type="button"
               onClick={() => setIndex(Math.max(0, safeIndex - 1))}
               disabled={safeIndex === 0 || saving}
-              className="px-3 py-1.5 text-xs font-medium text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-30 transition-colors"
+              className="text-xs text-gray-400 hover:text-gray-600 disabled:opacity-30 transition-colors"
             >
               ← Previous
             </button>
@@ -284,60 +330,20 @@ export function ReviewModal({
               type="button"
               onClick={() => setIndex(Math.min(total - 1, safeIndex + 1))}
               disabled={safeIndex >= total - 1 || saving}
-              className="px-3 py-1.5 text-xs font-medium text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-30 transition-colors"
+              className="text-xs text-gray-400 hover:text-gray-600 disabled:opacity-30 transition-colors"
             >
               Next →
             </button>
           </div>
         )}
 
-        {/* Accept / Reject for current card */}
-        {card && (
-          <div className="px-6 pb-4 flex items-center gap-2">
-            {card.status === 'pending' ? (
-              <>
-                <button
-                  type="button"
-                  onClick={() => handleReject(card.id)}
-                  disabled={saving}
-                  className="flex-1 py-2 text-sm font-medium text-red-700 bg-red-50 border border-red-200 rounded-md hover:bg-red-100 disabled:opacity-40 transition-colors"
-                >
-                  {rejectLabel(card.kind)}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleAccept(card.id)}
-                  disabled={saving}
-                  className="flex-1 py-2 text-sm font-medium text-green-700 bg-green-50 border border-green-200 rounded-md hover:bg-green-100 disabled:opacity-40 transition-colors"
-                >
-                  {acceptLabel(card.kind)}
-                </button>
-              </>
-            ) : (
-              /* Rejected card — show "Undo reject" for reversible types */
-              card.kind !== 'entry-removed' && card.kind !== 'entry-reordered' ? (
-                <button
-                  type="button"
-                  onClick={() => handleAccept(card.id)}
-                  disabled={saving}
-                  className="flex-1 py-2 text-sm font-medium text-gray-600 bg-gray-50 border border-gray-200 rounded-md hover:bg-gray-100 disabled:opacity-40 transition-colors"
-                >
-                  Undo reject
-                </button>
-              ) : (
-                <p className="flex-1 text-sm text-gray-400 text-center italic">Change reverted</p>
-              )
-            )}
-          </div>
-        )}
-
-        {/* Footer: Accept All / Confirm Save / Cancel */}
-        <div className="px-6 py-4 bg-gray-50 border-t border-gray-100 flex items-center justify-between gap-3">
+        {/* Footer */}
+        <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-between gap-3">
           <button
             type="button"
             onClick={onCancel}
             disabled={saving}
-            className="text-sm font-medium text-gray-500 hover:text-gray-700 disabled:opacity-40 transition-colors"
+            className="text-sm text-gray-400 hover:text-gray-600 disabled:opacity-40 transition-colors"
           >
             Cancel
           </button>
@@ -348,7 +354,7 @@ export function ReviewModal({
                 type="button"
                 onClick={onAcceptAll}
                 disabled={saving}
-                className="px-4 py-2 text-sm font-medium text-white bg-gray-900 rounded-md hover:bg-gray-700 disabled:opacity-40 transition-colors"
+                className="px-4 py-2 text-sm font-medium text-white bg-gray-900 rounded-lg hover:bg-gray-700 disabled:opacity-40 transition-colors"
               >
                 Accept all &amp; save
               </button>
@@ -358,12 +364,12 @@ export function ReviewModal({
                 type="button"
                 onClick={onConfirmSave}
                 disabled={saving}
-                className="px-4 py-2 text-sm font-medium text-white bg-gray-900 rounded-md hover:bg-gray-700 disabled:opacity-40 transition-colors"
+                className="px-4 py-2 text-sm font-medium text-white bg-gray-900 rounded-lg hover:bg-gray-700 disabled:opacity-40 transition-colors"
               >
                 {saving
                   ? 'Saving…'
                   : rejectedCount > 0
-                    ? `Save (${total - rejectedCount} of ${total})`
+                    ? `Save ${total - rejectedCount} of ${total}`
                     : 'Save'}
               </button>
             )}

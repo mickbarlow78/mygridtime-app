@@ -749,6 +749,38 @@ export function EventEditor({ event, days: initialDays, entries: initialEntries,
     setReviewMode(null)
   }
 
+  /**
+   * Called when the user accepts the final/only card while it was previously
+   * rejected (i.e. "Undo skip & save"). We must remove the card from the
+   * rejection set AND save in the same synchronous step — we cannot wait for
+   * React to flush the state update before reading it inside performXxxSave.
+   */
+  async function handleAcceptAndSave(cardId: string) {
+    const card = reviewCards.find((c) => c.id === cardId)
+    setReviewSaving(true)
+    setReviewOpen(false)
+
+    if (reviewMode === 'metadata') {
+      const newRejected = new Set(Array.from(rejectedMetaFields).filter((id) => id !== cardId))
+      setRejectedMetaFields(newRejected)
+      await performMetaSave(newRejected)
+    } else if (reviewMode === 'timetable') {
+      let newRejAdded  = rejectedAddedLocalIds
+      let newRejEdited = rejectedEditedIds
+      if (card?.kind === 'entry-added') {
+        newRejAdded = new Set(Array.from(rejectedAddedLocalIds).filter((id) => id !== cardId))
+        setRejectedAddedLocalIds(newRejAdded)
+      } else if (card?.kind === 'entry-edited') {
+        newRejEdited = new Set(Array.from(rejectedEditedIds).filter((id) => id !== cardId))
+        setRejectedEditedIds(newRejEdited)
+      }
+      await performTimetableSave(newRejAdded, newRejEdited)
+    }
+
+    setReviewSaving(false)
+    setReviewMode(null)
+  }
+
   function handleCancelReview() {
     setReviewOpen(false)
     // Keep reviewMode set — reviewCards remain reactive to changes
@@ -975,6 +1007,7 @@ export function EventEditor({ event, days: initialDays, entries: initialEntries,
         onReject={handleRejectCard}
         onAcceptAll={handleAcceptAll}
         onConfirmSave={handleConfirmSave}
+        onAcceptAndSave={handleAcceptAndSave}
         onCancel={handleCancelReview}
       />
 
