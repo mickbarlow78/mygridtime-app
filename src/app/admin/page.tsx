@@ -68,13 +68,6 @@ export default async function AdminDashboardPage({ searchParams }: PageProps) {
         </Link>
       </div>
 
-      {/* No org warning */}
-      {!membership && (
-        <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg text-sm text-yellow-800">
-          Your account is not linked to an organisation yet. Ask an administrator to add you via the Supabase dashboard.
-        </div>
-      )}
-
       {/* Status filter tabs */}
       <div className="flex gap-1 border-b border-gray-200 -mb-px">
         {STATUS_FILTERS.map((f) => (

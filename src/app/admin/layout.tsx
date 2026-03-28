@@ -5,12 +5,26 @@ import { signOut } from './actions'
 /**
  * Admin layout — Server Component.
  *
- * Auth guard: checks for a valid Supabase session on every render.
- * Unauthenticated users are redirected to /auth/login.
- * (Middleware also enforces this — this is a defence-in-depth check.)
+ * Two-layer guard:
  *
- * Renders a minimal persistent header with the user's email and a sign-out button.
+ * 1. Authentication — checks for a valid Supabase session.
+ *    Unauthenticated users are redirected to /auth/login.
+ *    (Middleware also enforces this as a first pass.)
+ *
+ * 2. Authorisation — checks that the authenticated user holds an allowed role
+ *    in org_members (owner | admin | editor).
+ *    Authenticated users who are not org members, or who hold the viewer role,
+ *    are shown an "Access denied" message. They are NOT redirected to login
+ *    because they are genuinely signed in — the issue is missing permissions.
+ *
+ * This single check covers every page inside /admin, so individual pages
+ * do not need to repeat the role check (the event editor page retains its
+ * own user check only as defence-in-depth).
  */
+
+/** Roles that are permitted to enter the admin area. */
+const ALLOWED_ROLES = ['owner', 'admin', 'editor'] as const
+
 export default async function AdminLayout({
   children,
 }: {
@@ -21,9 +35,21 @@ export default async function AdminLayout({
     data: { user },
   } = await supabase.auth.getUser()
 
+  // 1. Authentication
   if (!user) {
     redirect('/auth/login')
   }
+
+  // 2. Authorisation — must hold an allowed role in at least one org
+  const { data: membership } = await supabase
+    .from('org_members')
+    .select('org_id, role')
+    .eq('user_id', user.id)
+    .in('role', ALLOWED_ROLES)
+    .limit(1)
+    .maybeSingle()
+
+  const authorized = !!membership
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -49,8 +75,26 @@ export default async function AdminLayout({
         </div>
       </header>
 
-      {/* Page content */}
-      <main className="max-w-6xl mx-auto px-6 py-8">{children}</main>
+      <main className="max-w-6xl mx-auto px-6 py-8">
+        {authorized ? (
+          children
+        ) : (
+          /* Access denied — shown to authenticated users without an allowed role */
+          <div className="flex flex-col items-center justify-center py-24 text-center space-y-3">
+            <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center mb-2">
+              <svg className="w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
+              </svg>
+            </div>
+            <h1 className="text-base font-semibold text-gray-900">Access denied</h1>
+            <p className="text-sm text-gray-500 max-w-sm">
+              <span className="font-medium text-gray-700">{user.email}</span> does not
+              have permission to access the admin area. Contact your organisation
+              administrator to request access.
+            </p>
+          </div>
+        )}
+      </main>
     </div>
   )
 }
