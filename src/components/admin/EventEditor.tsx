@@ -645,8 +645,10 @@ export function EventEditor({ event, days: initialDays, entries: initialEntries,
     const result = await updateEventMetadata(event.id, payload)
     if (!result.success) { setMetaError(result.error); return false }
 
+    // Update savedMeta with the accepted values.
+    // Rejected fields retain their old savedMeta value, so they keep showing
+    // as 'rejected' in the editor. Do NOT clear rejectedMetaFields here.
     setSavedMeta(payload)
-    setRejectedMetaFields(new Set())  // clear rejections after save
     setMetaSuccess(true)
     setTimeout(() => setMetaSuccess(false), 3000)
     return true
@@ -700,22 +702,44 @@ export function EventEditor({ event, days: initialDays, entries: initialEntries,
     const result = await saveDayEntries(event.id, allEntries, deletedEntryIds)
     if (!result.success) { setTimetableError(result.error); return false }
 
-    // Assign server-generated IDs to new entries
+    // Assign server-generated IDs only to accepted new entries.
+    // Rejected new entries (id === null, in rejAddedLocalIds) are skipped in the
+    // payload so savedIds has no slot for them — do not increment idx for them.
     const savedIds = result.data.savedIds
-    let idx = 0
+    let newIdx = 0
     const updated: Record<string, EntryDraft[]> = {}
     for (const day of days) {
       updated[day.id] = (dayEntries[day.id] ?? []).map((e) => {
-        const serverId = savedIds[idx++]
-        return e.id === null && serverId ? { ...e, id: serverId } : e
+        if (e.id !== null) return e                          // existing entry
+        if (rejAddedLocalIds.has(e._localId)) return e      // rejected new — keep id: null
+        const serverId = savedIds[newIdx++]                  // accepted new — assign server id
+        return serverId ? { ...e, id: serverId } : e
+      })
+    }
+
+    // Build the new saved baseline to reflect only what the server actually stored:
+    // - accepted new entries: include with their server-assigned id
+    // - rejected new entries: exclude (server never saw them)
+    // - accepted edits: include with current values
+    // - rejected edits: include with OLD saved values (server still has those)
+    // - deleted entries: exclude (already removed server-side)
+    const newSavedDayEntries: Record<string, EntryDraft[]> = {}
+    for (const day of days) {
+      newSavedDayEntries[day.id] = (updated[day.id] ?? []).flatMap((e) => {
+        if (e.id === null) return []                         // rejected new — not saved
+        if (rejEditedIds.has(e.id)) {
+          const old = savedEntriesById[e.id]                 // rejected edit — keep old saved values
+          return old ? [old] : []
+        }
+        return [e]                                           // accepted (new or edit)
       })
     }
 
     setDayEntries(updated)
-    setSavedDayEntries(updated)
+    setSavedDayEntries(newSavedDayEntries)
     setDeletedEntryIds([])
-    setRejectedAddedLocalIds(new Set())
-    setRejectedEditedIds(new Set())
+    // Do NOT clear rejection sets — rejected changes must remain visible and
+    // highlighted in the editor until the user accepts or reverts them.
     setTimetableSuccess(true)
     setTimeout(() => setTimetableSuccess(false), 3000)
     return true
