@@ -36,6 +36,7 @@ import {
   timetableUpdatedText,
 } from './templates'
 import { formatDate } from '@/lib/utils/slug'
+import { getServerAppUrl } from '@/lib/utils/app-url'
 import type { createClient } from '@/lib/supabase/server'
 
 type SupabaseClient = Awaited<ReturnType<typeof createClient>>
@@ -71,13 +72,7 @@ export async function sendEventNotification(
       ? formatDate(event.start_date)
       : `${formatDate(event.start_date)} – ${formatDate(event.end_date)}`
 
-  // Resolution order: APP_URL (server-only) → NEXT_PUBLIC_APP_URL (Vercel/production)
-  // → NEXT_PUBLIC_SITE_URL (dev fallback already set in .env.local)
-  const appUrl =
-    process.env.APP_URL ??
-    process.env.NEXT_PUBLIC_APP_URL ??
-    process.env.NEXT_PUBLIC_SITE_URL ??
-    'https://mygridtime.com'
+  const appUrl = getServerAppUrl()
   const publicUrl = `${appUrl}/${event.slug}`
 
   const emailData = {

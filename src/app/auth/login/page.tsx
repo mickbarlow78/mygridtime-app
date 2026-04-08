@@ -1,6 +1,7 @@
 'use client'
 
 import { createClient } from '@/lib/supabase/client'
+import { getClientAppUrl } from '@/lib/utils/app-url'
 import { useEffect, useState } from 'react'
 
 export default function LoginPage() {
@@ -27,7 +28,7 @@ export default function LoginPage() {
     const { error: otpError } = await supabase.auth.signInWithOtp({
       email,
       options: {
-        emailRedirectTo: `${window.location.origin}/auth/callback`,
+        emailRedirectTo: `${getClientAppUrl()}/auth/callback`,
       },
     })
 
