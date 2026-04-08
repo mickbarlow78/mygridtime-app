@@ -316,6 +316,15 @@ export function EventEditor({ event, days: initialDays, entries: initialEntries,
     timezone: event.timezone, notes: event.notes ?? '',
   })
 
+  // notification_emails — admin-only config, not part of the review/diff flow.
+  // Stored as text[] in DB; displayed as comma-separated in the editor.
+  const [notificationEmails,      setNotificationEmails]      = useState(
+    (event.notification_emails ?? []).join(', ')
+  )
+  const [savedNotificationEmails, setSavedNotificationEmails] = useState(
+    (event.notification_emails ?? []).join(', ')
+  )
+
   const [metaError,   setMetaError]   = useState<string | null>(null)
   const [metaSuccess, setMetaSuccess] = useState(false)
 
@@ -443,7 +452,7 @@ export function EventEditor({ event, days: initialDays, entries: initialEntries,
   // Metadata save → open review
   // ---------------------------------------------------------------------------
 
-  function handleSaveMetadata(e: React.FormEvent) {
+  async function handleSaveMetadata(e: React.FormEvent) {
     e.preventDefault()
     if (!title.trim())          { setMetaError('Title is required.');                        return }
     if (!startDate || !endDate) { setMetaError('Start and end dates are required.');         return }
@@ -454,8 +463,8 @@ export function EventEditor({ event, days: initialDays, entries: initialEntries,
 
     const cards = computeMetaCards(savedMeta, currentMeta, rejectedMetaFields)
     if (cards.length === 0) {
-      setMetaSuccess(true)
-      setTimeout(() => setMetaSuccess(false), 3000)
+      // No reviewable field changes — save directly (covers notification_emails-only edits)
+      await performMetaSave(rejectedMetaFields)
       return
     }
 
@@ -635,20 +644,29 @@ export function EventEditor({ event, days: initialDays, entries: initialEntries,
       notes:      rejectedFields.has('notes')      ? savedMeta.notes      : notes,
     }
 
-    const hasChanges = META_FIELDS.some((k) => (payload[k] || null) !== (savedMeta[k] || null))
+    // notification_emails is not tracked in the review/reject flow — always
+    // use the current input value; check separately for changes.
+    const emailsChanged = notificationEmails !== savedNotificationEmails
+    const hasChanges =
+      META_FIELDS.some((k) => (payload[k] || null) !== (savedMeta[k] || null)) || emailsChanged
+
     if (!hasChanges) {
       setMetaSuccess(true)
       setTimeout(() => setMetaSuccess(false), 3000)
       return true
     }
 
-    const result = await updateEventMetadata(event.id, payload)
+    const result = await updateEventMetadata(event.id, {
+      ...payload,
+      notification_emails: notificationEmails,
+    })
     if (!result.success) { setMetaError(result.error); return false }
 
     // Update savedMeta with the accepted values.
     // Rejected fields retain their old savedMeta value, so they keep showing
     // as 'rejected' in the editor. Do NOT clear rejectedMetaFields here.
     setSavedMeta(payload)
+    setSavedNotificationEmails(notificationEmails)
     setMetaSuccess(true)
     setTimeout(() => setMetaSuccess(false), 3000)
     return true
@@ -969,6 +987,23 @@ export function EventEditor({ event, days: initialDays, entries: initialEntries,
               onChange={(e) => { setNotes(e.target.value); setRejectedMetaFields((p) => { const s = new Set(p); s.delete('notes'); return s }) }}
               className={metaInputClass('notes', notes) + ' resize-none'} />
             <p className="text-xs text-gray-400 mt-0.5">Internal — not shown publicly</p>
+          </div>
+
+          {/* Notification emails */}
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">
+              Notification emails
+            </label>
+            <input
+              type="text"
+              value={notificationEmails}
+              onChange={(e) => setNotificationEmails(e.target.value)}
+              placeholder="e.g. alice@example.com, bob@example.com"
+              className="w-full text-sm px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+            />
+            <p className="text-xs text-gray-400 mt-0.5">
+              Notified when this event is published or the timetable changes. Separate multiple addresses with commas.
+            </p>
           </div>
 
           {/* Save row */}

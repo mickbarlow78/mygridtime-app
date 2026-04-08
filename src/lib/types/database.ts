@@ -124,6 +124,7 @@ export type Database = {
           end_date: string
           notes: string | null
           branding: Json | null
+          notification_emails: string[]
           created_at: string
           updated_at: string
           deleted_at: string | null
@@ -141,6 +142,7 @@ export type Database = {
           end_date: string
           notes?: string | null
           branding?: Json | null
+          notification_emails?: string[]
           created_at?: string
           updated_at?: string
           deleted_at?: string | null
@@ -158,6 +160,7 @@ export type Database = {
           end_date?: string
           notes?: string | null
           branding?: Json | null
+          notification_emails?: string[]
           created_at?: string
           updated_at?: string
           deleted_at?: string | null
@@ -295,6 +298,7 @@ export type Database = {
           type: string
           recipient_email: string
           status: 'queued' | 'sent' | 'failed'
+          error: string | null
           sent_at: string | null
           created_at: string
         }
@@ -304,6 +308,7 @@ export type Database = {
           type: string
           recipient_email: string
           status: 'queued' | 'sent' | 'failed'
+          error?: string | null
           sent_at?: string | null
           created_at?: string
         }
@@ -313,6 +318,7 @@ export type Database = {
           type?: string
           recipient_email?: string
           status?: 'queued' | 'sent' | 'failed'
+          error?: string | null
           sent_at?: string | null
           created_at?: string
         }

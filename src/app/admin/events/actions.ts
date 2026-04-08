@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { slugify, getDatesInRange } from '@/lib/utils/slug'
 import { redirect } from 'next/navigation'
 import type { EventStatus, Json } from '@/lib/types/database'
+import { sendEventNotification } from '@/lib/resend/notifications'
 
 // ---------------------------------------------------------------------------
 // Internal helpers
@@ -154,6 +155,26 @@ export interface UpdateEventMetadataInput {
   end_date: string
   timezone: string
   notes: string
+  /** Comma-separated email addresses; parsed and validated server-side. */
+  notification_emails: string
+}
+
+/**
+ * Parses a comma-separated email string into a normalised, deduplicated
+ * array of valid addresses.  Invalid entries are silently dropped.
+ */
+function parseEmails(raw: string): string[] {
+  const seen = new Set<string>()
+  return raw
+    .split(/[,\n]+/)
+    .map((e) => e.trim().toLowerCase())
+    .filter((e) => {
+      if (!e || seen.has(e)) return false
+      // Basic structural validation — not exhaustive, but catches typos
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)) return false
+      seen.add(e)
+      return true
+    })
 }
 
 export async function updateEventMetadata(
@@ -162,6 +183,8 @@ export async function updateEventMetadata(
 ): Promise<ActionResult> {
   const { supabase, user, membership } = await requireEditor()
   if (!membership) return { success: false, error: 'You do not have permission to perform this action.' }
+
+  const parsedEmails = parseEmails(input.notification_emails)
 
   // Fetch current values so we can diff what actually changed
   const { data: current } = await supabase
@@ -179,6 +202,7 @@ export async function updateEventMetadata(
       end_date: input.end_date,
       timezone: input.timezone || 'Europe/London',
       notes: input.notes.trim() || null,
+      notification_emails: parsedEmails,
     })
     .eq('id', eventId)
 
@@ -226,6 +250,10 @@ export async function publishEvent(eventId: string): Promise<ActionResult> {
   if (error) return { success: false, error: error.message }
 
   await writeAuditLog(supabase, user.id, eventId, 'event.published')
+
+  // Send publish notification — fire-and-forget; failures are logged, not thrown
+  await sendEventNotification(supabase, eventId, 'event.published')
+
   return { success: true, data: undefined }
 }
 
@@ -630,8 +658,26 @@ export async function saveDayEntries(
   if (changed.length > 0)  detail.changed  = changed
   if (reordered.length > 0) detail.reordered = reordered
 
-  if (Object.keys(detail).length > 0) {
+  const hasSubstantiveChanges = Object.keys(detail).length > 0
+
+  if (hasSubstantiveChanges) {
     await writeAuditLog(supabase, user.id, eventId, 'timetable.updated', detail)
+  }
+
+  // Send timetable update notification only when:
+  //   1. There were substantive changes (not a no-op save)
+  //   2. The event is currently published (draft saves are silent)
+  if (hasSubstantiveChanges) {
+    const { data: eventRow } = await supabase
+      .from('events')
+      .select('status')
+      .eq('id', eventId)
+      .maybeSingle()
+
+    if (eventRow?.status === 'published') {
+      // Fire-and-forget — failures are logged, not thrown
+      await sendEventNotification(supabase, eventId, 'timetable.updated')
+    }
   }
 
   return { success: true, data: { savedIds } }
