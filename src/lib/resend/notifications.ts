@@ -7,7 +7,7 @@
  * SEND RULES
  * ──────────
  * event.published  — sends when publishEvent() succeeds on a published event.
- *                    Short 5-minute debounce prevents duplicate sends on
+ *                    10-minute debounce prevents duplicate sends on
  *                    accidental double-clicks or re-triggers.
  *
  * timetable.updated — sends when saveDayEntries() saves substantive changes
@@ -71,7 +71,13 @@ export async function sendEventNotification(
       ? formatDate(event.start_date)
       : `${formatDate(event.start_date)} – ${formatDate(event.end_date)}`
 
-  const appUrl = process.env.APP_URL ?? 'https://mygridtime.com'
+  // Resolution order: APP_URL (server-only) → NEXT_PUBLIC_APP_URL (Vercel/production)
+  // → NEXT_PUBLIC_SITE_URL (dev fallback already set in .env.local)
+  const appUrl =
+    process.env.APP_URL ??
+    process.env.NEXT_PUBLIC_APP_URL ??
+    process.env.NEXT_PUBLIC_SITE_URL ??
+    'https://mygridtime.com'
   const publicUrl = `${appUrl}/${event.slug}`
 
   const emailData = {
