@@ -665,7 +665,8 @@ export async function saveDayEntries(
     await writeAuditLog(supabase, user.id, eventId, 'timetable.updated', detail)
   }
 
-  console.log('[saveDayEntries] hasSubstantiveChanges:', hasSubstantiveChanges, '| notify:', notify)
+  console.log('[saveDayEntries] hasSubstantiveChanges:', hasSubstantiveChanges)
+  console.log('[saveDayEntries] notify:', notify)
   // Send timetable update notification only when:
   //   1. The caller explicitly requested notification
   //   2. There were substantive changes (not a no-op save)
@@ -677,6 +678,7 @@ export async function saveDayEntries(
       .eq('id', eventId)
       .maybeSingle()
 
+    console.log('[saveDayEntries] event status:', eventRow?.status)
     if (eventRow?.status === 'published') {
       console.log('[saveDayEntries] CALLING sendEventNotification')
       // Fire-and-forget — failures are logged, not thrown
