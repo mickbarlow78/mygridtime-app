@@ -113,8 +113,13 @@ export async function GET(request: NextRequest) {
     }
   }
 
+  // Use NEXT_PUBLIC_APP_URL as the redirect base when set so the final URL is
+  // always on the canonical domain, not a Netlify preview host. Falls back to
+  // origin (the domain this callback was served from) when the var is absent.
+  const appOrigin = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, '') ?? origin
+
   // Build the success redirect and write all collected session cookies onto it.
-  const successResponse = NextResponse.redirect(new URL(destination, origin))
+  const successResponse = NextResponse.redirect(new URL(destination, appOrigin))
   pendingCookies.forEach(({ name, value, options }) => {
     successResponse.cookies.set(name, value, options)
   })

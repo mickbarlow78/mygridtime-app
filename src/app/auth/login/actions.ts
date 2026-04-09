@@ -7,16 +7,19 @@ import { createClient } from '@/lib/supabase/server'
  * Send a magic-link sign-in email via a Server Action.
  *
  * WHY a Server Action instead of calling signInWithOtp() from the client:
- *   The emailRedirectTo URL must match exactly what is in Supabase's redirect
- *   URL allowlist. Any env-var-based approach (NEXT_PUBLIC_APP_URL, etc.) risks
- *   resolving to the wrong value — e.g. the Netlify deploy subdomain instead of
- *   the custom domain — causing Supabase to silently reject the redirect and
- *   fall back to the Site URL root, which lands the user on /?code= instead of
- *   /auth/callback?code=.
+ *   The emailRedirectTo URL must match what is in Supabase's redirect allowlist.
+ *   Building this on the server gives us access to both the canonical app URL
+ *   (NEXT_PUBLIC_APP_URL) and the request Host header as a reliable fallback.
  *
- *   Reading the Host header server-side always gives the domain the browser
- *   actually sent the request to, so the redirect URL is always correct and
- *   always in the allowlist.
+ * Domain strategy:
+ *   1. NEXT_PUBLIC_APP_URL is set (production) → use it. This is the canonical
+ *      domain, always in the Supabase allowlist. Using the Host header on preview
+ *      deploys produces a URL Supabase doesn't recognise; it silently falls back
+ *      to its Site URL root and appends ?code= there, so the callback is never
+ *      reached and the code is never exchanged.
+ *   2. NEXT_PUBLIC_APP_URL is not set (local dev, preview deploys) → derive from
+ *      the Host header as before. Supabase allowlist must include these origins
+ *      (e.g. http://localhost:3000/** or a wildcard for preview URLs).
  *
  * PKCE flow:
  *   Calling signInWithOtp on the server client stores the PKCE code verifier
@@ -27,19 +30,19 @@ import { createClient } from '@/lib/supabase/server'
 export async function sendMagicLink(email: string, next?: string): Promise<{ error: string | null }> {
   const headersList = headers()
 
-  // host is always the domain the browser sent the request to:
-  //   localhost:3000 in local dev
-  //   app.mygridtime.com in production
-  //   <branch>.mygridtime-app.netlify.app on preview deploys
-  const host = headersList.get('host') ?? 'localhost:3000'
+  // Priority 1: canonical app URL (production). Strip any trailing slash.
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, '')
 
-  // Localhost never has TLS; everything else does.
+  // Priority 2: host-derived URL (local dev / preview without APP_URL).
+  const host = headersList.get('host') ?? 'localhost:3000'
   const proto =
     host.startsWith('localhost') || host.startsWith('127.')
       ? 'http'
       : 'https'
 
-  const emailRedirectTo = `${proto}://${host}/auth/callback`
+  const emailRedirectTo = appUrl
+    ? `${appUrl}/auth/callback`
+    : `${proto}://${host}/auth/callback`
 
   const supabase = createClient()
   const { error } = await supabase.auth.signInWithOtp({

@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { getActiveOrg } from '@/lib/utils/active-org'
+import { listOrgMembers, listOrgInvites } from '@/app/admin/orgs/actions'
 import { OrgNameForm } from './OrgNameForm'
 import { MemberManager } from '@/components/admin/MemberManager'
 
@@ -32,6 +33,15 @@ export default async function OrgSettingsPage() {
     .single()
 
   if (!org) redirect('/admin')
+
+  // Fetch members and invites server-side so MemberManager can hydrate
+  // immediately without a blank-then-populate flash on first paint.
+  const [membersResult, invitesResult] = await Promise.all([
+    listOrgMembers(org.id),
+    listOrgInvites(org.id),
+  ])
+  const initialMembers = membersResult.success ? membersResult.data : []
+  const initialInvites = invitesResult.success ? invitesResult.data : []
 
   return (
     <div className="max-w-2xl space-y-8">
@@ -67,7 +77,11 @@ export default async function OrgSettingsPage() {
       {/* Members + Invites */}
       <section>
         <h2 className="text-base font-semibold text-gray-900 mb-4">Members &amp; invites</h2>
-        <MemberManager orgId={org.id} />
+        <MemberManager
+          orgId={org.id}
+          initialMembers={initialMembers}
+          initialInvites={initialInvites}
+        />
       </section>
     </div>
   )

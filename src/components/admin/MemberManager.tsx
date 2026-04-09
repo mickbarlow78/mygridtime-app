@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useTransition } from 'react'
+import { useState, useEffect, useRef, useTransition } from 'react'
 import {
   listOrgMembers,
   listOrgInvites,
@@ -12,6 +12,8 @@ import {
 
 interface MemberManagerProps {
   orgId: string
+  initialMembers: Member[]
+  initialInvites: Invite[]
 }
 
 type Member = {
@@ -32,9 +34,11 @@ type Invite = {
 const ROLES = ['owner', 'admin', 'editor', 'viewer'] as const
 const INVITE_ROLES = ['admin', 'editor', 'viewer'] as const
 
-export function MemberManager({ orgId }: MemberManagerProps) {
-  const [members, setMembers] = useState<Member[]>([])
-  const [invites, setInvites] = useState<Invite[]>([])
+export function MemberManager({ orgId, initialMembers, initialInvites }: MemberManagerProps) {
+  // Initialise from server-fetched props so the list is visible immediately
+  // on first paint. No empty state flash while the first async load completes.
+  const [members, setMembers] = useState<Member[]>(initialMembers)
+  const [invites, setInvites] = useState<Invite[]>(initialInvites)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
@@ -43,7 +47,14 @@ export function MemberManager({ orgId }: MemberManagerProps) {
   const [inviteEmail, setInviteEmail] = useState('')
   const [inviteRole, setInviteRole] = useState<'admin' | 'editor' | 'viewer'>('editor')
 
+  // Skip the first-mount effect — data is fresh from the server.
+  // Re-fetch only when orgId changes (org-switching).
+  const isMounted = useRef(false)
   useEffect(() => {
+    if (!isMounted.current) {
+      isMounted.current = true
+      return
+    }
     loadData()
   }, [orgId])
 
