@@ -325,6 +325,49 @@ export type Database = {
         Relationships: []
       }
 
+      templates: {
+        Row: {
+          id: string
+          org_id: string
+          name: string
+          data: Json
+          created_by: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          org_id: string
+          name: string
+          data: Json
+          created_by?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          org_id?: string
+          name?: string
+          data?: Json
+          created_by?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "templates_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "templates_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+
       timetable_snapshots: {
         Row: {
           id: string
@@ -396,6 +439,7 @@ export type TimetableEntry = Database['public']['Tables']['timetable_entries']['
 export type AuditLog       = Database['public']['Tables']['audit_log']['Row']
 export type NotificationLog = Database['public']['Tables']['notification_log']['Row']
 export type TimetableSnapshot = Database['public']['Tables']['timetable_snapshots']['Row']
+export type Template       = Database['public']['Tables']['templates']['Row']
 
 export type EventStatus         = Event['status']
 export type OrgMemberRole       = OrgMember['role']

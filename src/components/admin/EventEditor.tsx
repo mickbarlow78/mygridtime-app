@@ -22,6 +22,7 @@ import type { EntryDraft, EntryValidationError, EntryChangeInfo } from './EntryR
 import type { Event, EventDay, TimetableEntry, AuditLog } from '@/lib/types/database'
 import type { VersionSummary } from '@/app/admin/events/actions'
 import { VersionHistory } from './VersionHistory'
+import { saveAsTemplate } from '@/app/admin/templates/actions'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -362,13 +363,15 @@ export function EventEditor({ event, days: initialDays, entries: initialEntries,
   const [notifyOnSave, setNotifyOnSave] = useState(false)
 
   // ── Dialog state ─────────────────────────────────────────────────────────
-  type DialogKind = 'publish' | 'unpublish' | 'archive' | 'duplicate'
+  type DialogKind = 'publish' | 'unpublish' | 'archive' | 'duplicate' | 'saveTemplate'
   const [dialog,        setDialog]        = useState<DialogKind | null>(null)
   const [dialogPending, setDialogPending] = useState(false)
   const [dialogError,   setDialogError]   = useState<string | null>(null)
   const [dupTitle,      setDupTitle]      = useState(event.title + ' (copy)')
   const [dupStartDate,  setDupStartDate]  = useState(event.start_date)
   const [dupEndDate,    setDupEndDate]    = useState(event.end_date)
+  const [templateName,  setTemplateName]  = useState(event.title + ' Template')
+  const [templateSuccess, setTemplateSuccess] = useState(false)
 
   // ── Derived: current meta as SavedMeta ───────────────────────────────────
   const currentMeta = useMemo((): SavedMeta => ({
@@ -901,6 +904,7 @@ export function EventEditor({ event, days: initialDays, entries: initialEntries,
     unpublish: { title: 'Unpublish this event?',  description: 'Public access will be removed. You can republish at any time.', label: 'Unpublish', destructive: true },
     archive:   { title: 'Archive this event?',    description: 'The event will be hidden from your dashboard.', label: 'Archive', destructive: true },
     duplicate: { title: 'Duplicate this event',   description: 'Creates a full copy of the event and all its timetable entries in draft status.', label: 'Duplicate' },
+    saveTemplate: { title: 'Save as Template', description: 'Save the current timetable structure as a reusable template.', label: 'Save Template' },
   }
 
   // ---------------------------------------------------------------------------
@@ -940,6 +944,11 @@ export function EventEditor({ event, days: initialDays, entries: initialEntries,
               onClick={() => { setDialog('duplicate'); setDialogError(null); setDupTitle(title + ' (copy)'); setDupStartDate(startDate); setDupEndDate(endDate) }}
               className="px-3 py-1.5 text-xs font-medium bg-white text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors">
               Duplicate
+            </button>
+            <button type="button"
+              onClick={() => { setDialog('saveTemplate'); setDialogError(null); setTemplateName(title + ' Template'); setTemplateSuccess(false) }}
+              className="px-3 py-1.5 text-xs font-medium bg-white text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors">
+              Save as Template
             </button>
           </div>
         </div>
@@ -1142,6 +1151,43 @@ export function EventEditor({ event, days: initialDays, entries: initialEntries,
           {dialogError && <p className="text-sm text-red-600">{dialogError}</p>}
         </div>
       </ConfirmDialog>
+
+      <ConfirmDialog
+        open={dialog === 'saveTemplate'}
+        title="Save as Template"
+        description="Save the current timetable structure as a reusable template."
+        confirmLabel={dialogPending ? 'Saving…' : 'Save Template'}
+        onConfirm={async () => {
+          if (!templateName.trim()) { setDialogError('Template name is required.'); return }
+          setDialogPending(true)
+          setDialogError(null)
+          const result = await saveAsTemplate(event.id, templateName)
+          setDialogPending(false)
+          if (result.success) {
+            setDialog(null)
+            setTemplateSuccess(true)
+            setTimeout(() => setTemplateSuccess(false), 3000)
+          } else {
+            setDialogError(result.error)
+          }
+        }}
+        onCancel={() => setDialog(null)}
+      >
+        <div className="space-y-2">
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Template name *</label>
+            <input type="text" value={templateName} onChange={(e) => setTemplateName(e.target.value)}
+              className="w-full text-sm px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-gray-400" />
+          </div>
+          {dialogError && <p className="text-sm text-red-600">{dialogError}</p>}
+        </div>
+      </ConfirmDialog>
+
+      {templateSuccess && (
+        <div className="fixed bottom-6 right-6 z-50 bg-gray-900 text-white text-sm px-4 py-2.5 rounded-lg shadow-lg">
+          Template saved successfully.
+        </div>
+      )}
 
     </div>
   )

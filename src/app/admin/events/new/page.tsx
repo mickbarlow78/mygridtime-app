@@ -1,9 +1,12 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createEvent } from '../actions'
+import { listTemplates, createEventFromTemplate } from '@/app/admin/templates/actions'
+import type { TemplateSummary } from '@/app/admin/templates/actions'
+import { TemplatePicker } from '@/components/admin/TemplatePicker'
 
 export default function NewEventPage() {
   const router = useRouter()
@@ -18,6 +21,19 @@ export default function NewEventPage() {
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  // ── Template state ──────────────────────────────────────────────────────
+  const [mode, setMode] = useState<'blank' | 'template'>('blank')
+  const [templates, setTemplates] = useState<TemplateSummary[]>([])
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null)
+  const [templatesLoaded, setTemplatesLoaded] = useState(false)
+
+  useEffect(() => {
+    listTemplates().then((result) => {
+      if (result.success) setTemplates(result.data)
+      setTemplatesLoaded(true)
+    })
+  }, [])
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError(null)
@@ -26,6 +42,20 @@ export default function NewEventPage() {
     if (!startDate)     { setError('Start date is required.'); return }
     if (!endDate)       { setError('End date is required.'); return }
     if (endDate < startDate) { setError('End date must be on or after start date.'); return }
+
+    if (mode === 'template' && selectedTemplateId) {
+      setSubmitting(true)
+      const result = await createEventFromTemplate(selectedTemplateId, {
+        title, venue, start_date: startDate, end_date: endDate, timezone, notes,
+      })
+      if (!result.success) {
+        setError(result.error)
+        setSubmitting(false)
+        return
+      }
+      router.push(`/admin/events/${result.data.id}`)
+      return
+    }
 
     setSubmitting(true)
     const result = await createEvent({ title, venue, start_date: startDate, end_date: endDate, timezone, notes })
@@ -36,6 +66,8 @@ export default function NewEventPage() {
     }
     router.push(`/admin/events/${result.data.id}`)
   }
+
+  const hasTemplates = templatesLoaded && templates.length > 0
 
   return (
     <div className="max-w-2xl space-y-6">
@@ -52,6 +84,48 @@ export default function NewEventPage() {
           Days will be automatically created from your date range. You can add or remove days in the editor.
         </p>
       </div>
+
+      {/* Mode toggle — only shown when templates exist */}
+      {hasTemplates && (
+        <div className="flex gap-1 border-b border-gray-200 -mb-px">
+          <button
+            type="button"
+            onClick={() => { setMode('blank'); setSelectedTemplateId(null) }}
+            className={[
+              'px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors',
+              mode === 'blank'
+                ? 'border-gray-900 text-gray-900'
+                : 'border-transparent text-gray-500 hover:text-gray-700',
+            ].join(' ')}
+          >
+            Start blank
+          </button>
+          <button
+            type="button"
+            onClick={() => setMode('template')}
+            className={[
+              'px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors',
+              mode === 'template'
+                ? 'border-gray-900 text-gray-900'
+                : 'border-transparent text-gray-500 hover:text-gray-700',
+            ].join(' ')}
+          >
+            Use template
+          </button>
+        </div>
+      )}
+
+      {/* Template picker */}
+      {mode === 'template' && hasTemplates && (
+        <div className="bg-white rounded-lg border border-gray-200 px-6 py-4">
+          <p className="text-sm font-medium text-gray-700 mb-3">Select a template</p>
+          <TemplatePicker
+            templates={templates}
+            selectedId={selectedTemplateId}
+            onSelect={setSelectedTemplateId}
+          />
+        </div>
+      )}
 
       <form onSubmit={handleSubmit} className="bg-white rounded-lg border border-gray-200 px-6 py-5 space-y-4">
         {/* Title */}
@@ -169,10 +243,10 @@ export default function NewEventPage() {
         <div className="flex items-center gap-3 pt-1">
           <button
             type="submit"
-            disabled={submitting}
+            disabled={submitting || (mode === 'template' && !selectedTemplateId)}
             className="px-5 py-2 bg-gray-900 text-white text-sm font-medium rounded-md hover:bg-gray-700 disabled:opacity-40 transition-colors"
           >
-            {submitting ? 'Creating…' : 'Create event'}
+            {submitting ? 'Creating…' : mode === 'template' ? 'Create from template' : 'Create event'}
           </button>
           <Link
             href="/admin"
