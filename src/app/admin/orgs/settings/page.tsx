@@ -1,12 +1,10 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
-import { headers } from 'next/headers'
 import Link from 'next/link'
 import { getActiveOrg } from '@/lib/utils/active-org'
 import { listOrgMembers, listOrgInvites } from '@/app/admin/orgs/actions'
 import { OrgNameForm } from './OrgNameForm'
 import { BrandingForm } from '@/components/admin/BrandingForm'
-import { SlugField } from '@/components/admin/SlugField'
 import { MemberManager } from '@/components/admin/MemberManager'
 import type { OrgBranding } from '@/lib/types/database'
 
@@ -37,14 +35,6 @@ export default async function OrgSettingsPage() {
     .single()
 
   if (!org) redirect('/admin')
-
-  // Resolve canonical public base URL for the slug display
-  const h = headers()
-  const host = h.get('host') ?? 'localhost:3000'
-  const proto = h.get('x-forwarded-proto') ?? 'https'
-  const appBaseUrl =
-    (process.env.NEXT_PUBLIC_APP_URL ?? '').replace(/\/$/, '') ||
-    `${proto}://${host}`
 
   // Fetch members and invites server-side so MemberManager can hydrate
   // immediately without a blank-then-populate flash on first paint.
@@ -77,10 +67,16 @@ export default async function OrgSettingsPage() {
         <OrgNameForm orgId={org.id} currentName={org.name} />
       </section>
 
-      {/* Public URL (read-only) */}
+      {/* Slug (read-only) */}
       <section>
-        <h2 className="text-sm font-semibold text-gray-900 mb-3">Public URL</h2>
-        <SlugField publicUrl={`${appBaseUrl}/${org.slug}`} />
+        <h2 className="text-sm font-semibold text-gray-900 mb-3">Slug</h2>
+        <div className="bg-white rounded-lg border border-gray-200 px-4 py-3">
+          <p className="text-sm font-mono text-gray-600">{org.slug}</p>
+          <p className="text-xs text-gray-400 mt-1">
+            The slug cannot be changed after creation. Public URLs are per-event,
+            not per-organisation.
+          </p>
+        </div>
       </section>
 
       {/* Branding */}
