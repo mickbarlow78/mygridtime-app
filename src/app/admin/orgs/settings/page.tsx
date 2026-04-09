@@ -7,7 +7,7 @@ import { OrgNameForm } from './OrgNameForm'
 import { BrandingForm } from '@/components/admin/BrandingForm'
 import { MemberManager } from '@/components/admin/MemberManager'
 import type { OrgBranding } from '@/lib/types/database'
-import { CONTAINER_FORM, BREADCRUMB, BREADCRUMB_LINK, BREADCRUMB_SEP, BREADCRUMB_CURRENT, H1, SUBTITLE, H2, CARD, HELP_TEXT } from '@/lib/styles'
+import { CONTAINER_FORM, BREADCRUMB, BREADCRUMB_LINK, BREADCRUMB_SEP, BREADCRUMB_CURRENT, H1, SUBTITLE, H2, CARD, CARD_PADDING_COMPACT, HELP_TEXT } from '@/lib/styles'
 
 /**
  * Org settings page — server component.
@@ -71,7 +71,7 @@ export default async function OrgSettingsPage() {
       {/* Slug (read-only) */}
       <section>
         <h2 className={`${H2} mb-3`}>Slug</h2>
-        <div className={`${CARD} px-4 py-3`}>
+        <div className={`${CARD} ${CARD_PADDING_COMPACT}`}>
           <p className="text-sm font-mono text-gray-600">{org.slug}</p>
           <p className={HELP_TEXT}>
             The slug cannot be changed after creation. Public URLs are per-event,

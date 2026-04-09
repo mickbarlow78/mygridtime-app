@@ -8,7 +8,7 @@ import { AuditLogView } from './AuditLogView'
 import { StatusBadge } from '@/components/ui/StatusBadge'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { ReviewModal, type ReviewCard, type ChangeCard } from '@/components/ui/ReviewModal'
-import { cn, CARD, H2, BTN_PRIMARY, BTN_PRIMARY_SM, BTN_SECONDARY_SM } from '@/lib/styles'
+import { cn, CARD, CARD_PADDING, H2, HELP_TEXT, INPUT, LABEL_COMPACT, BTN_PRIMARY, BTN_PRIMARY_SM, BTN_SECONDARY_SM } from '@/lib/styles'
 import {
   updateEventMetadata,
   publishEvent,
@@ -975,7 +975,7 @@ export function EventEditor({ event, days: initialDays, entries: initialEntries,
           </div>
         </div>
 
-        <form onSubmit={handleSaveMetadata} className="px-6 py-5 space-y-4">
+        <form onSubmit={handleSaveMetadata} className={`${CARD_PADDING} space-y-4`}>
           {/* Title */}
           <div>
             <MetaFieldLabel label="Title *" field="title" current={title} />
@@ -1026,12 +1026,12 @@ export function EventEditor({ event, days: initialDays, entries: initialEntries,
             <textarea value={notes} rows={2} placeholder="Organiser notes…"
               onChange={(e) => { setNotes(e.target.value); setRejectedMetaFields((p) => { const s = new Set(p); s.delete('notes'); return s }) }}
               className={metaInputClass('notes', notes) + ' resize-none'} />
-            <p className="text-xs text-gray-400 mt-0.5">Internal — not shown publicly</p>
+            <p className={HELP_TEXT}>Internal — not shown publicly</p>
           </div>
 
           {/* Notification emails */}
           <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">
+            <label className={LABEL_COMPACT}>
               Notification emails
             </label>
             <input
@@ -1039,9 +1039,9 @@ export function EventEditor({ event, days: initialDays, entries: initialEntries,
               value={notificationEmails}
               onChange={(e) => setNotificationEmails(e.target.value)}
               placeholder="e.g. alice@example.com, bob@example.com"
-              className="w-full text-sm px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+              className={INPUT}
             />
-            <p className="text-xs text-gray-400 mt-0.5">
+            <p className={HELP_TEXT}>
               Notified when this event is published or the timetable changes. Separate multiple addresses with commas.
             </p>
           </div>
@@ -1049,7 +1049,7 @@ export function EventEditor({ event, days: initialDays, entries: initialEntries,
           {/* Public URL — read-only, shown whenever slug exists */}
           {event.slug && (
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">
+              <label className={LABEL_COMPACT}>
                 Public URL
               </label>
               <div className="flex items-center gap-2">
@@ -1068,7 +1068,7 @@ export function EventEditor({ event, days: initialDays, entries: initialEntries,
                 </button>
               </div>
               {status !== 'published' && (
-                <p className="text-xs text-gray-400 mt-0.5">
+                <p className={HELP_TEXT}>
                   Not published — this URL will return a 404 until the event is published.
                 </p>
               )}
@@ -1091,7 +1091,7 @@ export function EventEditor({ event, days: initialDays, entries: initialEntries,
       <section id="timetable-section" className={`${CARD} overflow-hidden`}>
         <div className="px-6 py-4 border-b border-gray-100">
           <h2 className={H2}>Timetable</h2>
-          <p className="text-xs text-gray-400 mt-0.5">
+          <p className={HELP_TEXT}>
             Add entries for each day. Drag rows to reorder. Save when done.
           </p>
         </div>
@@ -1102,7 +1102,7 @@ export function EventEditor({ event, days: initialDays, entries: initialEntries,
           </div>
         )}
 
-        <div className="px-6 py-5">
+        <div className={CARD_PADDING}>
           <TimetableBuilder
             eventId={event.id}
             days={days}

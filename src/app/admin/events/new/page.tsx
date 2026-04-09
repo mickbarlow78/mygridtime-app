@@ -7,7 +7,7 @@ import { createEvent } from '../actions'
 import { listTemplates, createEventFromTemplate } from '@/app/admin/templates/actions'
 import type { TemplateSummary } from '@/app/admin/templates/actions'
 import { TemplatePicker } from '@/components/admin/TemplatePicker'
-import { cn, CONTAINER_FORM, BREADCRUMB, BREADCRUMB_LINK, BREADCRUMB_SEP, BREADCRUMB_CURRENT, H1, SUBTITLE, CARD, CARD_PADDING, LABEL, INPUT, HELP_TEXT, BTN_PRIMARY, BTN_GHOST, ERROR_BANNER, TAB_BAR, TAB_ACTIVE, TAB_INACTIVE } from '@/lib/styles'
+import { cn, CONTAINER_FORM, BREADCRUMB, BREADCRUMB_LINK, BREADCRUMB_SEP, BREADCRUMB_CURRENT, H1, SUBTITLE, CARD, CARD_PADDING, CARD_PADDING_COMPACT, LABEL, INPUT, HELP_TEXT, BTN_PRIMARY, BTN_GHOST, ERROR_BANNER, TAB_BAR, TAB_ACTIVE, TAB_INACTIVE } from '@/lib/styles'
 
 export default function NewEventPage() {
   const router = useRouter()
@@ -108,7 +108,7 @@ export default function NewEventPage() {
 
       {/* Template picker */}
       {mode === 'template' && hasTemplates && (
-        <div className={`${CARD} px-6 py-4`}>
+        <div className={`${CARD} ${CARD_PADDING_COMPACT}`}>
           <p className="text-sm font-medium text-gray-700 mb-3">Select a template</p>
           <TemplatePicker
             templates={templates}

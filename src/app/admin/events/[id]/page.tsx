@@ -111,7 +111,7 @@ export default async function EventEditorPage({ params }: PageProps) {
   })
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       {/* Breadcrumb */}
       <div className={BREADCRUMB}>
         <Link href="/admin" className={BREADCRUMB_LINK}>
