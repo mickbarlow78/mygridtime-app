@@ -53,6 +53,7 @@ export async function sendEventNotification(
   eventId: string,
   type: NotificationType
 ): Promise<void> {
+  console.log('[sendEventNotification] ENTER type:', type, '| eventId:', eventId)
   // ── 1. Fetch event (slug, title, venue, dates, recipients) ───────────────
   const { data: event } = await supabase
     .from('events')
@@ -117,6 +118,7 @@ export async function sendEventNotification(
       .limit(1)
       .maybeSingle()
 
+    console.log('[sendEventNotification] debounce check for', to, '| recent:', !!recent)
     if (recent) continue  // within debounce window for this recipient — skip
 
     if (!resend) {

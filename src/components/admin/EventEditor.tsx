@@ -298,6 +298,7 @@ type MetaFieldState = 'unchanged' | 'pending' | 'rejected'
 // ---------------------------------------------------------------------------
 
 export function EventEditor({ event, days: initialDays, entries: initialEntries, auditLog }: EventEditorProps) {
+  console.log('EventEditor loaded')
   const router = useRouter()
   const [, startTransition] = useTransition()
 
@@ -528,6 +529,7 @@ export function EventEditor({ event, days: initialDays, entries: initialEntries,
   // ---------------------------------------------------------------------------
 
   function handleSaveTimetable() {
+    console.log('SAVE CLICKED', notifyOnSave)
     const validation = validateTimetable(days, dayEntries)
     setValidationErrors(validation.entryErrors)
     setGlobalValidationErrors(validation.globalErrors)
@@ -719,6 +721,7 @@ export function EventEditor({ event, days: initialDays, entries: initialEntries,
       }
     }
 
+    console.log('[EventEditor] notifyOnSave:', notifyOnSave)
     const result = await saveDayEntries(event.id, allEntries, deletedEntryIds, notifyOnSave)
     if (!result.success) { setTimetableError(result.error); return false }
 
