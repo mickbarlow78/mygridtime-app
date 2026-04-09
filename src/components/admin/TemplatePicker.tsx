@@ -1,6 +1,7 @@
 'use client'
 
 import type { TemplateSummary } from '@/app/admin/templates/actions'
+import { cn } from '@/lib/styles'
 
 interface TemplatePickerProps {
   templates: TemplateSummary[]
@@ -26,12 +27,12 @@ export function TemplatePicker({ templates, selectedId, onSelect }: TemplatePick
             key={t.id}
             type="button"
             onClick={() => onSelect(isSelected ? null : t.id)}
-            className={[
+            className={cn(
               'w-full text-left px-3 py-2.5 rounded-md border text-sm transition-colors',
               isSelected
                 ? 'border-gray-900 bg-gray-50 ring-1 ring-gray-900'
                 : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50',
-            ].join(' ')}
+            )}
           >
             <span className="font-medium text-gray-900">{t.name}</span>
             <span className="text-gray-400 ml-2">

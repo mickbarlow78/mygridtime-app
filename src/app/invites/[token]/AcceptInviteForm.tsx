@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { acceptInvite } from '@/app/admin/orgs/actions'
+import { CARD, CONTAINER_AUTH, BTN_PRIMARY, ERROR_BANNER, SUCCESS_BANNER } from '@/lib/styles'
 
 interface AcceptInviteFormProps {
   token: string
@@ -33,8 +34,8 @@ export function AcceptInviteForm({ token }: AcceptInviteFormProps) {
 
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
-      <div className="max-w-sm w-full">
-        <div className="bg-white rounded-lg border border-gray-200 p-6 text-center space-y-4">
+      <div className={CONTAINER_AUTH}>
+        <div className={`${CARD} p-6 text-center space-y-4`}>
           <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center mx-auto">
             <svg className="w-5 h-5 text-gray-500" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" d="M18 18.72a9.094 9.094 0 003.741-.479 3 3 0 00-4.682-2.72m.94 3.198l.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0112 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 016 18.719m12 0a5.971 5.971 0 00-.941-3.197m0 0A5.995 5.995 0 0012 12.75a5.995 5.995 0 00-5.058 2.772m0 0a3 3 0 00-4.681 2.72 8.986 8.986 0 003.74.477m.94-3.197a5.971 5.971 0 00-.94 3.197M15 6.75a3 3 0 11-6 0 3 3 0 016 0zm6 3a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0zm-13.5 0a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0z" />
@@ -51,7 +52,7 @@ export function AcceptInviteForm({ token }: AcceptInviteFormProps) {
           {status === 'idle' && (
             <button
               onClick={handleAccept}
-              className="w-full px-4 py-2.5 bg-gray-900 text-white text-sm font-medium rounded-md hover:bg-gray-700 transition-colors"
+              className={`w-full ${BTN_PRIMARY}`}
             >
               Accept invitation
             </button>
@@ -62,14 +63,14 @@ export function AcceptInviteForm({ token }: AcceptInviteFormProps) {
           )}
 
           {status === 'success' && (
-            <p className="text-sm text-green-700 bg-green-50 border border-green-200 rounded px-3 py-2">
+            <p className={SUCCESS_BANNER}>
               Invitation accepted! Redirecting to admin...
             </p>
           )}
 
           {status === 'error' && (
             <div className="space-y-3">
-              <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2">
+              <p className={ERROR_BANNER}>
                 {error}
               </p>
               <button

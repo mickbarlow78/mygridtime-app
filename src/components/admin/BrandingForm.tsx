@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react'
 import { updateOrgBranding } from '@/app/admin/orgs/actions'
 import type { OrgBranding } from '@/lib/types/database'
+import { CARD, CARD_PADDING, LABEL, INPUT, HELP_TEXT, BTN_PRIMARY, ERROR_BANNER, SUCCESS_BANNER } from '@/lib/styles'
 
 interface BrandingFormProps {
   orgId: string
@@ -61,10 +62,10 @@ export function BrandingForm({ orgId, currentBranding }: BrandingFormProps) {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="bg-white rounded-lg border border-gray-200 px-6 py-5 space-y-4">
+    <form onSubmit={handleSubmit} className={`${CARD} ${CARD_PADDING} space-y-4`}>
       {/* Primary colour */}
       <div>
-        <label htmlFor="branding-color" className="block text-sm font-medium text-gray-700 mb-1.5">
+        <label htmlFor="branding-color" className={LABEL}>
           Primary colour
         </label>
         <div className="flex items-center gap-2">
@@ -95,14 +96,14 @@ export function BrandingForm({ orgId, currentBranding }: BrandingFormProps) {
             className="w-32 text-sm px-3 py-2 border border-gray-300 rounded-md font-mono focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"
           />
         </div>
-        <p className="text-xs text-gray-400 mt-1">
+        <p className={HELP_TEXT}>
           Accent colour for tabs and highlights. Leave empty for default.
         </p>
       </div>
 
       {/* Logo URL */}
       <div>
-        <label htmlFor="branding-logo" className="block text-sm font-medium text-gray-700 mb-1.5">
+        <label htmlFor="branding-logo" className={LABEL}>
           Logo URL
         </label>
         <input
@@ -111,16 +112,16 @@ export function BrandingForm({ orgId, currentBranding }: BrandingFormProps) {
           value={logoUrl}
           onChange={(e) => { setLogoUrl(e.target.value); setSuccess(false) }}
           placeholder="https://example.com/logo.png"
-          className="w-full text-sm px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+          className={INPUT}
         />
-        <p className="text-xs text-gray-400 mt-1">
+        <p className={HELP_TEXT}>
           Publicly accessible image URL. Displayed in the timetable page header.
         </p>
       </div>
 
       {/* Header text */}
       <div>
-        <label htmlFor="branding-text" className="block text-sm font-medium text-gray-700 mb-1.5">
+        <label htmlFor="branding-text" className={LABEL}>
           Header text
         </label>
         <input
@@ -129,29 +130,25 @@ export function BrandingForm({ orgId, currentBranding }: BrandingFormProps) {
           value={headerText}
           onChange={(e) => { setHeaderText(e.target.value); setSuccess(false) }}
           placeholder="e.g. MSUK Karting"
-          className="w-full text-sm px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+          className={INPUT}
         />
-        <p className="text-xs text-gray-400 mt-1">
+        <p className={HELP_TEXT}>
           Short label shown alongside the logo in the timetable header.
         </p>
       </div>
 
       {error && (
-        <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2">
-          {error}
-        </p>
+        <p className={ERROR_BANNER}>{error}</p>
       )}
       {success && (
-        <p className="text-sm text-green-700 bg-green-50 border border-green-200 rounded px-3 py-2">
-          Branding saved.
-        </p>
+        <p className={SUCCESS_BANNER}>Branding saved.</p>
       )}
 
       <div className="pt-1">
         <button
           type="submit"
           disabled={pending}
-          className="px-5 py-2 bg-gray-900 text-white text-sm font-medium rounded-md hover:bg-gray-700 disabled:opacity-40 transition-colors"
+          className={BTN_PRIMARY}
         >
           {pending ? 'Saving…' : 'Save branding'}
         </button>

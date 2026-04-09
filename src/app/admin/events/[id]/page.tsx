@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { notFound, redirect } from 'next/navigation'
 import Link from 'next/link'
 import { EventEditor } from '@/components/admin/EventEditor'
+import { BREADCRUMB, BREADCRUMB_LINK, BREADCRUMB_SEP, BREADCRUMB_CURRENT } from '@/lib/styles'
 
 // Always fetch fresh data — never serve a cached timetable editor
 export const dynamic = 'force-dynamic'
@@ -112,12 +113,12 @@ export default async function EventEditorPage({ params }: PageProps) {
   return (
     <div className="space-y-6">
       {/* Breadcrumb */}
-      <div className="flex items-center gap-2 text-sm text-gray-500">
-        <Link href="/admin" className="hover:text-gray-800 transition-colors">
+      <div className={BREADCRUMB}>
+        <Link href="/admin" className={BREADCRUMB_LINK}>
           Events
         </Link>
-        <span className="text-gray-300">/</span>
-        <span className="text-gray-800 truncate max-w-xs">{event.title}</span>
+        <span className={BREADCRUMB_SEP}>/</span>
+        <span className={`${BREADCRUMB_CURRENT} truncate max-w-xs`}>{event.title}</span>
       </div>
 
       <EventEditor

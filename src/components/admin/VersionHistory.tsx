@@ -6,6 +6,7 @@ import type { VersionSummary, SnapshotDay } from '@/app/admin/events/actions'
 import { TimetableDay } from '@/components/public/TimetableDay'
 import type { PublicEntry } from '@/components/public/TimetableDay'
 import { formatDate } from '@/lib/utils/slug'
+import { cn } from '@/lib/styles'
 
 interface VersionHistoryProps {
   versions: VersionSummary[]
@@ -138,12 +139,12 @@ export function VersionHistory({ versions }: VersionHistoryProps) {
                           key={i}
                           type="button"
                           onClick={() => setActiveDayIndex(i)}
-                          className={[
+                          className={cn(
                             'shrink-0 px-3 py-2 text-xs font-medium border-b-2 whitespace-nowrap transition-colors',
                             i === activeDayIndex
                               ? 'border-gray-900 text-gray-900'
                               : 'border-transparent text-gray-500 hover:text-gray-700',
-                          ].join(' ')}
+                          )}
                         >
                           {day.label || formatDate(day.date)}
                         </button>

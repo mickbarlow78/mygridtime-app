@@ -25,6 +25,7 @@ import { TimetableDay } from '@/components/public/TimetableDay'
 import type { PublicEntry } from '@/components/public/TimetableDay'
 import { formatDate } from '@/lib/utils/slug'
 import type { Json, OrgBranding } from '@/lib/types/database'
+import { cn, PAGE_BG, HEADER, HEADER_INNER, CONTAINER_FULL, H1_PUBLIC, AUTH_EMAIL, AUTH_LINK } from '@/lib/styles'
 
 // ---------------------------------------------------------------------------
 // Branding helpers
@@ -159,11 +160,11 @@ export default async function PublicTimetablePage({ params, searchParams }: Page
       : `${formatDate(event.start_date)} – ${formatDate(event.end_date)}`
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className={PAGE_BG}>
       {/* ── Event header ── */}
-      <div className="bg-white border-b border-gray-200">
+      <div className={HEADER}>
         {/* Top bar: branding left, actions right — mirrors public root header */}
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-4">
+        <div className={HEADER_INNER}>
           <div className="flex items-center gap-3 min-w-0">
             {branding.logoUrl && (
               /* eslint-disable-next-line @next/next/no-img-element */
@@ -191,11 +192,11 @@ export default async function PublicTimetablePage({ params, searchParams }: Page
             </Link>
             {user ? (
               <>
-                <span className="text-xs text-gray-400 hidden sm:block">{user.email}</span>
+                <span className={AUTH_EMAIL}>{user.email}</span>
                 <form action={signOut}>
                   <button
                     type="submit"
-                    className="text-xs text-gray-500 hover:text-gray-900 underline underline-offset-2 transition-colors"
+                    className={AUTH_LINK}
                   >
                     Sign out
                   </button>
@@ -204,7 +205,7 @@ export default async function PublicTimetablePage({ params, searchParams }: Page
             ) : (
               <Link
                 href="/auth/login"
-                className="text-xs text-gray-500 hover:text-gray-900 underline underline-offset-2 transition-colors"
+                className={AUTH_LINK}
               >
                 Sign in
               </Link>
@@ -212,8 +213,8 @@ export default async function PublicTimetablePage({ params, searchParams }: Page
           </div>
         </div>
         {/* Event title + subtitle */}
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 pt-2 pb-6">
-          <h1 className="text-xl sm:text-2xl font-semibold text-gray-900 leading-tight">
+        <div className={`${CONTAINER_FULL} pt-2 pb-6`}>
+          <h1 className={H1_PUBLIC}>
             {event.title}
           </h1>
           <p className="mt-1 text-sm text-gray-500">
@@ -226,7 +227,7 @@ export default async function PublicTimetablePage({ params, searchParams }: Page
       {/* ── Day tabs — only for multi-day events ── */}
       {dayList.length > 1 && (
         <div className="bg-white border-b border-gray-200 sticky top-0 z-10 shadow-sm">
-          <div className="max-w-5xl mx-auto px-4 sm:px-6">
+          <div className={CONTAINER_FULL}>
             {/*
               overflow-x-auto + flex lets tabs scroll horizontally on narrow
               screens without wrapping. -mb-px aligns the active border-b
@@ -240,12 +241,12 @@ export default async function PublicTimetablePage({ params, searchParams }: Page
                   <Link
                     key={day.id}
                     href={`/${params.slug}?day=${day.date}`}
-                    className={[
+                    className={cn(
                       'shrink-0 px-4 py-3 text-sm font-medium border-b-2 whitespace-nowrap transition-colors',
                       isActive
                         ? 'border-gray-900 text-gray-900'
                         : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300',
-                    ].join(' ')}
+                    )}
                     style={
                       isActive && branding.primaryColor
                         ? { borderColor: branding.primaryColor, color: branding.primaryColor }
@@ -262,7 +263,7 @@ export default async function PublicTimetablePage({ params, searchParams }: Page
       )}
 
       {/* ── Timetable content ── */}
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6">
+      <div className={`${CONTAINER_FULL} py-6`}>
         {dayList.length === 0 ? (
           <div className="py-16 text-center text-sm text-gray-400">
             No timetable has been published yet.

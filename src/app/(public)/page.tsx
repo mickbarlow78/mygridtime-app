@@ -19,6 +19,7 @@ import { formatDate } from '@/lib/utils/slug'
 import { signOut } from '@/app/admin/actions'
 import type { Metadata } from 'next'
 import type { OrgBranding } from '@/lib/types/database'
+import { PAGE_BG, HEADER, HEADER_INNER, CONTAINER_FULL, AUTH_EMAIL, AUTH_LINK } from '@/lib/styles'
 
 type OrgInfo = { name: string; branding: OrgBranding | null }
 
@@ -110,10 +111,10 @@ export default async function LandingPage() {
   const displayName = (singleOrg ? (branding?.headerText ?? singleOrg.name) : null) ?? 'MyGridTime'
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className={PAGE_BG}>
       {/* Header — white strip, matches admin */}
-      <header className="bg-white border-b border-gray-200">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-4">
+      <header className={HEADER}>
+        <div className={HEADER_INNER}>
           <div className="flex items-center gap-3 min-w-0">
             {branding?.logoUrl && (
               /* eslint-disable-next-line @next/next/no-img-element */
@@ -137,11 +138,11 @@ export default async function LandingPage() {
           </div>
           {user ? (
             <div className="flex items-center gap-4 shrink-0">
-              <span className="text-xs text-gray-400 hidden sm:block">{user.email}</span>
+              <span className={AUTH_EMAIL}>{user.email}</span>
               <form action={signOut}>
                 <button
                   type="submit"
-                  className="text-xs text-gray-500 hover:text-gray-900 underline underline-offset-2 transition-colors"
+                  className={AUTH_LINK}
                 >
                   Sign out
                 </button>
@@ -150,7 +151,7 @@ export default async function LandingPage() {
           ) : (
             <Link
               href="/auth/login"
-              className="shrink-0 text-xs text-gray-500 hover:text-gray-900 underline underline-offset-2 transition-colors"
+              className={`shrink-0 ${AUTH_LINK}`}
             >
               Sign in
             </Link>
@@ -159,7 +160,7 @@ export default async function LandingPage() {
       </header>
 
       {/* Page body — grey background */}
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 py-8">
+      <div className={`${CONTAINER_FULL} py-8`}>
         {/* Events table */}
         {eventList.length === 0 ? (
           <div className="py-16 text-center text-sm text-gray-400">

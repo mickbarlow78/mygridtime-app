@@ -7,6 +7,7 @@ import { createEvent } from '../actions'
 import { listTemplates, createEventFromTemplate } from '@/app/admin/templates/actions'
 import type { TemplateSummary } from '@/app/admin/templates/actions'
 import { TemplatePicker } from '@/components/admin/TemplatePicker'
+import { cn, CONTAINER_FORM, BREADCRUMB, BREADCRUMB_LINK, BREADCRUMB_SEP, BREADCRUMB_CURRENT, H1, SUBTITLE, CARD, CARD_PADDING, LABEL, INPUT, HELP_TEXT, BTN_PRIMARY, BTN_GHOST, ERROR_BANNER, TAB_BAR, TAB_ACTIVE, TAB_INACTIVE } from '@/lib/styles'
 
 export default function NewEventPage() {
   const router = useRouter()
@@ -70,45 +71,35 @@ export default function NewEventPage() {
   const hasTemplates = templatesLoaded && templates.length > 0
 
   return (
-    <div className="max-w-2xl space-y-6">
+    <div className={`${CONTAINER_FORM} space-y-6`}>
       {/* Breadcrumb */}
-      <div className="flex items-center gap-2 text-sm text-gray-500">
-        <Link href="/admin" className="hover:text-gray-800 transition-colors">Events</Link>
-        <span className="text-gray-300">/</span>
-        <span className="text-gray-800">New event</span>
+      <div className={BREADCRUMB}>
+        <Link href="/admin" className={BREADCRUMB_LINK}>Events</Link>
+        <span className={BREADCRUMB_SEP}>/</span>
+        <span className={BREADCRUMB_CURRENT}>New event</span>
       </div>
 
       <div>
-        <h1 className="text-xl font-semibold text-gray-900">Create event</h1>
-        <p className="text-sm text-gray-500 mt-0.5">
+        <h1 className={H1}>Create event</h1>
+        <p className={SUBTITLE}>
           Days will be automatically created from your date range. You can add or remove days in the editor.
         </p>
       </div>
 
       {/* Mode toggle — only shown when templates exist */}
       {hasTemplates && (
-        <div className="flex gap-1 border-b border-gray-200 -mb-px">
+        <div className={TAB_BAR}>
           <button
             type="button"
             onClick={() => { setMode('blank'); setSelectedTemplateId(null) }}
-            className={[
-              'px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors',
-              mode === 'blank'
-                ? 'border-gray-900 text-gray-900'
-                : 'border-transparent text-gray-500 hover:text-gray-700',
-            ].join(' ')}
+            className={mode === 'blank' ? TAB_ACTIVE : TAB_INACTIVE}
           >
             Start blank
           </button>
           <button
             type="button"
             onClick={() => setMode('template')}
-            className={[
-              'px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors',
-              mode === 'template'
-                ? 'border-gray-900 text-gray-900'
-                : 'border-transparent text-gray-500 hover:text-gray-700',
-            ].join(' ')}
+            className={mode === 'template' ? TAB_ACTIVE : TAB_INACTIVE}
           >
             Use template
           </button>
@@ -117,7 +108,7 @@ export default function NewEventPage() {
 
       {/* Template picker */}
       {mode === 'template' && hasTemplates && (
-        <div className="bg-white rounded-lg border border-gray-200 px-6 py-4">
+        <div className={`${CARD} px-6 py-4`}>
           <p className="text-sm font-medium text-gray-700 mb-3">Select a template</p>
           <TemplatePicker
             templates={templates}
@@ -127,10 +118,10 @@ export default function NewEventPage() {
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="bg-white rounded-lg border border-gray-200 px-6 py-5 space-y-4">
+      <form onSubmit={handleSubmit} className={`${CARD} ${CARD_PADDING} space-y-4`}>
         {/* Title */}
         <div>
-          <label htmlFor="title" className="block text-sm font-medium text-gray-700 mb-1.5">
+          <label htmlFor="title" className={LABEL}>
             Title <span className="text-red-500">*</span>
           </label>
           <input
@@ -141,13 +132,13 @@ export default function NewEventPage() {
             placeholder="e.g. Round 3 — Whilton Mill"
             required
             autoFocus
-            className="w-full text-sm px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+            className={INPUT}
           />
         </div>
 
         {/* Venue */}
         <div>
-          <label htmlFor="venue" className="block text-sm font-medium text-gray-700 mb-1.5">
+          <label htmlFor="venue" className={LABEL}>
             Venue
           </label>
           <input
@@ -156,14 +147,14 @@ export default function NewEventPage() {
             value={venue}
             onChange={(e) => setVenue(e.target.value)}
             placeholder="e.g. Whilton Mill Karting"
-            className="w-full text-sm px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+            className={INPUT}
           />
         </div>
 
         {/* Dates */}
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label htmlFor="start_date" className="block text-sm font-medium text-gray-700 mb-1.5">
+            <label htmlFor="start_date" className={LABEL}>
               Start date <span className="text-red-500">*</span>
             </label>
             <input
@@ -176,11 +167,11 @@ export default function NewEventPage() {
                 if (!endDate || e.target.value > endDate) setEndDate(e.target.value)
               }}
               required
-              className="w-full text-sm px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+              className={INPUT}
             />
           </div>
           <div>
-            <label htmlFor="end_date" className="block text-sm font-medium text-gray-700 mb-1.5">
+            <label htmlFor="end_date" className={LABEL}>
               End date <span className="text-red-500">*</span>
             </label>
             <input
@@ -190,21 +181,21 @@ export default function NewEventPage() {
               min={startDate}
               onChange={(e) => setEndDate(e.target.value)}
               required
-              className="w-full text-sm px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+              className={INPUT}
             />
           </div>
         </div>
 
         {/* Timezone */}
         <div>
-          <label htmlFor="timezone" className="block text-sm font-medium text-gray-700 mb-1.5">
+          <label htmlFor="timezone" className={LABEL}>
             Timezone
           </label>
           <select
             id="timezone"
             value={timezone}
             onChange={(e) => setTimezone(e.target.value)}
-            className="w-full text-sm px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent bg-white"
+            className={`${INPUT} bg-white`}
           >
             <option value="Europe/London">Europe/London (UK)</option>
             <option value="Europe/Paris">Europe/Paris (CET)</option>
@@ -218,7 +209,7 @@ export default function NewEventPage() {
 
         {/* Notes */}
         <div>
-          <label htmlFor="notes" className="block text-sm font-medium text-gray-700 mb-1.5">
+          <label htmlFor="notes" className={LABEL}>
             Notes{' '}
             <span className="text-xs text-gray-400 font-normal">(internal, not shown publicly)</span>
           </label>
@@ -228,13 +219,13 @@ export default function NewEventPage() {
             onChange={(e) => setNotes(e.target.value)}
             rows={3}
             placeholder="Any internal notes about this event…"
-            className="w-full text-sm px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent resize-none"
+            className={`${INPUT} resize-none`}
           />
         </div>
 
         {/* Error */}
         {error && (
-          <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2">
+          <p className={ERROR_BANNER}>
             {error}
           </p>
         )}
@@ -244,13 +235,13 @@ export default function NewEventPage() {
           <button
             type="submit"
             disabled={submitting || (mode === 'template' && !selectedTemplateId)}
-            className="px-5 py-2 bg-gray-900 text-white text-sm font-medium rounded-md hover:bg-gray-700 disabled:opacity-40 transition-colors"
+            className={BTN_PRIMARY}
           >
             {submitting ? 'Creating…' : mode === 'template' ? 'Create from template' : 'Create event'}
           </button>
           <Link
             href="/admin"
-            className="text-sm text-gray-500 hover:text-gray-700 transition-colors"
+            className={BTN_GHOST}
           >
             Cancel
           </Link>

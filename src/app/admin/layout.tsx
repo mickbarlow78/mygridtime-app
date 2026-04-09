@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { signOut } from './actions'
 import { getActiveOrg, getUserOrgs } from '@/lib/utils/active-org'
 import { OrgSelector } from '@/components/admin/OrgSelector'
+import { PAGE_BG, HEADER, HEADER_INNER, CONTAINER_FULL, AUTH_EMAIL, AUTH_LINK, HEADER_NAV_LINK } from '@/lib/styles'
 
 /**
  * Admin layout — Server Component.
@@ -50,10 +51,10 @@ export default async function AdminLayout({
   const authorized = !!activeOrg
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className={PAGE_BG}>
       {/* Persistent admin header */}
-      <header className="bg-white border-b border-gray-200">
-        <div className="max-w-6xl mx-auto px-6 py-3 flex items-center justify-between">
+      <header className={HEADER}>
+        <div className={HEADER_INNER}>
           <div className="flex items-center gap-3">
             <span className="text-sm font-semibold text-gray-900 tracking-tight">
               MyGridTime
@@ -69,7 +70,7 @@ export default async function AdminLayout({
             {authorized && activeOrg && ['owner', 'admin'].includes(activeOrg.role) && (
               <Link
                 href="/admin/orgs/settings"
-                className="text-xs text-gray-400 hover:text-gray-600 transition-colors hidden sm:block"
+                className={HEADER_NAV_LINK}
                 title="Organisation settings"
               >
                 Settings
@@ -78,18 +79,18 @@ export default async function AdminLayout({
             {authorized && (
               <Link
                 href="/admin/orgs/new"
-                className="text-xs text-gray-400 hover:text-gray-600 transition-colors hidden sm:block"
+                className={HEADER_NAV_LINK}
               >
                 + New org
               </Link>
             )}
-            <span className="text-xs text-gray-400 hidden sm:block">
+            <span className={AUTH_EMAIL}>
               {user.email}
             </span>
             <form action={signOut}>
               <button
                 type="submit"
-                className="text-xs text-gray-500 hover:text-gray-900 underline underline-offset-2 transition-colors"
+                className={AUTH_LINK}
               >
                 Sign out
               </button>
@@ -98,7 +99,7 @@ export default async function AdminLayout({
         </div>
       </header>
 
-      <main className="max-w-6xl mx-auto px-6 py-8">
+      <main className={`${CONTAINER_FULL} py-8`}>
         {authorized ? (
           children
         ) : (

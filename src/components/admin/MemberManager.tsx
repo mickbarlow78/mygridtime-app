@@ -9,6 +9,7 @@ import {
   inviteMember,
   revokeInvite,
 } from '@/app/admin/orgs/actions'
+import { H2, LIST_CARD, LIST_ROW, CARD, CARD_PADDING_COMPACT, LABEL_COMPACT, INPUT, BTN_PRIMARY, ERROR_BANNER, SUCCESS_BANNER } from '@/lib/styles'
 
 interface MemberManagerProps {
   orgId: string
@@ -140,22 +141,18 @@ export function MemberManager({ orgId, initialMembers, initialInvites }: MemberM
     <div className="space-y-6">
       {/* Messages */}
       {error && (
-        <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2">
-          {error}
-        </p>
+        <p className={ERROR_BANNER}>{error}</p>
       )}
       {success && (
-        <p className="text-sm text-green-700 bg-green-50 border border-green-200 rounded px-3 py-2">
-          {success}
-        </p>
+        <p className={SUCCESS_BANNER}>{success}</p>
       )}
 
       {/* Members table */}
       <div>
-        <h3 className="text-sm font-semibold text-gray-900 mb-3">Members</h3>
-        <div className="bg-white rounded-lg border border-gray-200 divide-y divide-gray-100">
+        <h3 className={`${H2} mb-3`}>Members</h3>
+        <div className={LIST_CARD}>
           {members.map((member) => (
-            <div key={member.id} className="flex items-center justify-between px-4 py-3">
+            <div key={member.id} className={LIST_ROW}>
               <div className="flex-1 min-w-0">
                 <p className="text-sm text-gray-900 truncate">{member.email}</p>
                 <p className="text-xs text-gray-400 mt-0.5">
@@ -193,10 +190,10 @@ export function MemberManager({ orgId, initialMembers, initialInvites }: MemberM
       {/* Pending invites */}
       {invites.length > 0 && (
         <div>
-          <h3 className="text-sm font-semibold text-gray-900 mb-3">Pending invites</h3>
-          <div className="bg-white rounded-lg border border-gray-200 divide-y divide-gray-100">
+          <h3 className={`${H2} mb-3`}>Pending invites</h3>
+          <div className={LIST_CARD}>
             {invites.map((invite) => (
-              <div key={invite.id} className="flex items-center justify-between px-4 py-3">
+              <div key={invite.id} className={LIST_ROW}>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm text-gray-900 truncate">{invite.email}</p>
                   <p className="text-xs text-gray-400 mt-0.5">
@@ -218,11 +215,11 @@ export function MemberManager({ orgId, initialMembers, initialInvites }: MemberM
 
       {/* Invite form */}
       <div>
-        <h3 className="text-sm font-semibold text-gray-900 mb-3">Invite member</h3>
-        <form onSubmit={handleInvite} className="bg-white rounded-lg border border-gray-200 px-4 py-4">
+        <h3 className={`${H2} mb-3`}>Invite member</h3>
+        <form onSubmit={handleInvite} className={`${CARD} ${CARD_PADDING_COMPACT}`}>
           <div className="flex items-end gap-3">
             <div className="flex-1">
-              <label htmlFor="invite-email" className="block text-xs font-medium text-gray-600 mb-1">
+              <label htmlFor="invite-email" className={LABEL_COMPACT}>
                 Email address
               </label>
               <input
@@ -232,11 +229,11 @@ export function MemberManager({ orgId, initialMembers, initialInvites }: MemberM
                 onChange={(e) => setInviteEmail(e.target.value)}
                 placeholder="user@example.com"
                 required
-                className="w-full text-sm px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+                className={INPUT}
               />
             </div>
             <div>
-              <label htmlFor="invite-role" className="block text-xs font-medium text-gray-600 mb-1">
+              <label htmlFor="invite-role" className={LABEL_COMPACT}>
                 Role
               </label>
               <select
@@ -253,7 +250,7 @@ export function MemberManager({ orgId, initialMembers, initialInvites }: MemberM
             <button
               type="submit"
               disabled={pending}
-              className="px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-md hover:bg-gray-700 disabled:opacity-40 transition-colors whitespace-nowrap"
+              className={`${BTN_PRIMARY} whitespace-nowrap`}
             >
               Send invite
             </button>

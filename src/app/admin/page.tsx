@@ -4,6 +4,7 @@ import { StatusBadge } from '@/components/ui/StatusBadge'
 import { formatDate } from '@/lib/utils/slug'
 import type { EventStatus } from '@/lib/types/database'
 import { getActiveOrg } from '@/lib/utils/active-org'
+import { cn, H1, SUBTITLE, BTN_PRIMARY, TAB_BAR, TAB_ACTIVE, TAB_INACTIVE, LIST_CARD } from '@/lib/styles'
 
 // Next.js: re-render this page on every request (never cache stale event data)
 export const dynamic = 'force-dynamic'
@@ -51,31 +52,29 @@ export default async function AdminDashboardPage({ searchParams }: PageProps) {
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-xl font-semibold text-gray-900">Events</h1>
-          <p className="text-sm text-gray-500 mt-0.5">
+          <h1 className={H1}>Events</h1>
+          <p className={SUBTITLE}>
             Manage your race event timetables.
           </p>
         </div>
         <Link
           href="/admin/events/new"
-          className="inline-flex items-center px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-md hover:bg-gray-700 transition-colors whitespace-nowrap"
+          className={`inline-flex items-center ${BTN_PRIMARY} whitespace-nowrap`}
         >
           + Create event
         </Link>
       </div>
 
       {/* Status filter tabs */}
-      <div className="flex gap-1 border-b border-gray-200 -mb-px">
+      <div className={TAB_BAR}>
         {STATUS_FILTERS.map((f) => (
           <Link
             key={f}
             href={f === 'all' ? '/admin' : `/admin?status=${f}`}
-            className={[
-              'px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors capitalize',
-              activeFilter === f
-                ? 'border-gray-900 text-gray-900'
-                : 'border-transparent text-gray-500 hover:text-gray-700',
-            ].join(' ')}
+            className={cn(
+              activeFilter === f ? TAB_ACTIVE : TAB_INACTIVE,
+              'capitalize',
+            )}
           >
             {f}
           </Link>
@@ -103,7 +102,7 @@ export default async function AdminDashboardPage({ searchParams }: PageProps) {
           )}
         </div>
       ) : (
-        <div className="bg-white rounded-lg border border-gray-200 divide-y divide-gray-100 overflow-hidden">
+        <div className={LIST_CARD}>
           {events.map((event) => (
             <Link
               key={event.id}

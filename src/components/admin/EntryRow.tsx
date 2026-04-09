@@ -2,6 +2,7 @@
 
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
+import { cn } from '@/lib/styles'
 
 export type EntryDraft = {
   /** Stable local key for DnD and React reconciliation; never sent to the server. */
@@ -150,12 +151,12 @@ export function EntryRow({
     <div
       ref={setNodeRef}
       style={style}
-      className={[
+      className={cn(
         'flex items-start gap-2 px-3 py-2.5 rounded-md border',
-        isDragging ? 'shadow-lg opacity-60 z-50' : '',
+        isDragging && 'shadow-lg opacity-60 z-50',
         rowBg(changeInfo, hasError),
-        entry.is_break && !changeInfo ? 'bg-blue-50/30' : '',
-      ].join(' ')}
+        entry.is_break && !changeInfo && 'bg-blue-50/30',
+      )}
     >
       {/* Drag handle */}
       <button
@@ -184,12 +185,12 @@ export function EntryRow({
         {/* Row label (new / edit rejected) */}
         {rowLabel && (
           <div className="col-span-12 -mb-0.5">
-            <span className={[
+            <span className={cn(
               'text-[10px] font-medium px-1.5 py-0.5 rounded',
               changeInfo?.rowStatus === 'rejected'
                 ? 'text-red-600 bg-red-100'
                 : 'text-green-700 bg-green-100',
-            ].join(' ')}>
+            )}>
               {rowLabel}
             </span>
           </div>

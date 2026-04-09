@@ -7,6 +7,7 @@ import { OrgNameForm } from './OrgNameForm'
 import { BrandingForm } from '@/components/admin/BrandingForm'
 import { MemberManager } from '@/components/admin/MemberManager'
 import type { OrgBranding } from '@/lib/types/database'
+import { CONTAINER_FORM, BREADCRUMB, BREADCRUMB_LINK, BREADCRUMB_SEP, BREADCRUMB_CURRENT, H1, SUBTITLE, H2, CARD, HELP_TEXT } from '@/lib/styles'
 
 /**
  * Org settings page — server component.
@@ -46,33 +47,33 @@ export default async function OrgSettingsPage() {
   const initialInvites = invitesResult.success ? invitesResult.data : []
 
   return (
-    <div className="max-w-2xl space-y-8">
+    <div className={`${CONTAINER_FORM} space-y-8`}>
       {/* Breadcrumb */}
-      <div className="flex items-center gap-2 text-sm text-gray-500">
-        <Link href="/admin" className="hover:text-gray-800 transition-colors">Events</Link>
-        <span className="text-gray-300">/</span>
-        <span className="text-gray-800">Organisation settings</span>
+      <div className={BREADCRUMB}>
+        <Link href="/admin" className={BREADCRUMB_LINK}>Events</Link>
+        <span className={BREADCRUMB_SEP}>/</span>
+        <span className={BREADCRUMB_CURRENT}>Organisation settings</span>
       </div>
 
       <div>
-        <h1 className="text-xl font-semibold text-gray-900">{org.name}</h1>
-        <p className="text-sm text-gray-500 mt-0.5">
+        <h1 className={H1}>{org.name}</h1>
+        <p className={SUBTITLE}>
           Manage organisation details and members.
         </p>
       </div>
 
       {/* Org name form */}
       <section>
-        <h2 className="text-sm font-semibold text-gray-900 mb-3">Organisation name</h2>
+        <h2 className={`${H2} mb-3`}>Organisation name</h2>
         <OrgNameForm orgId={org.id} currentName={org.name} />
       </section>
 
       {/* Slug (read-only) */}
       <section>
-        <h2 className="text-sm font-semibold text-gray-900 mb-3">Slug</h2>
-        <div className="bg-white rounded-lg border border-gray-200 px-4 py-3">
+        <h2 className={`${H2} mb-3`}>Slug</h2>
+        <div className={`${CARD} px-4 py-3`}>
           <p className="text-sm font-mono text-gray-600">{org.slug}</p>
-          <p className="text-xs text-gray-400 mt-1">
+          <p className={HELP_TEXT}>
             The slug cannot be changed after creation. Public URLs are per-event,
             not per-organisation.
           </p>
@@ -81,7 +82,7 @@ export default async function OrgSettingsPage() {
 
       {/* Branding */}
       <section>
-        <h2 className="text-sm font-semibold text-gray-900 mb-3">Branding</h2>
+        <h2 className={`${H2} mb-3`}>Branding</h2>
         <p className="text-sm text-gray-500 mb-3">
           Applied to public timetable pages. Event-level branding overrides these values per field.
         </p>
@@ -93,7 +94,7 @@ export default async function OrgSettingsPage() {
 
       {/* Members + Invites */}
       <section>
-        <h2 className="text-base font-semibold text-gray-900 mb-4">Members &amp; invites</h2>
+        <h2 className={`${H2} mb-3`}>Members &amp; invites</h2>
         <MemberManager
           orgId={org.id}
           initialMembers={initialMembers}

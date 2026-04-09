@@ -8,6 +8,7 @@ import { AuditLogView } from './AuditLogView'
 import { StatusBadge } from '@/components/ui/StatusBadge'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { ReviewModal, type ReviewCard, type ChangeCard } from '@/components/ui/ReviewModal'
+import { cn, CARD, H2, BTN_PRIMARY, BTN_PRIMARY_SM, BTN_SECONDARY_SM } from '@/lib/styles'
 import {
   updateEventMetadata,
   publishEvent,
@@ -452,10 +453,10 @@ export function EventEditor({ event, days: initialDays, entries: initialEntries,
           <button
             type="button"
             onClick={() => handleRevertMetaField(field)}
-            className={[
+            className={cn(
               'text-xs underline underline-offset-2',
               state === 'rejected' ? 'text-red-500 hover:text-red-700' : 'text-amber-600 hover:text-amber-800',
-            ].join(' ')}
+            )}
           >
             ↩ revert
           </button>
@@ -936,39 +937,39 @@ export function EventEditor({ event, days: initialDays, entries: initialEntries,
     <div className="space-y-8">
 
       {/* ── Event metadata ──────────────────────────────────────────────────── */}
-      <section className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+      <section className={`${CARD} overflow-hidden`}>
         <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <h2 className="text-sm font-semibold text-gray-800">Event details</h2>
+            <h2 className={H2}>Event details</h2>
             <StatusBadge status={status} />
           </div>
           <div className="flex items-center gap-2">
             {status === 'draft' && (
               <button type="button" onClick={() => { setDialog('publish'); setDialogError(null) }}
-                className="px-3 py-1.5 text-xs font-medium bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors">
+                className={`${BTN_PRIMARY_SM} bg-green-600 hover:bg-green-700`}>
                 Publish
               </button>
             )}
             {status === 'published' && (
               <button type="button" onClick={() => { setDialog('unpublish'); setDialogError(null) }}
-                className="px-3 py-1.5 text-xs font-medium bg-white text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors">
+                className={BTN_SECONDARY_SM}>
                 Unpublish
               </button>
             )}
             {status !== 'archived' && (
               <button type="button" onClick={() => { setDialog('archive'); setDialogError(null) }}
-                className="px-3 py-1.5 text-xs font-medium bg-white text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors">
+                className={BTN_SECONDARY_SM}>
                 Archive
               </button>
             )}
             <button type="button"
               onClick={() => { setDialog('duplicate'); setDialogError(null); setDupTitle(title + ' (copy)'); setDupStartDate(startDate); setDupEndDate(endDate) }}
-              className="px-3 py-1.5 text-xs font-medium bg-white text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors">
+              className={BTN_SECONDARY_SM}>
               Duplicate
             </button>
             <button type="button"
               onClick={() => { setDialog('saveTemplate'); setDialogError(null); setTemplateName(title + ' Template'); setTemplateSuccess(false) }}
-              className="px-3 py-1.5 text-xs font-medium bg-white text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors">
+              className={BTN_SECONDARY_SM}>
               Save as Template
             </button>
           </div>
@@ -1077,7 +1078,7 @@ export function EventEditor({ event, days: initialDays, entries: initialEntries,
           {/* Save row */}
           <div className="flex items-center gap-4">
             <button type="submit"
-              className="px-5 py-2 bg-gray-900 text-white text-sm font-medium rounded-md hover:bg-gray-700 transition-colors">
+              className={BTN_PRIMARY}>
               Save details
             </button>
             {metaSuccess && <p className="text-sm text-green-600">Saved.</p>}
@@ -1087,9 +1088,9 @@ export function EventEditor({ event, days: initialDays, entries: initialEntries,
       </section>
 
       {/* ── Timetable builder ────────────────────────────────────────────────── */}
-      <section id="timetable-section" className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+      <section id="timetable-section" className={`${CARD} overflow-hidden`}>
         <div className="px-6 py-4 border-b border-gray-100">
-          <h2 className="text-sm font-semibold text-gray-800">Timetable</h2>
+          <h2 className={H2}>Timetable</h2>
           <p className="text-xs text-gray-400 mt-0.5">
             Add entries for each day. Drag rows to reorder. Save when done.
           </p>

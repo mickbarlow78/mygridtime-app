@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef } from 'react'
+import { CARD, BTN_SECONDARY, BTN_PRIMARY, BTN_DESTRUCTIVE } from '@/lib/styles'
 
 interface ConfirmDialogProps {
   open: boolean
@@ -47,7 +48,7 @@ export function ConfirmDialog({
         ref={dialogRef}
         role="dialog"
         aria-modal="true"
-        className="w-full max-w-sm bg-white rounded-lg shadow-xl border border-gray-200 p-6"
+        className={`w-full max-w-sm ${CARD} shadow-xl p-6`}
       >
         <h2 className="text-base font-semibold text-gray-900 mb-2">{title}</h2>
         <p className="text-sm text-gray-500 mb-4">{description}</p>
@@ -58,18 +59,14 @@ export function ConfirmDialog({
           <button
             type="button"
             onClick={onCancel}
-            className="px-4 py-2 text-sm text-gray-600 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
+            className={BTN_SECONDARY}
           >
             Cancel
           </button>
           <button
             type="button"
             onClick={onConfirm}
-            className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
-              confirmDestructive
-                ? 'bg-red-600 text-white hover:bg-red-700'
-                : 'bg-gray-900 text-white hover:bg-gray-700'
-            }`}
+            className={confirmDestructive ? BTN_DESTRUCTIVE : BTN_PRIMARY}
           >
             {confirmLabel}
           </button>
