@@ -1,7 +1,6 @@
 'use client'
 
-import { createClient } from '@/lib/supabase/client'
-import { getClientAppUrl } from '@/lib/utils/app-url'
+import { sendMagicLink } from './actions'
 import { useEffect, useState } from 'react'
 
 export default function LoginPage() {
@@ -24,20 +23,14 @@ export default function LoginPage() {
     setLoading(true)
     setError(null)
 
-    const supabase = createClient()
-    const { error: otpError } = await supabase.auth.signInWithOtp({
-      email,
-      options: {
-        emailRedirectTo: `${getClientAppUrl()}/auth/callback`,
-      },
-    })
+    const { error: otpError } = await sendMagicLink(email)
 
     if (otpError) {
-      const isRateLimit = /rate limit/i.test(otpError.message)
+      const isRateLimit = /rate limit/i.test(otpError)
       setError(
         isRateLimit
           ? 'Too many sign-in emails were requested. Please wait a few minutes before trying again.'
-          : otpError.message
+          : otpError
       )
       setLoading(false)
       return
