@@ -53,8 +53,10 @@ export async function createOrganisation(input: {
   if (!slug) return { success: false, error: 'Slug is required.' }
   if (slug.length < 2) return { success: false, error: 'Slug must be at least 2 characters.' }
 
-  // Check slug uniqueness
-  const { data: existing } = await supabase
+  const admin = createAdminClient()
+
+  // Check slug uniqueness via admin client
+  const { data: existing } = await admin
     .from('organisations')
     .select('id')
     .eq('slug', slug)
@@ -62,8 +64,8 @@ export async function createOrganisation(input: {
 
   if (existing) return { success: false, error: 'That slug is already taken.' }
 
-  // Insert organisation (RLS allows authenticated users to INSERT)
-  const { data: org, error: orgError } = await supabase
+  // Insert organisation via admin client (bypasses RLS)
+  const { data: org, error: orgError } = await admin
     .from('organisations')
     .insert({ name, slug })
     .select('id')
@@ -72,7 +74,6 @@ export async function createOrganisation(input: {
   if (orgError || !org) return { success: false, error: orgError?.message ?? 'Failed to create organisation.' }
 
   // Insert owner membership via admin client (bypasses RLS)
-  const admin = createAdminClient()
   const { error: memberError } = await admin
     .from('org_members')
     .insert({ org_id: org.id, user_id: user.id, role: 'owner' })
@@ -85,6 +86,7 @@ export async function createOrganisation(input: {
 
   // Set active org cookie to the new org
   setActiveOrgId(org.id)
+  revalidatePath('/admin')
 
   return { success: true, data: { id: org.id } }
 }
@@ -171,7 +173,10 @@ export async function listOrgMembers(orgId: string): Promise<ActionResult<Array<
   const { supabase, authorized } = await requireOwnerOrAdmin()
   if (!authorized) return { success: false, error: 'Only owners and admins can view members.' }
 
-  const { data, error } = await supabase
+  // Use admin client so the users join returns emails for all members,
+  // not just the current user (users_select_own RLS blocks cross-user reads)
+  const admin = createAdminClient()
+  const { data, error } = await admin
     .from('org_members')
     .select('id, user_id, role, created_at, users!org_members_user_id_fkey(email)')
     .eq('org_id', orgId)
@@ -308,96 +313,108 @@ export async function listOrgInvites(orgId: string): Promise<ActionResult<Array<
 
 /**
  * Invites a user by email to the org. Sends invite email via Resend.
+ * Uses the admin client for all DB writes to avoid RLS ambiguity on new tables.
  */
 export async function inviteMember(input: {
   orgId: string
   email: string
   role: 'admin' | 'editor' | 'viewer'
 }): Promise<ActionResult> {
-  const { supabase, user, authorized } = await requireOwnerOrAdmin()
-  if (!authorized) return { success: false, error: 'Only owners and admins can invite members.' }
+  try {
+    const { supabase, user, authorized } = await requireOwnerOrAdmin()
+    if (!authorized) return { success: false, error: 'Only owners and admins can invite members.' }
 
-  const email = input.email.trim().toLowerCase()
-  if (!email) return { success: false, error: 'Email is required.' }
+    const email = input.email.trim().toLowerCase()
+    if (!email) return { success: false, error: 'Email is required.' }
 
-  // Check if already a member
-  const admin = createAdminClient()
-  const { data: existingUser } = await admin
-    .from('users')
-    .select('id')
-    .eq('email', email)
-    .maybeSingle()
+    const admin = createAdminClient()
 
-  if (existingUser) {
-    const { data: existingMember } = await supabase
-      .from('org_members')
+    // Check if already a member (look up by email via admin client)
+    const { data: existingUser } = await admin
+      .from('users')
       .select('id')
-      .eq('org_id', input.orgId)
-      .eq('user_id', existingUser.id)
+      .eq('email', email)
       .maybeSingle()
 
-    if (existingMember) {
-      return { success: false, error: 'This user is already a member of the organisation.' }
+    if (existingUser) {
+      const { data: existingMember } = await admin
+        .from('org_members')
+        .select('id')
+        .eq('org_id', input.orgId)
+        .eq('user_id', existingUser.id)
+        .maybeSingle()
+
+      if (existingMember) {
+        return { success: false, error: 'This user is already a member of the organisation.' }
+      }
     }
-  }
 
-  // Insert invite (unique index prevents duplicate pending invites)
-  const { data: invite, error: insertError } = await supabase
-    .from('org_invites')
-    .insert({
-      org_id: input.orgId,
-      email,
-      role: input.role,
-      invited_by: user.id,
-    })
-    .select('token')
-    .single()
-
-  if (insertError) {
-    if (insertError.code === '23505') {
-      return { success: false, error: 'A pending invite already exists for this email.' }
-    }
-    return { success: false, error: insertError.message }
-  }
-
-  // Fetch org name for the email
-  const { data: org } = await supabase
-    .from('organisations')
-    .select('name')
-    .eq('id', input.orgId)
-    .single()
-
-  // Send invite email
-  const resend = getResendClient()
-  if (resend && org) {
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://mygridtime.com'
-    const acceptUrl = `${baseUrl}/invites/${invite.token}`
-
-    try {
-      await resend.emails.send({
-        from: getFromAddress(),
-        to: email,
-        subject: orgInviteSubject(org.name),
-        html: orgInviteHtml({
-          orgName: org.name,
-          inviterEmail: user.email ?? 'unknown',
-          role: input.role,
-          acceptUrl,
-        }),
-        text: orgInviteText({
-          orgName: org.name,
-          inviterEmail: user.email ?? 'unknown',
-          role: input.role,
-          acceptUrl,
-        }),
+    // Insert invite via admin client — bypasses RLS so RETURNING always works
+    const { data: invite, error: insertError } = await admin
+      .from('org_invites')
+      .insert({
+        org_id: input.orgId,
+        email,
+        role: input.role,
+        invited_by: user.id,
       })
-    } catch {
-      // Email send failure should not block invite creation
-    }
-  }
+      .select('token')
+      .single()
 
-  revalidatePath('/admin')
-  return { success: true, data: undefined }
+    if (insertError) {
+      if (insertError.code === '23505') {
+        return { success: false, error: 'A pending invite already exists for this email.' }
+      }
+      return { success: false, error: insertError.message }
+    }
+
+    if (!invite) {
+      return { success: false, error: 'Failed to create invite.' }
+    }
+
+    // Fetch org name for the email (use user client — RLS allows member read)
+    const { data: org } = await supabase
+      .from('organisations')
+      .select('name')
+      .eq('id', input.orgId)
+      .maybeSingle()
+
+    // Send invite email — failure never blocks invite creation
+    const resend = getResendClient()
+    if (resend && org) {
+      const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://mygridtime.com'
+      const acceptUrl = `${baseUrl}/invites/${invite.token}`
+
+      try {
+        await resend.emails.send({
+          from: getFromAddress(),
+          to: email,
+          subject: orgInviteSubject(org.name),
+          html: orgInviteHtml({
+            orgName: org.name,
+            inviterEmail: user.email ?? 'unknown',
+            role: input.role,
+            acceptUrl,
+          }),
+          text: orgInviteText({
+            orgName: org.name,
+            inviterEmail: user.email ?? 'unknown',
+            role: input.role,
+            acceptUrl,
+          }),
+        })
+      } catch {
+        // Email failure is non-fatal — invite is already created
+      }
+    }
+
+    revalidatePath('/admin')
+    return { success: true, data: undefined }
+  } catch (err) {
+    // Catch any unexpected exception so the server action never crashes the page
+    const message = err instanceof Error ? err.message : 'An unexpected error occurred.'
+    return { success: false, error: message }
+  }
 }
 
 /**

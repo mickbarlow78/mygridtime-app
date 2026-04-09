@@ -48,12 +48,16 @@ export function MemberManager({ orgId }: MemberManagerProps) {
   }, [orgId])
 
   async function loadData() {
-    const [membersResult, invitesResult] = await Promise.all([
-      listOrgMembers(orgId),
-      listOrgInvites(orgId),
-    ])
-    if (membersResult.success) setMembers(membersResult.data)
-    if (invitesResult.success) setInvites(invitesResult.data)
+    try {
+      const [membersResult, invitesResult] = await Promise.all([
+        listOrgMembers(orgId),
+        listOrgInvites(orgId),
+      ])
+      if (membersResult.success) setMembers(membersResult.data)
+      if (invitesResult.success) setInvites(invitesResult.data)
+    } catch {
+      // Silently swallow — UI retains last-known state
+    }
   }
 
   function clearMessages() {
