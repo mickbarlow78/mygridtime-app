@@ -7,6 +7,7 @@ import { revalidatePath } from 'next/cache'
 import { setActiveOrgId, getActiveOrg } from '@/lib/utils/active-org'
 import { getResendClient, getFromAddress } from '@/lib/resend/client'
 import { orgInviteSubject, orgInviteHtml, orgInviteText } from '@/lib/resend/templates'
+import type { OrgBranding } from '@/lib/types/database'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -148,6 +149,50 @@ export async function updateOrganisation(input: {
   const { error } = await supabase
     .from('organisations')
     .update({ name })
+    .eq('id', input.orgId)
+
+  if (error) return { success: false, error: error.message }
+
+  revalidatePath('/admin')
+  return { success: true, data: undefined }
+}
+
+// ---------------------------------------------------------------------------
+// Branding
+// ---------------------------------------------------------------------------
+
+/** Hex colour regex: #rgb or #rrggbb */
+const HEX_RE = /^#[0-9A-Fa-f]{3}([0-9A-Fa-f]{3})?$/
+
+/**
+ * Updates the organisation branding. Owner/admin only.
+ * Stores null when all fields are cleared.
+ */
+export async function updateOrgBranding(input: {
+  orgId: string
+  branding: OrgBranding
+}): Promise<ActionResult> {
+  const { supabase, authorized } = await requireOwnerOrAdmin()
+  if (!authorized) return { success: false, error: 'Only owners and admins can update branding.' }
+
+  const { primaryColor, logoUrl, headerText } = input.branding
+
+  if (primaryColor && !HEX_RE.test(primaryColor)) {
+    return { success: false, error: 'Primary colour must be a valid hex value (e.g. #ff0000 or #f00).' }
+  }
+
+  // Build the stored object; omit empty fields so jsonb stays clean.
+  // If everything is empty, store null on the column.
+  const stored: Record<string, string> = {}
+  if (primaryColor?.trim()) stored.primaryColor = primaryColor.trim()
+  if (logoUrl?.trim())      stored.logoUrl      = logoUrl.trim()
+  if (headerText?.trim())   stored.headerText   = headerText.trim()
+
+  const brandingValue = Object.keys(stored).length > 0 ? stored : null
+
+  const { error } = await supabase
+    .from('organisations')
+    .update({ branding: brandingValue })
     .eq('id', input.orgId)
 
   if (error) return { success: false, error: error.message }

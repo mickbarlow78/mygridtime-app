@@ -28,6 +28,7 @@ export type Database = {
           id: string
           name: string
           slug: string
+          branding: Json | null
           created_at: string
           updated_at: string
         }
@@ -35,6 +36,7 @@ export type Database = {
           id?: string
           name: string
           slug: string
+          branding?: Json | null
           created_at?: string
           updated_at?: string
         }
@@ -42,6 +44,7 @@ export type Database = {
           id?: string
           name?: string
           slug?: string
+          branding?: Json | null
           created_at?: string
           updated_at?: string
         }
@@ -490,6 +493,13 @@ export type NotificationLog = Database['public']['Tables']['notification_log']['
 export type OrgInvite        = Database['public']['Tables']['org_invites']['Row']
 export type TimetableSnapshot = Database['public']['Tables']['timetable_snapshots']['Row']
 export type Template       = Database['public']['Tables']['templates']['Row']
+
+/** Typed shape of the organisations.branding jsonb column. */
+export type OrgBranding = {
+  primaryColor?: string | null
+  logoUrl?: string | null
+  headerText?: string | null
+}
 
 export type EventStatus         = Event['status']
 export type OrgMemberRole       = OrgMember['role']

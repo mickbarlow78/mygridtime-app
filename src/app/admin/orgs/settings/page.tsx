@@ -4,7 +4,9 @@ import Link from 'next/link'
 import { getActiveOrg } from '@/lib/utils/active-org'
 import { listOrgMembers, listOrgInvites } from '@/app/admin/orgs/actions'
 import { OrgNameForm } from './OrgNameForm'
+import { BrandingForm } from '@/components/admin/BrandingForm'
 import { MemberManager } from '@/components/admin/MemberManager'
+import type { OrgBranding } from '@/lib/types/database'
 
 /**
  * Org settings page — server component.
@@ -25,10 +27,10 @@ export default async function OrgSettingsPage() {
     redirect('/admin')
   }
 
-  // Fetch org details
+  // Fetch org details (include branding for the BrandingForm initial values)
   const { data: org } = await supabase
     .from('organisations')
-    .select('id, name, slug')
+    .select('id, name, slug, branding')
     .eq('id', activeOrg.org_id)
     .single()
 
@@ -72,6 +74,18 @@ export default async function OrgSettingsPage() {
           <p className="text-sm font-mono text-gray-600">{org.slug}</p>
           <p className="text-xs text-gray-400 mt-1">The slug cannot be changed after creation.</p>
         </div>
+      </section>
+
+      {/* Branding */}
+      <section>
+        <h2 className="text-sm font-semibold text-gray-900 mb-3">Branding</h2>
+        <p className="text-sm text-gray-500 mb-3">
+          Applied to public timetable pages. Event-level branding overrides these values per field.
+        </p>
+        <BrandingForm
+          orgId={org.id}
+          currentBranding={(org.branding ?? null) as OrgBranding | null}
+        />
       </section>
 
       {/* Members + Invites */}

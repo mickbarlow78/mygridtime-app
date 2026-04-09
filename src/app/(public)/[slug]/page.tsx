@@ -16,12 +16,36 @@
  */
 
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import type { Metadata } from 'next'
 import { TimetableDay } from '@/components/public/TimetableDay'
 import type { PublicEntry } from '@/components/public/TimetableDay'
 import { formatDate } from '@/lib/utils/slug'
+import type { Json, OrgBranding } from '@/lib/types/database'
+
+// ---------------------------------------------------------------------------
+// Branding helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Resolves the effective branding by merging event-level and org-level settings.
+ * Event fields take precedence over org fields, on a per-field basis.
+ * Returns null values for any field that isn't set at either level.
+ */
+function resolveEffectiveBranding(
+  eventBranding: Json | null,
+  orgBranding: Json | null
+): { primaryColor: string | null; logoUrl: string | null; headerText: string | null } {
+  const evt = (eventBranding ?? {}) as Record<string, string | null>
+  const org = (orgBranding  ?? {}) as Record<string, string | null>
+  return {
+    primaryColor: evt.primaryColor ?? org.primaryColor ?? null,
+    logoUrl:      evt.logoUrl      ?? org.logoUrl      ?? null,
+    headerText:   evt.headerText   ?? org.headerText   ?? null,
+  }
+}
 
 export const dynamic = 'force-dynamic'
 
@@ -65,16 +89,34 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 export default async function PublicTimetablePage({ params, searchParams }: PageProps) {
   const supabase = createClient()
 
-  // Fetch the event — published only, explicit select (no admin fields)
+  // Fetch the event — published only, explicit select (no admin fields).
+  // Include org_id and branding so we can resolve effective branding below.
   const { data: event } = await supabase
     .from('events')
-    .select('id, title, venue, start_date, end_date, slug')
+    .select('id, title, venue, start_date, end_date, slug, org_id, branding')
     .eq('slug', params.slug)
     .eq('status', 'published')
     .is('deleted_at', null)
     .maybeSingle()
 
   if (!event) notFound()
+
+  // Fetch org branding via admin client (anon users cannot read organisations).
+  // Wrapped in try/catch so a missing service-role key degrades gracefully.
+  let orgBranding: Json | null = null
+  try {
+    const admin = createAdminClient()
+    const { data: orgRow } = await admin
+      .from('organisations')
+      .select('branding')
+      .eq('id', event.org_id)
+      .maybeSingle()
+    orgBranding = orgRow?.branding ?? null
+  } catch {
+    // Admin client unavailable — fall back to event-level branding only
+  }
+
+  const branding = resolveEffectiveBranding(event.branding, orgBranding)
 
   // Fetch event days, sorted
   const { data: days } = await supabase
@@ -115,6 +157,24 @@ export default async function PublicTimetablePage({ params, searchParams }: Page
     <div className="min-h-screen bg-white">
       {/* ── Event header ── */}
       <div className="bg-white border-b border-gray-200">
+        {/* Branding strip — only rendered when logo or header text is set */}
+        {(branding.logoUrl || branding.headerText) && (
+          <div className="max-w-4xl mx-auto px-4 sm:px-6 pt-4 flex items-center gap-3">
+            {branding.logoUrl && (
+              /* eslint-disable-next-line @next/next/no-img-element */
+              <img
+                src={branding.logoUrl}
+                alt={branding.headerText ?? ''}
+                className="h-7 w-auto object-contain"
+              />
+            )}
+            {branding.headerText && (
+              <span className="text-sm font-semibold text-gray-700 tracking-tight">
+                {branding.headerText}
+              </span>
+            )}
+          </div>
+        )}
         <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6">
           <div className="flex items-start justify-between gap-4">
             <div>
@@ -162,6 +222,11 @@ export default async function PublicTimetablePage({ params, searchParams }: Page
                         ? 'border-gray-900 text-gray-900'
                         : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300',
                     ].join(' ')}
+                    style={
+                      isActive && branding.primaryColor
+                        ? { borderColor: branding.primaryColor, color: branding.primaryColor }
+                        : undefined
+                    }
                   >
                     {label}
                   </Link>
