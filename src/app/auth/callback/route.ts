@@ -62,13 +62,9 @@ export async function GET(request: NextRequest) {
       ? rawNext
       : null
 
-  // Build the success redirect first so setAll() can write cookies onto it.
-  const successResponse = NextResponse.redirect(new URL(safeNext ?? '/admin', origin))
-
-  // Clear the next cookie so it isn't used on a subsequent login.
-  if (safeNext) {
-    successResponse.cookies.delete('mgt-login-next')
-  }
+  // Collect session cookies during code exchange so they can be written onto
+  // whatever redirect response we build after determining the destination.
+  const pendingCookies: Array<{ name: string; value: string; options: CookieOptions }> = []
 
   const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
     cookies: {
@@ -77,10 +73,8 @@ export async function GET(request: NextRequest) {
         return request.cookies.getAll()
       },
       setAll(cookiesToSet: Array<{ name: string; value: string; options: CookieOptions }>) {
-        // Write session tokens onto the response that will be returned to the browser.
-        cookiesToSet.forEach(({ name, value, options }) => {
-          successResponse.cookies.set(name, value, options)
-        })
+        // Collect for now; written to successResponse once destination is known.
+        pendingCookies.push(...cookiesToSet)
       },
     },
   })
@@ -93,7 +87,42 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(loginUrl)
   }
 
-  // Session cookies are now set on successResponse.
-  // Middleware will confirm the session on the /admin request.
+  // Determine the redirect destination.
+  // If a return-path cookie was set (invite flow), honour it — the invite page
+  // handles its own viewer routing after accept.
+  // For a plain login with no return path, check the user's highest org role:
+  // viewer-only users cannot access /admin and are sent to the public landing.
+  let destination = safeNext ?? '/admin'
+
+  if (!safeNext) {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (user) {
+      const { data: memberships } = await supabase
+        .from('org_members')
+        .select('role')
+        .eq('user_id', user.id)
+
+      const roles = (memberships ?? []).map((m) => m.role)
+      const hasElevatedRole = roles.some((r) =>
+        ['owner', 'admin', 'editor'].includes(r)
+      )
+      if (!hasElevatedRole) {
+        // Viewer-only (or no org yet) — send to the public landing page.
+        destination = '/'
+      }
+    }
+  }
+
+  // Build the success redirect and write all collected session cookies onto it.
+  const successResponse = NextResponse.redirect(new URL(destination, origin))
+  pendingCookies.forEach(({ name, value, options }) => {
+    successResponse.cookies.set(name, value, options)
+  })
+
+  // Clear the next cookie so it isn't reused on a subsequent login.
+  if (safeNext) {
+    successResponse.cookies.delete('mgt-login-next')
+  }
+
   return successResponse
 }

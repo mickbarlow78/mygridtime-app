@@ -26,7 +26,9 @@ export function AcceptInviteForm({ token }: AcceptInviteFormProps) {
     }
 
     setStatus('success')
-    setTimeout(() => router.push('/admin'), 1500)
+    // Viewers cannot access /admin — send them to the public landing page.
+    const destination = result.data.role === 'viewer' ? '/' : '/admin'
+    setTimeout(() => router.push(destination), 1500)
   }
 
   return (

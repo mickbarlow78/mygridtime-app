@@ -443,7 +443,7 @@ export async function revokeInvite(input: {
  * Accepts an invite by token. Uses service-role client for insert.
  * Validates: token exists, not already accepted, email matches user.
  */
-export async function acceptInvite(token: string): Promise<ActionResult<{ orgId: string }>> {
+export async function acceptInvite(token: string): Promise<ActionResult<{ orgId: string; role: string }>> {
   const { user } = await requireUser()
 
   const admin = createAdminClient()
@@ -486,7 +486,7 @@ export async function acceptInvite(token: string): Promise<ActionResult<{ orgId:
       .update({ accepted_at: new Date().toISOString() })
       .eq('id', invite.id)
 
-    return { success: true, data: { orgId: invite.org_id } }
+    return { success: true, data: { orgId: invite.org_id, role: invite.role } }
   }
 
   // Insert membership
@@ -509,5 +509,5 @@ export async function acceptInvite(token: string): Promise<ActionResult<{ orgId:
   // Set active org to the one they just joined
   setActiveOrgId(invite.org_id)
 
-  return { success: true, data: { orgId: invite.org_id } }
+  return { success: true, data: { orgId: invite.org_id, role: invite.role } }
 }
