@@ -8,14 +8,17 @@ export default function LoginPage() {
   const [submitted, setSubmitted] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [next, setNext] = useState<string | null>(null)
 
-  // Read ?error= from the URL after mount.
+  // Read ?error= and ?next= from the URL after mount.
   // Avoids useSearchParams() + Suspense, which prevents useState setters
   // from committing during the Suspense hydration cycle.
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     const urlError = params.get('error')
     if (urlError) setError(decodeURIComponent(urlError))
+    const urlNext = params.get('next')
+    if (urlNext) setNext(urlNext)
   }, [])
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -23,7 +26,7 @@ export default function LoginPage() {
     setLoading(true)
     setError(null)
 
-    const { error: otpError } = await sendMagicLink(email)
+    const { error: otpError } = await sendMagicLink(email, next ?? undefined)
 
     if (otpError) {
       const isRateLimit = /rate limit/i.test(otpError)

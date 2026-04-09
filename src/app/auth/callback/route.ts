@@ -54,8 +54,21 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(loginUrl)
   }
 
+  // Read the return-path cookie set by sendMagicLink (invite flow only).
+  // Validate it is a relative path to prevent open-redirect attacks.
+  const rawNext = request.cookies.get('mgt-login-next')?.value ?? null
+  const safeNext =
+    rawNext && rawNext.startsWith('/') && !rawNext.startsWith('//')
+      ? rawNext
+      : null
+
   // Build the success redirect first so setAll() can write cookies onto it.
-  const successResponse = NextResponse.redirect(new URL('/admin', origin))
+  const successResponse = NextResponse.redirect(new URL(safeNext ?? '/admin', origin))
+
+  // Clear the next cookie so it isn't used on a subsequent login.
+  if (safeNext) {
+    successResponse.cookies.delete('mgt-login-next')
+  }
 
   const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
     cookies: {

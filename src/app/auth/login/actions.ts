@@ -1,6 +1,6 @@
 'use server'
 
-import { headers } from 'next/headers'
+import { headers, cookies } from 'next/headers'
 import { createClient } from '@/lib/supabase/server'
 
 /**
@@ -24,7 +24,7 @@ import { createClient } from '@/lib/supabase/server'
  *   are permitted to write cookies, so the verifier is available when
  *   /auth/callback exchanges the code for a session.
  */
-export async function sendMagicLink(email: string): Promise<{ error: string | null }> {
+export async function sendMagicLink(email: string, next?: string): Promise<{ error: string | null }> {
   const headersList = headers()
 
   // host is always the domain the browser sent the request to:
@@ -46,6 +46,24 @@ export async function sendMagicLink(email: string): Promise<{ error: string | nu
     email,
     options: { emailRedirectTo },
   })
+
+  // If OTP was sent successfully and there's a return path, persist it in a
+  // short-lived cookie. The auth callback reads and clears it after the code
+  // exchange, then redirects there instead of /admin.
+  // The emailRedirectTo URL stays as /auth/callback (no query params) so the
+  // Supabase allowlist doesn't need to change.
+  if (!error && next && next.startsWith('/') && !next.startsWith('//')) {
+    try {
+      cookies().set('mgt-login-next', next, {
+        httpOnly: true,
+        sameSite: 'lax',
+        path: '/',
+        maxAge: 60 * 60, // 1 hour — matches Supabase magic link expiry
+      })
+    } catch {
+      // Server Component context — cookie write not possible, non-fatal.
+    }
+  }
 
   return { error: error?.message ?? null }
 }
