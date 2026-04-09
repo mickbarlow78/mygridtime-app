@@ -679,6 +679,8 @@ export function EventEditor({ event, days: initialDays, entries: initialEntries,
     setSavedNotificationEmails(notificationEmails)
     setMetaSuccess(true)
     setTimeout(() => setMetaSuccess(false), 3000)
+    // Refresh server data so audit log updates without a manual reload
+    startTransition(() => router.refresh())
     return true
   }
 
@@ -772,6 +774,8 @@ export function EventEditor({ event, days: initialDays, entries: initialEntries,
     // highlighted in the editor until the user accepts or reverts them.
     setTimetableSuccess(true)
     setTimeout(() => setTimetableSuccess(false), 3000)
+    // Refresh server data so audit log updates without a manual reload
+    startTransition(() => router.refresh())
     return true
   }
 
