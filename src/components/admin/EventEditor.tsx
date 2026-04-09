@@ -354,6 +354,7 @@ export function EventEditor({ event, days: initialDays, entries: initialEntries,
   const [reviewOpen,   setReviewOpen]   = useState(false)
   const [reviewMode,   setReviewMode]   = useState<'metadata' | 'timetable' | null>(null)
   const [reviewSaving, setReviewSaving] = useState(false)
+  const [notifyOnSave, setNotifyOnSave] = useState(false)
 
   // ── Dialog state ─────────────────────────────────────────────────────────
   type DialogKind = 'publish' | 'unpublish' | 'archive' | 'duplicate'
@@ -549,6 +550,7 @@ export function EventEditor({ event, days: initialDays, entries: initialEntries,
       return
     }
 
+    setNotifyOnSave(false)
     setReviewMode('timetable')
     setReviewOpen(true)
   }
@@ -717,7 +719,7 @@ export function EventEditor({ event, days: initialDays, entries: initialEntries,
       }
     }
 
-    const result = await saveDayEntries(event.id, allEntries, deletedEntryIds)
+    const result = await saveDayEntries(event.id, allEntries, deletedEntryIds, notifyOnSave)
     if (!result.success) { setTimetableError(result.error); return false }
 
     // Assign server-generated IDs only to accepted new entries.
@@ -1068,6 +1070,17 @@ export function EventEditor({ event, days: initialDays, entries: initialEntries,
         onConfirmSave={handleConfirmSave}
         onAcceptAndSave={handleAcceptAndSave}
         onCancel={handleCancelReview}
+        footerExtra={reviewMode === 'timetable' && status === 'published' ? (
+          <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={notifyOnSave}
+              onChange={(e) => setNotifyOnSave(e.target.checked)}
+              className="rounded border-gray-300 text-gray-900 focus:ring-gray-500"
+            />
+            Notify attendees about changes
+          </label>
+        ) : undefined}
       />
 
       {/* ── Status dialogs ────────────────────────────────────────────────────── */}

@@ -28,6 +28,8 @@ interface ReviewModalProps {
    *  parent must un-reject that id AND save inline without relying on async state. */
   onAcceptAndSave: (id: string) => void
   onCancel: () => void
+  /** Optional content rendered in the footer, above the action buttons */
+  footerExtra?: React.ReactNode
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -195,6 +197,7 @@ function acceptLabel(kind: ChangeCard['kind']): string {
 export function ReviewModal({
   open, title, cards, saving,
   onAccept, onReject, onAcceptAll, onConfirmSave, onAcceptAndSave, onCancel,
+  footerExtra,
 }: ReviewModalProps) {
   const [index, setIndex] = useState(0)
 
@@ -338,7 +341,9 @@ export function ReviewModal({
         )}
 
         {/* Footer */}
-        <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-between gap-3">
+        <div className="px-6 py-4 border-t border-gray-100 space-y-3">
+          {footerExtra}
+          <div className="flex items-center justify-between gap-3">
           <button
             type="button"
             onClick={onCancel}
@@ -373,6 +378,7 @@ export function ReviewModal({
                     : 'Save'}
               </button>
             )}
+          </div>
           </div>
         </div>
 

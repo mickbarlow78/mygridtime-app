@@ -488,7 +488,8 @@ export interface EntryInput {
 export async function saveDayEntries(
   eventId: string,
   entries: EntryInput[],
-  deletedIds: string[]
+  deletedIds: string[],
+  notify: boolean = false
 ): Promise<ActionResult<{ savedIds: (string | null)[] }>> {
   const { supabase, user, membership } = await requireEditor()
   if (!membership) return { success: false, error: 'You do not have permission to perform this action.' }
@@ -665,9 +666,10 @@ export async function saveDayEntries(
   }
 
   // Send timetable update notification only when:
-  //   1. There were substantive changes (not a no-op save)
-  //   2. The event is currently published (draft saves are silent)
-  if (hasSubstantiveChanges) {
+  //   1. The caller explicitly requested notification
+  //   2. There were substantive changes (not a no-op save)
+  //   3. The event is currently published (draft saves are silent)
+  if (hasSubstantiveChanges && notify) {
     const { data: eventRow } = await supabase
       .from('events')
       .select('status')
