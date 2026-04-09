@@ -160,7 +160,7 @@ export default async function LandingPage() {
       </header>
 
       {/* Page body — grey background */}
-      <div className={`${CONTAINER_FULL} py-8`}>
+      <div className={`${CONTAINER_FULL} py-6`}>
         {/* Events table */}
         {eventList.length === 0 ? (
           <div className="py-16 text-center text-sm text-gray-400">

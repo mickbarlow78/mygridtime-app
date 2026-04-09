@@ -99,7 +99,7 @@ export default async function AdminLayout({
         </div>
       </header>
 
-      <main className={`${CONTAINER_FULL} py-8`}>
+      <main className={`${CONTAINER_FULL} py-6`}>
         {authorized ? (
           children
         ) : (

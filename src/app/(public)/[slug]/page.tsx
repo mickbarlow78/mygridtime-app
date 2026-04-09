@@ -213,7 +213,7 @@ export default async function PublicTimetablePage({ params, searchParams }: Page
           </div>
         </div>
         {/* Event title + subtitle */}
-        <div className={`${CONTAINER_FULL} pt-2 pb-6`}>
+        <div className={`${CONTAINER_FULL} pt-3 pb-4`}>
           <h1 className={H1_PUBLIC}>
             {event.title}
           </h1>
@@ -263,7 +263,7 @@ export default async function PublicTimetablePage({ params, searchParams }: Page
       )}
 
       {/* ── Timetable content ── */}
-      <div className={`${CONTAINER_FULL} py-6`}>
+      <div className={`${CONTAINER_FULL} py-5`}>
         {dayList.length === 0 ? (
           <div className="py-16 text-center text-sm text-gray-400">
             No timetable has been published yet.
