@@ -19,15 +19,15 @@ import { formatDate } from '@/lib/utils/slug'
 import type { Metadata } from 'next'
 import type { OrgBranding } from '@/lib/types/database'
 
+type OrgInfo = { name: string; branding: OrgBranding | null }
+
 export const dynamic = 'force-dynamic'
 
 // ---------------------------------------------------------------------------
-// Org resolver — used by both generateMetadata and the page component.
-// Fetches name + branding from the org that owns the first published event.
-// Returns null on any failure so callers can fall back gracefully.
+// Org resolver — lightweight fetch for metadata (single org name).
 // ---------------------------------------------------------------------------
 
-async function resolvePublicOrg(): Promise<{ name: string; branding: OrgBranding | null } | null> {
+async function resolvePublicOrgName(): Promise<string | null> {
   try {
     const supabase = createClient()
     const { data: firstEvent } = await supabase
@@ -43,28 +43,24 @@ async function resolvePublicOrg(): Promise<{ name: string; branding: OrgBranding
     const admin = createAdminClient()
     const { data: org } = await admin
       .from('organisations')
-      .select('name, branding')
+      .select('name')
       .eq('id', firstEvent.org_id)
       .maybeSingle()
 
-    if (!org) return null
-    return {
-      name: org.name,
-      branding: (org.branding ?? null) as OrgBranding | null,
-    }
+    return org?.name ?? null
   } catch {
     return null
   }
 }
 
 // ---------------------------------------------------------------------------
-// SEO metadata — dynamic so it always overwrites any previously-painted title
+// SEO metadata
 // ---------------------------------------------------------------------------
 
 export async function generateMetadata(): Promise<Metadata> {
-  const org = await resolvePublicOrg()
+  const name = await resolvePublicOrgName()
   return {
-    title: org?.name ?? 'MyGridTime',
+    title: name ?? 'MyGridTime',
     description: 'Race-day timetables for motorsport events.',
   }
 }
@@ -78,28 +74,68 @@ export default async function LandingPage() {
 
   const { data: events } = await supabase
     .from('events')
-    .select('id, title, venue, start_date, end_date, slug')
+    .select('id, title, venue, start_date, end_date, slug, org_id')
     .eq('status', 'published')
     .is('deleted_at', null)
-    .order('start_date', { ascending: false })
+    .order('start_date', { ascending: true })
 
   const eventList = events ?? []
 
-  // Org context — admin client required (anon cannot read organisations).
-  const org = await resolvePublicOrg()
+  // Batch-fetch org names for all listed events (single query, no N+1).
+  const orgMap = new Map<string, OrgInfo>()
+  const distinctOrgIds = Array.from(new Set(eventList.map((e) => e.org_id)))
+  if (distinctOrgIds.length > 0) {
+    try {
+      const admin = createAdminClient()
+      const { data: orgs } = await admin
+        .from('organisations')
+        .select('id, name, branding')
+        .in('id', distinctOrgIds)
+      for (const o of orgs ?? []) {
+        orgMap.set(o.id, { name: o.name, branding: (o.branding ?? null) as OrgBranding | null })
+      }
+    } catch {
+      // Graceful degradation — org names will be absent.
+    }
+  }
 
-  // Branding headerText takes precedence over org name, then falls back to app name.
-  const displayName = org?.branding?.headerText ?? org?.name ?? 'MyGridTime'
+  // Apply org branding to page header only when every event belongs to one org.
+  const singleOrg = distinctOrgIds.length === 1 ? orgMap.get(distinctOrgIds[0]) : null
+  const branding = singleOrg?.branding ?? null
+  const displayName = (singleOrg ? (branding?.headerText ?? singleOrg.name) : null) ?? 'MyGridTime'
 
   return (
     <div className="min-h-screen bg-white">
       <div className="max-w-3xl mx-auto px-4 sm:px-6 py-12">
-        {/* Org / app header */}
-        <div className="mb-10">
-          <h1 className="text-2xl font-semibold text-gray-900 tracking-tight">{displayName}</h1>
-          <p className="mt-1 text-sm text-gray-500">
-            Race-day timetables for motorsport events.
-          </p>
+        {/* Top bar */}
+        <div className="flex items-center justify-between gap-4 mb-10">
+          <div className="flex items-center gap-3 min-w-0">
+            {branding?.logoUrl && (
+              /* eslint-disable-next-line @next/next/no-img-element */
+              <img
+                src={branding.logoUrl}
+                alt={displayName}
+                className="h-8 w-auto object-contain shrink-0"
+              />
+            )}
+            <div className="min-w-0">
+              <h1
+                className="text-2xl font-semibold tracking-tight truncate"
+                style={{ color: branding?.primaryColor ?? undefined }}
+              >
+                {displayName}
+              </h1>
+              <p className="mt-1 text-sm text-gray-500">
+                Race-day timetables for motorsport events.
+              </p>
+            </div>
+          </div>
+          <Link
+            href="/auth/login"
+            className="shrink-0 text-sm font-medium text-gray-500 hover:text-gray-700 transition-colors"
+          >
+            Log in
+          </Link>
         </div>
 
         {/* Events list */}
@@ -108,12 +144,16 @@ export default async function LandingPage() {
             No published events at the moment.
           </div>
         ) : (
-          <div className="divide-y divide-gray-100 border-t border-gray-100">
+          <div
+            className="divide-y divide-gray-100 border-t"
+            style={{ borderColor: branding?.primaryColor ?? undefined }}
+          >
             {eventList.map((event) => {
               const dateStr =
                 event.start_date === event.end_date
                   ? formatDate(event.start_date)
                   : `${formatDate(event.start_date)} – ${formatDate(event.end_date)}`
+              const orgName = orgMap.get(event.org_id)?.name
 
               return (
                 <Link
@@ -126,6 +166,7 @@ export default async function LandingPage() {
                       {event.title}
                     </p>
                     <p className="text-xs text-gray-400 mt-0.5">
+                      {orgName ? `${orgName} · ` : ''}
                       {event.venue ? `${event.venue} · ` : ''}
                       {dateStr}
                     </p>

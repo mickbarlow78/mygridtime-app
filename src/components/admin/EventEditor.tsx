@@ -372,6 +372,13 @@ export function EventEditor({ event, days: initialDays, entries: initialEntries,
   const [dupEndDate,    setDupEndDate]    = useState(event.end_date)
   const [templateName,  setTemplateName]  = useState(event.title + ' Template')
   const [templateSuccess, setTemplateSuccess] = useState(false)
+  const [urlCopied, setUrlCopied] = useState(false)
+
+  // ── Public URL (read-only, derived from event slug) ──────────────────────
+  const publicUrl = (() => {
+    const base = (process.env.NEXT_PUBLIC_APP_URL ?? '').replace(/\/$/, '')
+    return base ? `${base}/${event.slug}` : `/${event.slug}`
+  })()
 
   // ── Derived: current meta as SavedMeta ───────────────────────────────────
   const currentMeta = useMemo((): SavedMeta => ({
@@ -878,6 +885,16 @@ export function EventEditor({ event, days: initialDays, entries: initialEntries,
     }))
   }
 
+  async function handleCopyPublicUrl() {
+    try {
+      await navigator.clipboard.writeText(publicUrl)
+      setUrlCopied(true)
+      setTimeout(() => setUrlCopied(false), 2000)
+    } catch {
+      // Clipboard unavailable — silently ignore
+    }
+  }
+
   // ---------------------------------------------------------------------------
   // Entry change handlers
   // ---------------------------------------------------------------------------
@@ -1027,6 +1044,35 @@ export function EventEditor({ event, days: initialDays, entries: initialEntries,
               Notified when this event is published or the timetable changes. Separate multiple addresses with commas.
             </p>
           </div>
+
+          {/* Public URL — read-only, shown whenever slug exists */}
+          {event.slug && (
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">
+                Public URL
+              </label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  readOnly
+                  value={publicUrl}
+                  className="flex-1 text-sm px-3 py-2 border border-gray-200 rounded-md bg-gray-50 text-gray-600 font-mono focus:outline-none"
+                />
+                <button
+                  type="button"
+                  onClick={handleCopyPublicUrl}
+                  className="shrink-0 text-xs text-gray-400 hover:text-gray-600 border border-gray-200 rounded px-2.5 py-2 hover:border-gray-300 transition-colors whitespace-nowrap"
+                >
+                  {urlCopied ? 'Copied!' : 'Copy'}
+                </button>
+              </div>
+              {status !== 'published' && (
+                <p className="text-xs text-gray-400 mt-0.5">
+                  Not published — this URL will return a 404 until the event is published.
+                </p>
+              )}
+            </div>
+          )}
 
           {/* Save row */}
           <div className="flex items-center gap-4">
