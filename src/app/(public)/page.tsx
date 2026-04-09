@@ -16,6 +16,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import Link from 'next/link'
 import { formatDate } from '@/lib/utils/slug'
+import { signOut } from '@/app/admin/actions'
 import type { Metadata } from 'next'
 import type { OrgBranding } from '@/lib/types/database'
 
@@ -71,6 +72,10 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default async function LandingPage() {
   const supabase = createClient()
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
 
   const { data: events } = await supabase
     .from('events')
@@ -130,12 +135,26 @@ export default async function LandingPage() {
               </p>
             </div>
           </div>
-          <Link
-            href="/auth/login"
-            className="shrink-0 text-sm font-medium text-gray-500 hover:text-gray-700 transition-colors"
-          >
-            Log in
-          </Link>
+          {user ? (
+            <div className="flex items-center gap-4 shrink-0">
+              <span className="text-xs text-gray-400 hidden sm:block">{user.email}</span>
+              <form action={signOut}>
+                <button
+                  type="submit"
+                  className="text-xs text-gray-500 hover:text-gray-900 underline underline-offset-2 transition-colors"
+                >
+                  Sign out
+                </button>
+              </form>
+            </div>
+          ) : (
+            <Link
+              href="/auth/login"
+              className="shrink-0 text-xs text-gray-500 hover:text-gray-900 underline underline-offset-2 transition-colors"
+            >
+              Sign in
+            </Link>
+          )}
         </div>
 
         {/* Events table */}
