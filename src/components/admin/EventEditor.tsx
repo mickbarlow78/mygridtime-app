@@ -529,7 +529,6 @@ export function EventEditor({ event, days: initialDays, entries: initialEntries,
   // ---------------------------------------------------------------------------
 
   function handleSaveTimetable() {
-    console.log('SAVE CLICKED', notifyOnSave)
     const validation = validateTimetable(days, dayEntries)
     setValidationErrors(validation.entryErrors)
     setGlobalValidationErrors(validation.globalErrors)
@@ -684,6 +683,7 @@ export function EventEditor({ event, days: initialDays, entries: initialEntries,
     rejAddedLocalIds: Set<string>,
     rejEditedIds: Set<string>
   ) {
+    console.log('FINAL SAVE notifyOnSave', notifyOnSave)
     const allEntries: EntryInput[] = []
     for (const day of days) {
       for (const e of dayEntries[day.id] ?? []) {
@@ -721,7 +721,7 @@ export function EventEditor({ event, days: initialDays, entries: initialEntries,
       }
     }
 
-    console.log('[EventEditor] notifyOnSave:', notifyOnSave)
+    console.log('CALL saveDayEntries with notifyOnSave', notifyOnSave)
     const result = await saveDayEntries(event.id, allEntries, deletedEntryIds, notifyOnSave)
     if (!result.success) { setTimetableError(result.error); return false }
 
@@ -1078,7 +1078,7 @@ export function EventEditor({ event, days: initialDays, entries: initialEntries,
             <input
               type="checkbox"
               checked={notifyOnSave}
-              onChange={(e) => setNotifyOnSave(e.target.checked)}
+              onChange={(e) => { console.log('NOTIFY TOGGLED', e.target.checked); setNotifyOnSave(e.target.checked) }}
               className="rounded border-gray-300 text-gray-900 focus:ring-gray-500"
             />
             Notify attendees about changes
