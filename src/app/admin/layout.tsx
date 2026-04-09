@@ -1,7 +1,9 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
+import Link from 'next/link'
 import { signOut } from './actions'
-import { getActiveOrg } from '@/lib/utils/active-org'
+import { getActiveOrg, getUserOrgs } from '@/lib/utils/active-org'
+import { OrgSelector } from '@/components/admin/OrgSelector'
 
 /**
  * Admin layout — Server Component.
@@ -43,6 +45,7 @@ export default async function AdminLayout({
 
   // 2. Authorisation — must hold an allowed role in at least one org
   const activeOrg = await getActiveOrg(supabase, user.id)
+  const userOrgs = activeOrg ? await getUserOrgs(supabase, user.id) : []
 
   const authorized = !!activeOrg
 
@@ -51,10 +54,26 @@ export default async function AdminLayout({
       {/* Persistent admin header */}
       <header className="bg-white border-b border-gray-200">
         <div className="max-w-6xl mx-auto px-6 py-3 flex items-center justify-between">
-          <span className="text-sm font-semibold text-gray-900 tracking-tight">
-            MyGridTime
-          </span>
+          <div className="flex items-center gap-3">
+            <span className="text-sm font-semibold text-gray-900 tracking-tight">
+              MyGridTime
+            </span>
+            {authorized && userOrgs.length > 1 && activeOrg && (
+              <OrgSelector
+                orgs={userOrgs.map((o) => ({ org_id: o.org_id, org_name: o.org_name }))}
+                activeOrgId={activeOrg.org_id}
+              />
+            )}
+          </div>
           <div className="flex items-center gap-4">
+            {authorized && (
+              <Link
+                href="/admin/orgs/new"
+                className="text-xs text-gray-400 hover:text-gray-600 transition-colors hidden sm:block"
+              >
+                + New org
+              </Link>
+            )}
             <span className="text-xs text-gray-400 hidden sm:block">
               {user.email}
             </span>
