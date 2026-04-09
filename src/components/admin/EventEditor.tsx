@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo, useState, useTransition } from 'react'
+import { debugLog } from '@/lib/debug'
 import { useRouter } from 'next/navigation'
 import { TimetableBuilder } from './TimetableBuilder'
 import { AuditLogView } from './AuditLogView'
@@ -298,7 +299,7 @@ type MetaFieldState = 'unchanged' | 'pending' | 'rejected'
 // ---------------------------------------------------------------------------
 
 export function EventEditor({ event, days: initialDays, entries: initialEntries, auditLog }: EventEditorProps) {
-  console.log('EventEditor loaded')
+  debugLog('EventEditor', 'loaded')
   const router = useRouter()
   const [, startTransition] = useTransition()
 
@@ -683,7 +684,7 @@ export function EventEditor({ event, days: initialDays, entries: initialEntries,
     rejAddedLocalIds: Set<string>,
     rejEditedIds: Set<string>
   ) {
-    console.log('FINAL SAVE notifyOnSave', notifyOnSave)
+    debugLog('EventEditor', 'FINAL SAVE notifyOnSave:', notifyOnSave)
     const allEntries: EntryInput[] = []
     for (const day of days) {
       for (const e of dayEntries[day.id] ?? []) {
@@ -721,7 +722,7 @@ export function EventEditor({ event, days: initialDays, entries: initialEntries,
       }
     }
 
-    console.log('CALL saveDayEntries with notifyOnSave', notifyOnSave)
+    debugLog('EventEditor', 'CALL saveDayEntries notifyOnSave:', notifyOnSave)
     const result = await saveDayEntries(event.id, allEntries, deletedEntryIds, notifyOnSave)
     if (!result.success) { setTimetableError(result.error); return false }
 
@@ -1074,15 +1075,19 @@ export function EventEditor({ event, days: initialDays, entries: initialEntries,
         onAcceptAndSave={handleAcceptAndSave}
         onCancel={handleCancelReview}
         footerExtra={reviewMode === 'timetable' && status === 'published' ? (
-          <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer select-none">
-            <input
-              type="checkbox"
-              checked={notifyOnSave}
-              onChange={(e) => { console.log('NOTIFY TOGGLED', e.target.checked); setNotifyOnSave(e.target.checked) }}
-              className="rounded border-gray-300 text-gray-900 focus:ring-gray-500"
-            />
-            Notify attendees about changes
-          </label>
+          notificationEmails.trim() ? (
+            <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={notifyOnSave}
+                onChange={(e) => { debugLog('EventEditor', 'NOTIFY TOGGLED:', e.target.checked); setNotifyOnSave(e.target.checked) }}
+                className="rounded border-gray-300 text-gray-900 focus:ring-gray-500"
+              />
+              Notify attendees about changes
+            </label>
+          ) : (
+            <p className="text-sm text-gray-400">No notification email addresses set for this event.</p>
+          )
         ) : undefined}
       />
 

@@ -27,6 +27,7 @@
  */
 
 import { getResendClient, getFromAddress } from './client'
+import { debugLog } from '@/lib/debug'
 import {
   eventPublishedSubject,
   eventPublishedHtml,
@@ -53,7 +54,7 @@ export async function sendEventNotification(
   eventId: string,
   type: NotificationType
 ): Promise<void> {
-  console.log('ENTER sendEventNotification', type, eventId)
+  debugLog('sendEventNotification', 'ENTER type:', type, '| eventId:', eventId)
   // ── 1. Fetch event (slug, title, venue, dates, recipients) ───────────────
   const { data: event } = await supabase
     .from('events')
@@ -106,7 +107,7 @@ export async function sendEventNotification(
   const windowStart = new Date(Date.now() - windowMs).toISOString()
 
   for (const to of recipients) {
-    console.log('[sendEventNotification] recipient:', to)
+    debugLog('sendEventNotification', 'recipient:', to)
     // Per-recipient debounce — skip if a successful send went out recently
     const { data: recent } = await supabase
       .from('notification_log')
@@ -119,7 +120,7 @@ export async function sendEventNotification(
       .limit(1)
       .maybeSingle()
 
-    console.log('[sendEventNotification] debounce recent:', !!recent)
+    debugLog('sendEventNotification', 'debounce recent:', !!recent)
     if (recent) continue  // within debounce window for this recipient — skip
 
     if (!resend) {
@@ -136,7 +137,7 @@ export async function sendEventNotification(
     }
 
     try {
-      console.log('ATTEMPT resend.emails.send', to)
+      debugLog('sendEventNotification', 'ATTEMPT resend.emails.send to:', to)
       const { error: sendError } = await resend.emails.send({
         from,
         to,
@@ -145,7 +146,7 @@ export async function sendEventNotification(
         text,
       })
 
-      console.log('[sendEventNotification] resend result — error:', sendError ?? null)
+      debugLog('sendEventNotification', 'resend result — error:', sendError ?? null)
       if (sendError) {
         await supabase.from('notification_log').insert({
           event_id: eventId,
