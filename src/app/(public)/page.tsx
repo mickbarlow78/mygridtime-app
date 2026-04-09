@@ -106,7 +106,7 @@ export default async function LandingPage() {
 
   return (
     <div className="min-h-screen bg-white">
-      <div className="max-w-3xl mx-auto px-4 sm:px-6 py-12">
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 py-12">
         {/* Top bar */}
         <div className="flex items-center justify-between gap-4 mb-10">
           <div className="flex items-center gap-3 min-w-0">
@@ -138,45 +138,69 @@ export default async function LandingPage() {
           </Link>
         </div>
 
-        {/* Events list */}
+        {/* Events table */}
         {eventList.length === 0 ? (
           <div className="py-16 text-center text-sm text-gray-400">
             No published events at the moment.
           </div>
         ) : (
-          <div
-            className="divide-y divide-gray-100 border-t"
-            style={{ borderColor: branding?.primaryColor ?? undefined }}
-          >
-            {eventList.map((event) => {
-              const dateStr =
-                event.start_date === event.end_date
-                  ? formatDate(event.start_date)
-                  : `${formatDate(event.start_date)} – ${formatDate(event.end_date)}`
-              const orgName = orgMap.get(event.org_id)?.name
-
-              return (
-                <Link
-                  key={event.id}
-                  href={`/${event.slug}`}
-                  className="flex items-center justify-between gap-4 py-4 -mx-2 px-2 rounded hover:bg-gray-50 transition-colors group"
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm border-collapse">
+              <thead>
+                <tr
+                  className="border-t-2 border-b border-gray-200 text-left"
+                  style={{ borderTopColor: branding?.primaryColor ?? undefined }}
                 >
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium text-gray-900 group-hover:text-gray-700 truncate">
-                      {event.title}
-                    </p>
-                    <p className="text-xs text-gray-400 mt-0.5">
-                      {orgName ? `${orgName} · ` : ''}
-                      {event.venue ? `${event.venue} · ` : ''}
-                      {dateStr}
-                    </p>
-                  </div>
-                  <span className="shrink-0 text-sm text-gray-300 group-hover:text-gray-400">
-                    →
-                  </span>
-                </Link>
-              )
-            })}
+                  <th className="py-2.5 pr-6 font-semibold text-gray-700 whitespace-nowrap">Event</th>
+                  <th className="py-2.5 pr-6 font-semibold text-gray-700 whitespace-nowrap">Organisation</th>
+                  <th className="py-2.5 pr-6 font-semibold text-gray-700 whitespace-nowrap">Venue</th>
+                  <th className="py-2.5 pr-6 font-semibold text-gray-700 whitespace-nowrap">Start</th>
+                  <th className="py-2.5 pr-6 font-semibold text-gray-700 whitespace-nowrap">End</th>
+                  <th className="py-2.5 font-semibold text-gray-700 whitespace-nowrap sr-only">View</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {eventList.map((event) => {
+                  const orgName = orgMap.get(event.org_id)?.name
+                  const sameDay = event.start_date === event.end_date
+
+                  return (
+                    <tr key={event.id} className="group hover:bg-gray-50 transition-colors">
+                      <td className="py-3.5 pr-6">
+                        <Link
+                          href={`/${event.slug}`}
+                          className="font-medium text-gray-900 group-hover:text-gray-600 hover:underline"
+                        >
+                          {event.title}
+                        </Link>
+                      </td>
+                      <td className="py-3.5 pr-6 text-gray-500 whitespace-nowrap">
+                        {orgName ?? <span className="text-gray-300">—</span>}
+                      </td>
+                      <td className="py-3.5 pr-6 text-gray-500 whitespace-nowrap">
+                        {event.venue ?? <span className="text-gray-300">—</span>}
+                      </td>
+                      <td className="py-3.5 pr-6 text-gray-500 whitespace-nowrap tabular-nums">
+                        {formatDate(event.start_date)}
+                      </td>
+                      <td className="py-3.5 pr-6 text-gray-500 whitespace-nowrap tabular-nums">
+                        {sameDay ? <span className="text-gray-300">—</span> : formatDate(event.end_date)}
+                      </td>
+                      <td className="py-3.5 text-right">
+                        <Link
+                          href={`/${event.slug}`}
+                          className="text-gray-300 group-hover:text-gray-400 transition-colors"
+                          aria-hidden="true"
+                          tabIndex={-1}
+                        >
+                          →
+                        </Link>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
           </div>
         )}
       </div>
