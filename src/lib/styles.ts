@@ -120,4 +120,4 @@ export const AUTH_EMAIL = 'text-xs text-gray-400 hidden sm:block'
 export const AUTH_LINK =
   'text-xs text-gray-500 hover:text-gray-900 underline underline-offset-2 transition-colors'
 export const HEADER_NAV_LINK =
-  'text-xs text-gray-400 hover:text-gray-600 transition-colors hidden sm:block'
+  'text-xs text-gray-400 hover:text-gray-600 transition-colors'
