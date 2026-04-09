@@ -11,8 +11,20 @@ interface BrandingFormProps {
 
 const HEX_RE = /^#[0-9A-Fa-f]{3}([0-9A-Fa-f]{3})?$/
 
+/** Expand a valid 3-char hex to 6-char so <input type="color"> accepts it. */
+function to6Hex(hex: string): string {
+  const m = hex.trim().match(/^#([0-9A-Fa-f])([0-9A-Fa-f])([0-9A-Fa-f])$/)
+  if (m) return `#${m[1]}${m[1]}${m[2]}${m[2]}${m[3]}${m[3]}`
+  return hex.trim()
+}
+
 export function BrandingForm({ orgId, currentBranding }: BrandingFormProps) {
   const [primaryColor, setPrimaryColor] = useState(currentBranding?.primaryColor ?? '')
+  // pickerColor must always be a valid 6-char hex for the native color input
+  const [pickerColor, setPickerColor] = useState<string>(() => {
+    const v = currentBranding?.primaryColor ?? ''
+    return HEX_RE.test(v) ? to6Hex(v) : '#000000'
+  })
   const [logoUrl, setLogoUrl] = useState(currentBranding?.logoUrl ?? '')
   const [headerText, setHeaderText] = useState(currentBranding?.headerText ?? '')
   const [error, setError] = useState<string | null>(null)
@@ -56,21 +68,32 @@ export function BrandingForm({ orgId, currentBranding }: BrandingFormProps) {
           Primary colour
         </label>
         <div className="flex items-center gap-2">
+          {/* Native colour picker — always 6-char hex; drives the text field */}
+          <input
+            type="color"
+            value={pickerColor}
+            onChange={(e) => {
+              setPickerColor(e.target.value)
+              setPrimaryColor(e.target.value)
+              setSuccess(false)
+            }}
+            className="w-9 h-9 rounded border border-gray-300 cursor-pointer p-0.5 shrink-0"
+            aria-label="Pick a colour"
+          />
+          {/* Editable hex text field — drives the picker when valid */}
           <input
             id="branding-color"
             type="text"
             value={primaryColor}
-            onChange={(e) => { setPrimaryColor(e.target.value); setSuccess(false) }}
+            onChange={(e) => {
+              const v = e.target.value
+              setPrimaryColor(v)
+              setSuccess(false)
+              if (HEX_RE.test(v.trim())) setPickerColor(to6Hex(v.trim()))
+            }}
             placeholder="#000000"
-            className="w-36 text-sm px-3 py-2 border border-gray-300 rounded-md font-mono focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+            className="w-32 text-sm px-3 py-2 border border-gray-300 rounded-md font-mono focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"
           />
-          {primaryColor && HEX_RE.test(primaryColor.trim()) && (
-            <span
-              className="inline-block w-6 h-6 rounded border border-gray-200 shrink-0"
-              style={{ backgroundColor: primaryColor.trim() }}
-              aria-hidden="true"
-            />
-          )}
         </div>
         <p className="text-xs text-gray-400 mt-1">
           Accent colour for tabs and highlights. Leave empty for default.
