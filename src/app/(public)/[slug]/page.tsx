@@ -159,7 +159,7 @@ export default async function PublicTimetablePage({ params, searchParams }: Page
       : `${formatDate(event.start_date)} – ${formatDate(event.end_date)}`
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-gray-50">
       {/* ── Event header ── */}
       <div className="bg-white border-b border-gray-200">
         {/* Top bar: branding left, actions right — mirrors public root header */}

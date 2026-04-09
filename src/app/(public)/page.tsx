@@ -110,10 +110,10 @@ export default async function LandingPage() {
   const displayName = (singleOrg ? (branding?.headerText ?? singleOrg.name) : null) ?? 'MyGridTime'
 
   return (
-    <div className="min-h-screen bg-white">
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 py-12">
-        {/* Top bar */}
-        <div className="flex items-center justify-between gap-4 mb-10">
+    <div className="min-h-screen bg-gray-50">
+      {/* Header — white strip, matches admin */}
+      <header className="bg-white border-b border-gray-200">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3 min-w-0">
             {branding?.logoUrl && (
               /* eslint-disable-next-line @next/next/no-img-element */
@@ -156,36 +156,39 @@ export default async function LandingPage() {
             </Link>
           )}
         </div>
+      </header>
 
+      {/* Page body — grey background */}
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 py-8">
         {/* Events table */}
         {eventList.length === 0 ? (
           <div className="py-16 text-center text-sm text-gray-400">
             No published events at the moment.
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <div className="bg-white border border-gray-200 rounded overflow-x-auto">
             <table className="w-full text-sm border-collapse">
               <thead>
                 <tr
-                  className="border-t-2 border-b border-gray-200 text-left"
+                  className="border-t border-b border-gray-200 text-left"
                   style={{ borderTopColor: branding?.primaryColor ?? undefined }}
                 >
-                  <th className="py-2.5 pr-6 font-semibold text-gray-700 whitespace-nowrap">Event</th>
+                  <th className="py-2.5 pr-6 pl-4 font-semibold text-gray-700 whitespace-nowrap">Event</th>
                   <th className="py-2.5 pr-6 font-semibold text-gray-700 whitespace-nowrap">Organisation</th>
                   <th className="py-2.5 pr-6 font-semibold text-gray-700 whitespace-nowrap">Venue</th>
                   <th className="py-2.5 pr-6 font-semibold text-gray-700 whitespace-nowrap">Start</th>
                   <th className="py-2.5 pr-6 font-semibold text-gray-700 whitespace-nowrap">End</th>
-                  <th className="py-2.5 font-semibold text-gray-700 whitespace-nowrap sr-only">View</th>
+                  <th className="py-2.5 pr-4 font-semibold text-gray-700 whitespace-nowrap sr-only">View</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-gray-200">
                 {eventList.map((event) => {
                   const orgName = orgMap.get(event.org_id)?.name
                   const sameDay = event.start_date === event.end_date
 
                   return (
                     <tr key={event.id} className="group hover:bg-gray-50 transition-colors">
-                      <td className="py-3.5 pr-6">
+                      <td className="py-3.5 pr-6 pl-4">
                         <Link
                           href={`/${event.slug}`}
                           className="font-medium text-gray-900 group-hover:text-gray-600 hover:underline"
@@ -205,7 +208,7 @@ export default async function LandingPage() {
                       <td className="py-3.5 pr-6 text-gray-500 whitespace-nowrap tabular-nums">
                         {sameDay ? <span className="text-gray-300">—</span> : formatDate(event.end_date)}
                       </td>
-                      <td className="py-3.5 text-right">
+                      <td className="py-3.5 pr-4 text-right">
                         <Link
                           href={`/${event.slug}`}
                           className="text-gray-300 group-hover:text-gray-400 transition-colors"
