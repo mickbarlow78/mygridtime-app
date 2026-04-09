@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { signOut } from './actions'
+import { getActiveOrg } from '@/lib/utils/active-org'
 
 /**
  * Admin layout — Server Component.
@@ -41,15 +42,9 @@ export default async function AdminLayout({
   }
 
   // 2. Authorisation — must hold an allowed role in at least one org
-  const { data: membership } = await supabase
-    .from('org_members')
-    .select('org_id, role')
-    .eq('user_id', user.id)
-    .in('role', ALLOWED_ROLES)
-    .limit(1)
-    .maybeSingle()
+  const activeOrg = await getActiveOrg(supabase, user.id)
 
-  const authorized = !!membership
+  const authorized = !!activeOrg
 
   return (
     <div className="min-h-screen bg-gray-50">

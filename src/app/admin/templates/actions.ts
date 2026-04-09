@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { slugify, getDatesInRange } from '@/lib/utils/slug'
 import { redirect } from 'next/navigation'
 import type { Json } from '@/lib/types/database'
+import { getActiveOrg } from '@/lib/utils/active-org'
 
 // ---------------------------------------------------------------------------
 // Helpers (mirrored from events/actions — not exported there)
@@ -16,18 +17,10 @@ async function requireUser() {
   return { supabase, user }
 }
 
-const EDITOR_ROLES = ['owner', 'admin', 'editor'] as const
-
 async function requireEditor() {
   const { supabase, user } = await requireUser()
-  const { data: membership } = await supabase
-    .from('org_members')
-    .select('org_id, role')
-    .eq('user_id', user.id)
-    .in('role', [...EDITOR_ROLES])
-    .limit(1)
-    .maybeSingle()
-  return { supabase, user, membership: membership ?? null }
+  const membership = await getActiveOrg(supabase, user.id)
+  return { supabase, user, membership }
 }
 
 async function generateUniqueSlug(

@@ -6,6 +6,7 @@ import { redirect } from 'next/navigation'
 import type { EventStatus, Json } from '@/lib/types/database'
 import { sendEventNotification } from '@/lib/resend/notifications'
 import { debugLog } from '@/lib/debug'
+import { getActiveOrg } from '@/lib/utils/active-org'
 
 // ---------------------------------------------------------------------------
 // Internal helpers
@@ -19,31 +20,18 @@ async function requireUser() {
 }
 
 /**
- * Roles permitted to perform write operations in the admin area.
- * viewer is intentionally excluded — they may read but not mutate.
- */
-const EDITOR_ROLES = ['owner', 'admin', 'editor'] as const
-
-/**
  * Requires the calling user to be authenticated AND to hold an allowed role
- * (owner | admin | editor) in at least one org.
+ * (owner | admin | editor) in their active org.
  *
- * Returns { supabase, user, membership } where membership is the first
- * matching org_members row, or membership: null if the user has no
- * qualifying role.  Every mutation action must check membership !== null
- * before proceeding — this gives an explicit server-side rejection rather
- * than relying solely on RLS to silently discard the write.
+ * Returns { supabase, user, membership } where membership is the user's
+ * active org (resolved via cookie with fallback), or membership: null if
+ * the user has no qualifying role.  Every mutation action must check
+ * membership !== null before proceeding.
  */
 async function requireEditor() {
   const { supabase, user } = await requireUser()
-  const { data: membership } = await supabase
-    .from('org_members')
-    .select('org_id, role')
-    .eq('user_id', user.id)
-    .in('role', [...EDITOR_ROLES])
-    .limit(1)
-    .maybeSingle()
-  return { supabase, user, membership: membership ?? null }
+  const membership = await getActiveOrg(supabase, user.id)
+  return { supabase, user, membership }
 }
 
 async function generateUniqueSlug(

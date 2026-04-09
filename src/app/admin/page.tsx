@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { StatusBadge } from '@/components/ui/StatusBadge'
 import { formatDate } from '@/lib/utils/slug'
 import type { EventStatus } from '@/lib/types/database'
+import { getActiveOrg } from '@/lib/utils/active-org'
 
 // Next.js: re-render this page on every request (never cache stale event data)
 export const dynamic = 'force-dynamic'
@@ -17,17 +18,12 @@ interface PageProps {
 export default async function AdminDashboardPage({ searchParams }: PageProps) {
   const supabase = createClient()
 
-  // Get the authenticated user's org
+  // Get the authenticated user's active org
   const {
     data: { user },
   } = await supabase.auth.getUser()
 
-  const { data: membership } = await supabase
-    .from('org_members')
-    .select('org_id, role')
-    .eq('user_id', user!.id)
-    .limit(1)
-    .single()
+  const membership = user ? await getActiveOrg(supabase, user.id) : null
 
   const activeFilter: StatusFilter =
     STATUS_FILTERS.includes(searchParams.status as StatusFilter)
