@@ -144,6 +144,64 @@ export function timetableUpdatedText(data: EventEmailData): string {
 }
 
 // ---------------------------------------------------------------------------
+// Template: org invite
+// ---------------------------------------------------------------------------
+
+export interface InviteEmailData {
+  orgName: string
+  inviterEmail: string
+  role: string
+  acceptUrl: string     // full URL to the invite accept page
+}
+
+export function orgInviteSubject(orgName: string): string {
+  return `You've been invited to ${orgName} on MyGridTime`
+}
+
+export function orgInviteHtml(data: InviteEmailData): string {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Invitation to ${escHtml(data.orgName)}</title>
+  <style>${BASE_STYLES}</style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="header">
+      <span class="wordmark">MyGridTime</span>
+    </div>
+    <div class="body">
+      <h1>You're invited</h1>
+      <p class="meta">${escHtml(data.inviterEmail)} has invited you to join <strong>${escHtml(data.orgName)}</strong> as ${escHtml(data.role)}.</p>
+      <p style="font-size:15px;line-height:1.6;margin:0 0 28px;color:#374151;">
+        Click the button below to accept the invitation and join the organisation.
+      </p>
+      <a href="${escHtml(data.acceptUrl)}" class="cta">Accept invitation</a>
+    </div>
+    <div class="footer">
+      If you weren't expecting this invitation, you can safely ignore this email.
+    </div>
+  </div>
+</body>
+</html>`
+}
+
+export function orgInviteText(data: InviteEmailData): string {
+  return [
+    `MyGridTime`,
+    ``,
+    `You're invited`,
+    `${data.inviterEmail} has invited you to join ${data.orgName} as ${data.role}.`,
+    ``,
+    `Accept invitation: ${data.acceptUrl}`,
+    ``,
+    `If you weren't expecting this invitation, you can safely ignore this email.`,
+  ].join('\n')
+}
+
+// ---------------------------------------------------------------------------
 // Utility
 // ---------------------------------------------------------------------------
 

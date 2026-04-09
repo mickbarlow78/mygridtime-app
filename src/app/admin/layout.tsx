@@ -66,6 +66,15 @@ export default async function AdminLayout({
             )}
           </div>
           <div className="flex items-center gap-4">
+            {authorized && activeOrg && ['owner', 'admin'].includes(activeOrg.role) && (
+              <Link
+                href="/admin/orgs/settings"
+                className="text-xs text-gray-400 hover:text-gray-600 transition-colors hidden sm:block"
+                title="Organisation settings"
+              >
+                Settings
+              </Link>
+            )}
             {authorized && (
               <Link
                 href="/admin/orgs/new"

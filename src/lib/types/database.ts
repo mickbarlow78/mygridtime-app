@@ -368,6 +368,55 @@ export type Database = {
         ]
       }
 
+      org_invites: {
+        Row: {
+          id: string
+          org_id: string
+          email: string
+          role: 'admin' | 'editor' | 'viewer'
+          token: string
+          invited_by: string | null
+          accepted_at: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          org_id: string
+          email: string
+          role?: 'admin' | 'editor' | 'viewer'
+          token?: string
+          invited_by?: string | null
+          accepted_at?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          org_id?: string
+          email?: string
+          role?: 'admin' | 'editor' | 'viewer'
+          token?: string
+          invited_by?: string | null
+          accepted_at?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "org_invites_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "org_invites_invited_by_fkey"
+            columns: ["invited_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+
       timetable_snapshots: {
         Row: {
           id: string
@@ -438,6 +487,7 @@ export type EventDay       = Database['public']['Tables']['event_days']['Row']
 export type TimetableEntry = Database['public']['Tables']['timetable_entries']['Row']
 export type AuditLog       = Database['public']['Tables']['audit_log']['Row']
 export type NotificationLog = Database['public']['Tables']['notification_log']['Row']
+export type OrgInvite        = Database['public']['Tables']['org_invites']['Row']
 export type TimetableSnapshot = Database['public']['Tables']['timetable_snapshots']['Row']
 export type Template       = Database['public']['Tables']['templates']['Row']
 

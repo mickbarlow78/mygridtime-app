@@ -4,7 +4,9 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
-import { setActiveOrgId } from '@/lib/utils/active-org'
+import { setActiveOrgId, getActiveOrg } from '@/lib/utils/active-org'
+import { getResendClient, getFromAddress } from '@/lib/resend/client'
+import { orgInviteSubject, orgInviteHtml, orgInviteText } from '@/lib/resend/templates'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -108,4 +110,387 @@ export async function switchOrg(orgId: string): Promise<ActionResult> {
   revalidatePath('/admin')
 
   return { success: true, data: undefined }
+}
+
+// ---------------------------------------------------------------------------
+// Org Settings
+// ---------------------------------------------------------------------------
+
+/**
+ * Require the current user to be owner or admin of the active org.
+ * Returns the supabase client, user, and active org.
+ */
+async function requireOwnerOrAdmin() {
+  const { supabase, user } = await requireUser()
+  const activeOrg = await getActiveOrg(supabase, user.id)
+  if (!activeOrg) redirect('/admin')
+  if (!['owner', 'admin'].includes(activeOrg.role)) {
+    return { supabase, user, activeOrg, authorized: false as const }
+  }
+  return { supabase, user, activeOrg, authorized: true as const }
+}
+
+/**
+ * Updates the organisation name.
+ */
+export async function updateOrganisation(input: {
+  orgId: string
+  name: string
+}): Promise<ActionResult> {
+  const { supabase, authorized } = await requireOwnerOrAdmin()
+  if (!authorized) return { success: false, error: 'Only owners and admins can update organisation settings.' }
+
+  const name = input.name.trim()
+  if (!name) return { success: false, error: 'Organisation name is required.' }
+
+  const { error } = await supabase
+    .from('organisations')
+    .update({ name })
+    .eq('id', input.orgId)
+
+  if (error) return { success: false, error: error.message }
+
+  revalidatePath('/admin')
+  return { success: true, data: undefined }
+}
+
+// ---------------------------------------------------------------------------
+// Members
+// ---------------------------------------------------------------------------
+
+/**
+ * Lists members of the active org. Owner/admin only.
+ */
+export async function listOrgMembers(orgId: string): Promise<ActionResult<Array<{
+  id: string
+  user_id: string
+  role: string
+  email: string
+  created_at: string
+}>>> {
+  const { supabase, authorized } = await requireOwnerOrAdmin()
+  if (!authorized) return { success: false, error: 'Only owners and admins can view members.' }
+
+  const { data, error } = await supabase
+    .from('org_members')
+    .select('id, user_id, role, created_at, users!org_members_user_id_fkey(email)')
+    .eq('org_id', orgId)
+    .order('created_at', { ascending: true })
+
+  if (error) return { success: false, error: error.message }
+
+  const members = (data ?? []).map((m) => ({
+    id: m.id,
+    user_id: m.user_id,
+    role: m.role,
+    email: (m.users as unknown as { email: string })?.email ?? 'unknown',
+    created_at: m.created_at,
+  }))
+
+  return { success: true, data: members }
+}
+
+/**
+ * Updates a member's role. Cannot change last owner.
+ */
+export async function updateMemberRole(input: {
+  memberId: string
+  orgId: string
+  newRole: 'owner' | 'admin' | 'editor' | 'viewer'
+}): Promise<ActionResult> {
+  const { supabase, authorized } = await requireOwnerOrAdmin()
+  if (!authorized) return { success: false, error: 'Only owners and admins can change roles.' }
+
+  // Fetch the member being changed
+  const { data: member } = await supabase
+    .from('org_members')
+    .select('id, user_id, role')
+    .eq('id', input.memberId)
+    .eq('org_id', input.orgId)
+    .single()
+
+  if (!member) return { success: false, error: 'Member not found.' }
+
+  // Prevent demoting last owner
+  if (member.role === 'owner' && input.newRole !== 'owner') {
+    const { count } = await supabase
+      .from('org_members')
+      .select('id', { count: 'exact', head: true })
+      .eq('org_id', input.orgId)
+      .eq('role', 'owner')
+
+    if ((count ?? 0) <= 1) {
+      return { success: false, error: 'Cannot change role — this is the only owner.' }
+    }
+  }
+
+  const { error } = await supabase
+    .from('org_members')
+    .update({ role: input.newRole })
+    .eq('id', input.memberId)
+
+  if (error) return { success: false, error: error.message }
+
+  revalidatePath('/admin')
+  return { success: true, data: undefined }
+}
+
+/**
+ * Removes a member from the org. Cannot remove last owner.
+ */
+export async function removeMember(input: {
+  memberId: string
+  orgId: string
+}): Promise<ActionResult> {
+  const { supabase, authorized } = await requireOwnerOrAdmin()
+  if (!authorized) return { success: false, error: 'Only owners and admins can remove members.' }
+
+  // Fetch the member being removed
+  const { data: member } = await supabase
+    .from('org_members')
+    .select('id, role')
+    .eq('id', input.memberId)
+    .eq('org_id', input.orgId)
+    .single()
+
+  if (!member) return { success: false, error: 'Member not found.' }
+
+  // Prevent removing last owner
+  if (member.role === 'owner') {
+    const { count } = await supabase
+      .from('org_members')
+      .select('id', { count: 'exact', head: true })
+      .eq('org_id', input.orgId)
+      .eq('role', 'owner')
+
+    if ((count ?? 0) <= 1) {
+      return { success: false, error: 'Cannot remove the only owner.' }
+    }
+  }
+
+  const { error } = await supabase
+    .from('org_members')
+    .delete()
+    .eq('id', input.memberId)
+
+  if (error) return { success: false, error: error.message }
+
+  revalidatePath('/admin')
+  return { success: true, data: undefined }
+}
+
+// ---------------------------------------------------------------------------
+// Invites
+// ---------------------------------------------------------------------------
+
+/**
+ * Lists pending invites for the org.
+ */
+export async function listOrgInvites(orgId: string): Promise<ActionResult<Array<{
+  id: string
+  email: string
+  role: string
+  created_at: string
+}>>> {
+  const { supabase, authorized } = await requireOwnerOrAdmin()
+  if (!authorized) return { success: false, error: 'Only owners and admins can view invites.' }
+
+  const { data, error } = await supabase
+    .from('org_invites')
+    .select('id, email, role, created_at')
+    .eq('org_id', orgId)
+    .is('accepted_at', null)
+    .order('created_at', { ascending: false })
+
+  if (error) return { success: false, error: error.message }
+  return { success: true, data: data ?? [] }
+}
+
+/**
+ * Invites a user by email to the org. Sends invite email via Resend.
+ */
+export async function inviteMember(input: {
+  orgId: string
+  email: string
+  role: 'admin' | 'editor' | 'viewer'
+}): Promise<ActionResult> {
+  const { supabase, user, authorized } = await requireOwnerOrAdmin()
+  if (!authorized) return { success: false, error: 'Only owners and admins can invite members.' }
+
+  const email = input.email.trim().toLowerCase()
+  if (!email) return { success: false, error: 'Email is required.' }
+
+  // Check if already a member
+  const admin = createAdminClient()
+  const { data: existingUser } = await admin
+    .from('users')
+    .select('id')
+    .eq('email', email)
+    .maybeSingle()
+
+  if (existingUser) {
+    const { data: existingMember } = await supabase
+      .from('org_members')
+      .select('id')
+      .eq('org_id', input.orgId)
+      .eq('user_id', existingUser.id)
+      .maybeSingle()
+
+    if (existingMember) {
+      return { success: false, error: 'This user is already a member of the organisation.' }
+    }
+  }
+
+  // Insert invite (unique index prevents duplicate pending invites)
+  const { data: invite, error: insertError } = await supabase
+    .from('org_invites')
+    .insert({
+      org_id: input.orgId,
+      email,
+      role: input.role,
+      invited_by: user.id,
+    })
+    .select('token')
+    .single()
+
+  if (insertError) {
+    if (insertError.code === '23505') {
+      return { success: false, error: 'A pending invite already exists for this email.' }
+    }
+    return { success: false, error: insertError.message }
+  }
+
+  // Fetch org name for the email
+  const { data: org } = await supabase
+    .from('organisations')
+    .select('name')
+    .eq('id', input.orgId)
+    .single()
+
+  // Send invite email
+  const resend = getResendClient()
+  if (resend && org) {
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://mygridtime.com'
+    const acceptUrl = `${baseUrl}/invites/${invite.token}`
+
+    try {
+      await resend.emails.send({
+        from: getFromAddress(),
+        to: email,
+        subject: orgInviteSubject(org.name),
+        html: orgInviteHtml({
+          orgName: org.name,
+          inviterEmail: user.email ?? 'unknown',
+          role: input.role,
+          acceptUrl,
+        }),
+        text: orgInviteText({
+          orgName: org.name,
+          inviterEmail: user.email ?? 'unknown',
+          role: input.role,
+          acceptUrl,
+        }),
+      })
+    } catch {
+      // Email send failure should not block invite creation
+    }
+  }
+
+  revalidatePath('/admin')
+  return { success: true, data: undefined }
+}
+
+/**
+ * Revokes (deletes) a pending invite.
+ */
+export async function revokeInvite(input: {
+  inviteId: string
+  orgId: string
+}): Promise<ActionResult> {
+  const { supabase, authorized } = await requireOwnerOrAdmin()
+  if (!authorized) return { success: false, error: 'Only owners and admins can revoke invites.' }
+
+  const { error } = await supabase
+    .from('org_invites')
+    .delete()
+    .eq('id', input.inviteId)
+    .eq('org_id', input.orgId)
+
+  if (error) return { success: false, error: error.message }
+
+  revalidatePath('/admin')
+  return { success: true, data: undefined }
+}
+
+/**
+ * Accepts an invite by token. Uses service-role client for insert.
+ * Validates: token exists, not already accepted, email matches user.
+ */
+export async function acceptInvite(token: string): Promise<ActionResult<{ orgId: string }>> {
+  const { user } = await requireUser()
+
+  const admin = createAdminClient()
+
+  // Fetch invite by token
+  const { data: invite, error: fetchError } = await admin
+    .from('org_invites')
+    .select('id, org_id, email, role, accepted_at')
+    .eq('token', token)
+    .single()
+
+  if (fetchError || !invite) {
+    return { success: false, error: 'Invite not found or has expired.' }
+  }
+
+  if (invite.accepted_at) {
+    return { success: false, error: 'This invite has already been accepted.' }
+  }
+
+  // Validate email matches
+  if (user.email?.toLowerCase() !== invite.email.toLowerCase()) {
+    return {
+      success: false,
+      error: `This invite was sent to ${invite.email}. Please sign in with that email address.`,
+    }
+  }
+
+  // Check not already a member
+  const { data: existingMember } = await admin
+    .from('org_members')
+    .select('id')
+    .eq('org_id', invite.org_id)
+    .eq('user_id', user.id)
+    .maybeSingle()
+
+  if (existingMember) {
+    // Mark invite as accepted anyway
+    await admin
+      .from('org_invites')
+      .update({ accepted_at: new Date().toISOString() })
+      .eq('id', invite.id)
+
+    return { success: true, data: { orgId: invite.org_id } }
+  }
+
+  // Insert membership
+  const { error: memberError } = await admin
+    .from('org_members')
+    .insert({
+      org_id: invite.org_id,
+      user_id: user.id,
+      role: invite.role,
+    })
+
+  if (memberError) return { success: false, error: memberError.message }
+
+  // Mark invite as accepted
+  await admin
+    .from('org_invites')
+    .update({ accepted_at: new Date().toISOString() })
+    .eq('id', invite.id)
+
+  // Set active org to the one they just joined
+  setActiveOrgId(invite.org_id)
+
+  return { success: true, data: { orgId: invite.org_id } }
 }
