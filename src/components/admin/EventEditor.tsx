@@ -20,6 +20,8 @@ import {
 } from '@/app/admin/events/actions'
 import type { EntryDraft, EntryValidationError, EntryChangeInfo } from './EntryRow'
 import type { Event, EventDay, TimetableEntry, AuditLog } from '@/lib/types/database'
+import type { VersionSummary } from '@/app/admin/events/actions'
+import { VersionHistory } from './VersionHistory'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -32,6 +34,7 @@ interface EventEditorProps {
   days: EventDay[]
   entries: TimetableEntry[]
   auditLog: AuditEntry[]
+  versions: VersionSummary[]
 }
 
 interface SavedMeta {
@@ -298,7 +301,7 @@ type MetaFieldState = 'unchanged' | 'pending' | 'rejected'
 // Component
 // ---------------------------------------------------------------------------
 
-export function EventEditor({ event, days: initialDays, entries: initialEntries, auditLog }: EventEditorProps) {
+export function EventEditor({ event, days: initialDays, entries: initialEntries, auditLog, versions }: EventEditorProps) {
   debugLog('EventEditor', 'loaded')
   const router = useRouter()
   const [, startTransition] = useTransition()
@@ -1058,6 +1061,9 @@ export function EventEditor({ event, days: initialDays, entries: initialEntries,
           />
         </div>
       </section>
+
+      {/* ── Version history ──────────────────────────────────────────────────── */}
+      <VersionHistory versions={versions} />
 
       {/* ── Audit log ─────────────────────────────────────────────────────────── */}
       <AuditLogView entries={auditLog} />

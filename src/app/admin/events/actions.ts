@@ -250,7 +250,71 @@ export async function publishEvent(eventId: string): Promise<ActionResult> {
 
   if (error) return { success: false, error: error.message }
 
-  await writeAuditLog(supabase, user.id, eventId, 'event.published')
+  // ── Create timetable snapshot ─────────────────────────────────
+  try {
+    const { data: days } = await supabase
+      .from('event_days')
+      .select('id, date, label, sort_order')
+      .eq('event_id', eventId)
+      .order('sort_order', { ascending: true })
+
+    const dayList = days ?? []
+    const dayIds = dayList.map((d) => d.id)
+
+    let allEntries: Array<{
+      event_day_id: string
+      title: string
+      start_time: string
+      end_time: string | null
+      category: string | null
+      notes: string | null
+      sort_order: number
+      is_break: boolean
+    }> = []
+    if (dayIds.length > 0) {
+      const { data: entries } = await supabase
+        .from('timetable_entries')
+        .select('event_day_id, title, start_time, end_time, category, notes, sort_order, is_break')
+        .in('event_day_id', dayIds)
+        .order('sort_order', { ascending: true })
+      allEntries = entries ?? []
+    }
+
+    // Build snapshot data: days with their entries nested
+    const snapshotData = dayList.map((day) => ({
+      date: day.date,
+      label: day.label,
+      sort_order: day.sort_order,
+      entries: allEntries
+        .filter((e) => e.event_day_id === day.id)
+        .map(({ event_day_id: _, ...rest }) => rest),
+    }))
+
+    // Determine next version
+    const { data: maxRow } = await supabase
+      .from('timetable_snapshots')
+      .select('version')
+      .eq('event_id', eventId)
+      .order('version', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    const nextVersion = (maxRow?.version ?? 0) + 1
+
+    await supabase.from('timetable_snapshots').insert({
+      event_id: eventId,
+      version: nextVersion,
+      data: snapshotData as unknown as import('@/lib/types/database').Json,
+      published_by: user.id,
+    })
+
+    await writeAuditLog(supabase, user.id, eventId, 'event.published', {
+      version: nextVersion,
+    })
+  } catch {
+    // Snapshot failure should not block the publish
+    await writeAuditLog(supabase, user.id, eventId, 'event.published')
+  }
 
   // Send publish notification — fire-and-forget; failures are logged, not thrown
   await sendEventNotification(supabase, eventId, 'event.published')
@@ -687,4 +751,95 @@ export async function saveDayEntries(
   }
 
   return { success: true, data: { savedIds } }
+}
+
+// ---------------------------------------------------------------------------
+// Version History
+// ---------------------------------------------------------------------------
+
+export interface VersionSummary {
+  id: string
+  version: number
+  published_at: string
+  published_by_email: string | null
+}
+
+export async function getVersionHistory(
+  eventId: string
+): Promise<ActionResult<VersionSummary[]>> {
+  const { supabase, membership } = await requireEditor()
+  if (!membership) return { success: false, error: 'No permission.' }
+
+  const { data, error } = await supabase
+    .from('timetable_snapshots')
+    .select('id, version, published_at, published_by')
+    .eq('event_id', eventId)
+    .order('version', { ascending: false })
+
+  if (error) return { success: false, error: error.message }
+
+  // Resolve publisher emails
+  const publisherIds = Array.from(new Set((data ?? []).map((r) => r.published_by).filter(Boolean))) as string[]
+  let emailMap: Record<string, string> = {}
+  if (publisherIds.length > 0) {
+    const { data: users } = await supabase
+      .from('users')
+      .select('id, email')
+      .in('id', publisherIds)
+    emailMap = Object.fromEntries((users ?? []).map((u) => [u.id, u.email]))
+  }
+
+  const versions: VersionSummary[] = (data ?? []).map((row) => ({
+    id: row.id,
+    version: row.version,
+    published_at: row.published_at,
+    published_by_email: row.published_by ? emailMap[row.published_by] ?? null : null,
+  }))
+
+  return { success: true, data: versions }
+}
+
+export interface SnapshotDay {
+  date: string
+  label: string | null
+  sort_order: number
+  entries: Array<{
+    title: string
+    start_time: string
+    end_time: string | null
+    category: string | null
+    notes: string | null
+    sort_order: number
+    is_break: boolean
+  }>
+}
+
+export interface SnapshotDetail {
+  version: number
+  published_at: string
+  data: SnapshotDay[]
+}
+
+export async function getSnapshotData(
+  snapshotId: string
+): Promise<ActionResult<SnapshotDetail>> {
+  const { supabase, membership } = await requireEditor()
+  if (!membership) return { success: false, error: 'No permission.' }
+
+  const { data, error } = await supabase
+    .from('timetable_snapshots')
+    .select('version, published_at, data')
+    .eq('id', snapshotId)
+    .single()
+
+  if (error || !data) return { success: false, error: error?.message ?? 'Snapshot not found.' }
+
+  return {
+    success: true,
+    data: {
+      version: data.version,
+      published_at: data.published_at,
+      data: data.data as unknown as SnapshotDay[],
+    },
+  }
 }

@@ -324,6 +324,49 @@ export type Database = {
         }
         Relationships: []
       }
+
+      timetable_snapshots: {
+        Row: {
+          id: string
+          event_id: string
+          version: number
+          data: Json
+          published_by: string | null
+          published_at: string
+        }
+        Insert: {
+          id?: string
+          event_id: string
+          version: number
+          data: Json
+          published_by?: string | null
+          published_at?: string
+        }
+        Update: {
+          id?: string
+          event_id?: string
+          version?: number
+          data?: Json
+          published_by?: string | null
+          published_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "timetable_snapshots_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "timetable_snapshots_published_by_fkey"
+            columns: ["published_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
     }
 
     Views: {
@@ -352,6 +395,7 @@ export type EventDay       = Database['public']['Tables']['event_days']['Row']
 export type TimetableEntry = Database['public']['Tables']['timetable_entries']['Row']
 export type AuditLog       = Database['public']['Tables']['audit_log']['Row']
 export type NotificationLog = Database['public']['Tables']['notification_log']['Row']
+export type TimetableSnapshot = Database['public']['Tables']['timetable_snapshots']['Row']
 
 export type EventStatus         = Event['status']
 export type OrgMemberRole       = OrgMember['role']

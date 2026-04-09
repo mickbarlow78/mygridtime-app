@@ -49,6 +49,33 @@ export default async function EventEditorPage({ params }: PageProps) {
     )
     .order('sort_order', { ascending: true })
 
+  // Fetch version history (timetable snapshots)
+  const { data: snapshotRows } = await supabase
+    .from('timetable_snapshots')
+    .select('id, version, published_at, published_by')
+    .eq('event_id', params.id)
+    .order('version', { ascending: false })
+
+  // Resolve snapshot publisher emails
+  const snapshotPublisherIds = Array.from(
+    new Set((snapshotRows ?? []).map((r) => r.published_by).filter(Boolean))
+  ) as string[]
+  let snapshotEmailMap: Record<string, string> = {}
+  if (snapshotPublisherIds.length > 0) {
+    const { data: pubUsers } = await supabase
+      .from('users')
+      .select('id, email')
+      .in('id', snapshotPublisherIds)
+    snapshotEmailMap = Object.fromEntries((pubUsers ?? []).map((u) => [u.id, u.email]))
+  }
+
+  const versions = (snapshotRows ?? []).map((row) => ({
+    id: row.id,
+    version: row.version,
+    published_at: row.published_at,
+    published_by_email: row.published_by ? snapshotEmailMap[row.published_by] ?? null : null,
+  }))
+
   // Fetch audit log for this event, newest first
   // Join with public.users to get email addresses
   const { data: auditRows } = await supabase
@@ -98,6 +125,7 @@ export default async function EventEditorPage({ params }: PageProps) {
         days={dayList}
         entries={entries ?? []}
         auditLog={auditLog}
+        versions={versions}
       />
     </div>
   )
