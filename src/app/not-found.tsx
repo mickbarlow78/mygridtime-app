@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import type { Metadata } from 'next'
 
 /**
  * Global 404 page.
@@ -7,6 +8,10 @@ import Link from 'next/link'
  *   - A public timetable page calls notFound() (draft, archived, or unknown slug).
  *   - Any other route does not match.
  */
+export const metadata: Metadata = {
+  title: 'Page not found',
+}
+
 export default function NotFound() {
   return (
     <div className="min-h-screen bg-white flex items-center justify-center px-4">
