@@ -9,6 +9,8 @@ interface ConfirmDialogProps {
   description: string
   confirmLabel?: string
   confirmDestructive?: boolean
+  /** When true the confirm button is disabled (e.g. gated by an acknowledgement checkbox). */
+  confirmDisabled?: boolean
   onConfirm: () => void
   onCancel: () => void
   /** Optional extra content (e.g. extra form fields) rendered below description */
@@ -21,6 +23,7 @@ export function ConfirmDialog({
   description,
   confirmLabel = 'Confirm',
   confirmDestructive = false,
+  confirmDisabled = false,
   onConfirm,
   onCancel,
   children,
@@ -66,6 +69,7 @@ export function ConfirmDialog({
           <button
             type="button"
             onClick={onConfirm}
+            disabled={confirmDisabled}
             className={confirmDestructive ? BTN_DESTRUCTIVE : BTN_PRIMARY}
           >
             {confirmLabel}

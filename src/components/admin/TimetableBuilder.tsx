@@ -7,7 +7,7 @@ import { addEventDay, removeEventDay, updateDayLabel } from '@/app/admin/events/
 import type { EntryDraft, EntryValidationError, EntryChangeInfo } from './EntryRow'
 import type { EventDay } from '@/lib/types/database'
 import { formatDate } from '@/lib/utils/slug'
-import { cn, TAB_ACTIVE, TAB_INACTIVE, BTN_PRIMARY, LABEL_COMPACT } from '@/lib/styles'
+import { cn, TAB_ACTIVE, TAB_INACTIVE, BTN_PRIMARY, LABEL_COMPACT, SUCCESS_BANNER } from '@/lib/styles'
 
 interface TimetableBuilderProps {
   eventId: string
@@ -209,7 +209,7 @@ export function TimetableBuilder({
         >
           {saving ? 'Saving…' : 'Save timetable'}
         </button>
-        {saveSuccess && !saving && <p className="text-sm text-green-600">Saved.</p>}
+        {saveSuccess && !saving && <p className={SUCCESS_BANNER} role="status">Timetable saved.</p>}
         {saveError && <p className="text-sm text-red-600">{saveError}</p>}
       </div>
 

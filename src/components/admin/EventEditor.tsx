@@ -5,10 +5,11 @@ import { debugLog } from '@/lib/debug'
 import { useRouter } from 'next/navigation'
 import { TimetableBuilder } from './TimetableBuilder'
 import { AuditLogView } from './AuditLogView'
+import { EventActionsBar } from './EventActionsBar'
 import { StatusBadge } from '@/components/ui/StatusBadge'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { ReviewModal, type ReviewCard, type ChangeCard } from '@/components/ui/ReviewModal'
-import { cn, CARD, CARD_PADDING, H2, HELP_TEXT, INPUT, LABEL_COMPACT, BTN_PRIMARY, BTN_PRIMARY_SM, BTN_SECONDARY_SM } from '@/lib/styles'
+import { cn, CARD, CARD_PADDING, H2, HELP_TEXT, INPUT, LABEL_COMPACT, BTN_PRIMARY, SUCCESS_BANNER } from '@/lib/styles'
 import {
   updateEventMetadata,
   publishEvent,
@@ -374,6 +375,7 @@ export function EventEditor({ event, days: initialDays, entries: initialEntries,
   const [templateName,  setTemplateName]  = useState(event.title + ' Template')
   const [templateSuccess, setTemplateSuccess] = useState(false)
   const [urlCopied, setUrlCopied] = useState(false)
+  const [publishAck, setPublishAck] = useState(false)
 
   // ── Public URL (read-only, derived from event slug) ──────────────────────
   const publicUrl = (() => {
@@ -934,45 +936,30 @@ export function EventEditor({ event, days: initialDays, entries: initialEntries,
   // ---------------------------------------------------------------------------
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
+
+      {/* ── Lifecycle actions ───────────────────────────────────────────────── */}
+      <EventActionsBar
+        status={status}
+        publicHref={event.slug ? publicUrl : null}
+        onPublish={() => { setDialog('publish'); setDialogError(null); setPublishAck(false) }}
+        onUnpublish={() => { setDialog('unpublish'); setDialogError(null) }}
+        onArchive={() => { setDialog('archive'); setDialogError(null) }}
+        onDuplicate={() => {
+          setDialog('duplicate'); setDialogError(null)
+          setDupTitle(title + ' (copy)'); setDupStartDate(startDate); setDupEndDate(endDate)
+        }}
+        onSaveTemplate={() => {
+          setDialog('saveTemplate'); setDialogError(null)
+          setTemplateName(title + ' Template'); setTemplateSuccess(false)
+        }}
+      />
 
       {/* ── Event metadata ──────────────────────────────────────────────────── */}
       <section className={`${CARD} overflow-hidden`}>
-        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <h2 className={H2}>Event details</h2>
-            <StatusBadge status={status} />
-          </div>
-          <div className="flex items-center gap-2">
-            {status === 'draft' && (
-              <button type="button" onClick={() => { setDialog('publish'); setDialogError(null) }}
-                className={`${BTN_PRIMARY_SM} bg-green-600 hover:bg-green-700`}>
-                Publish
-              </button>
-            )}
-            {status === 'published' && (
-              <button type="button" onClick={() => { setDialog('unpublish'); setDialogError(null) }}
-                className={BTN_SECONDARY_SM}>
-                Unpublish
-              </button>
-            )}
-            {status !== 'archived' && (
-              <button type="button" onClick={() => { setDialog('archive'); setDialogError(null) }}
-                className={BTN_SECONDARY_SM}>
-                Archive
-              </button>
-            )}
-            <button type="button"
-              onClick={() => { setDialog('duplicate'); setDialogError(null); setDupTitle(title + ' (copy)'); setDupStartDate(startDate); setDupEndDate(endDate) }}
-              className={BTN_SECONDARY_SM}>
-              Duplicate
-            </button>
-            <button type="button"
-              onClick={() => { setDialog('saveTemplate'); setDialogError(null); setTemplateName(title + ' Template'); setTemplateSuccess(false) }}
-              className={BTN_SECONDARY_SM}>
-              Save as Template
-            </button>
-          </div>
+        <div className="px-6 py-4 border-b border-gray-100 flex items-center gap-3">
+          <h2 className={H2}>Event details</h2>
+          <StatusBadge status={status} />
         </div>
 
         <form onSubmit={handleSaveMetadata} className={`${CARD_PADDING} space-y-4`}>
@@ -1081,7 +1068,7 @@ export function EventEditor({ event, days: initialDays, entries: initialEntries,
               className={BTN_PRIMARY}>
               Save details
             </button>
-            {metaSuccess && <p className="text-sm text-green-600">Saved.</p>}
+            {metaSuccess && <p className={SUCCESS_BANNER} role="status">Details saved.</p>}
             {metaError   && <p className="text-sm text-red-600">{metaError}</p>}
           </div>
         </form>
@@ -1158,7 +1145,38 @@ export function EventEditor({ event, days: initialDays, entries: initialEntries,
       />
 
       {/* ── Status dialogs ────────────────────────────────────────────────────── */}
-      {(['publish', 'unpublish', 'archive'] as const).map((kind) => (
+
+      {/* Publish — gated by explicit acknowledgement that the event becomes public */}
+      <ConfirmDialog
+        open={dialog === 'publish'}
+        title={dialogConfig.publish.title}
+        description={dialogConfig.publish.description}
+        confirmLabel={dialogPending ? 'Working…' : dialogConfig.publish.label}
+        confirmDisabled={!publishAck || dialogPending}
+        onConfirm={() => handleStatusAction('publish')}
+        onCancel={() => { setDialog(null); setPublishAck(false) }}
+      >
+        {event.slug && (
+          <div>
+            <label className={LABEL_COMPACT}>Public URL</label>
+            <p className="text-xs font-mono text-gray-700 bg-gray-50 border border-gray-200 rounded px-2 py-1.5 break-all">
+              {publicUrl}
+            </p>
+          </div>
+        )}
+        <label className="flex items-start gap-2 text-sm text-gray-700 cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={publishAck}
+            onChange={(e) => setPublishAck(e.target.checked)}
+            className="mt-0.5 rounded border-gray-300 text-gray-900 focus:ring-gray-500"
+          />
+          <span>I understand this event will be publicly accessible.</span>
+        </label>
+        {dialogError && <p className="text-sm text-red-600">{dialogError}</p>}
+      </ConfirmDialog>
+
+      {(['unpublish', 'archive'] as const).map((kind) => (
         <ConfirmDialog
           key={kind}
           open={dialog === kind}

@@ -51,19 +51,12 @@ interface EntryRowProps {
 
 // ── Styling helpers ───────────────────────────────────────────────────────────
 
-function rowBg(changeInfo: EntryChangeInfo | undefined, hasError: boolean): string {
-  if (hasError) return 'border-red-300 bg-red-50/40'
+function rowBg(changeInfo: EntryChangeInfo | undefined): string {
   if (!changeInfo) return 'border-gray-200 bg-white'
 
-  if (changeInfo.rowKind === 'added') {
-    return changeInfo.rowStatus === 'rejected'
-      ? 'border-red-300 bg-red-50/50'
-      : 'border-green-300 bg-green-50/40'
-  }
-  // edited
-  return changeInfo.rowStatus === 'rejected'
-    ? 'border-red-300 bg-red-50/40'
-    : 'border-amber-300 bg-amber-50/30'
+  if (changeInfo.rowStatus === 'rejected') return 'border-gray-200 border-l-4 border-l-red-400 bg-white'
+  // pending added or edited
+  return 'border-gray-200 border-l-4 border-l-amber-400 bg-white'
 }
 
 function fieldClass(
@@ -142,20 +135,21 @@ export function EntryRow({
 
   const baseInput = 'w-full text-sm px-2 py-1.5 border rounded focus:outline-none focus:ring-1 focus:ring-gray-400'
 
-  // Row label for added/edited
-  const rowLabel = !changeInfo ? null : changeInfo.rowKind === 'added'
-    ? (changeInfo.rowStatus === 'rejected' ? 'add rejected' : 'new')
-    : changeInfo.rowStatus === 'rejected' ? 'edit rejected' : null
+  // Row label: show a pill for new-pending and all rejected states; silent for pending-edited
+  const rowLabel = !changeInfo ? null
+    : changeInfo.rowStatus === 'rejected' ? (changeInfo.rowKind === 'added' ? 'add rejected' : 'edit rejected')
+    : changeInfo.rowKind === 'added' ? 'new'
+    : null
 
   return (
     <div
       ref={setNodeRef}
       style={style}
       className={cn(
-        'flex items-start gap-2 px-3 py-2.5 rounded-md border',
+        'group/row flex items-start gap-2 px-3 py-2.5 rounded-md border',
         isDragging && 'shadow-lg opacity-60 z-50',
-        rowBg(changeInfo, hasError),
-        entry.is_break && !changeInfo && 'bg-blue-50/30',
+        rowBg(changeInfo),
+        entry.is_break && !changeInfo && 'bg-gray-50',
       )}
     >
       {/* Drag handle */}
@@ -169,27 +163,31 @@ export function EntryRow({
         ⠿
       </button>
 
-      {/* Break toggle */}
-      <label className="flex flex-col items-center mt-2 shrink-0 cursor-pointer" title="Mark as break">
-        <input
-          type="checkbox"
-          checked={entry.is_break}
-          onChange={(e) => upd({ is_break: e.target.checked })}
-          className="w-3.5 h-3.5 accent-gray-500"
-        />
-        <span className="text-[9px] text-gray-400 mt-0.5 leading-none">brk</span>
-      </label>
+      {/* Break pill toggle */}
+      <button
+        type="button"
+        onClick={() => upd({ is_break: !entry.is_break })}
+        title={entry.is_break ? 'Click to mark as race' : 'Click to mark as break'}
+        className={cn(
+          'mt-2 shrink-0 text-[10px] font-medium px-1.5 py-0.5 rounded border transition-colors leading-none',
+          entry.is_break
+            ? 'text-blue-700 bg-blue-50 border-blue-200 hover:bg-blue-100'
+            : 'text-gray-400 bg-white border-gray-200 hover:text-gray-600 hover:border-gray-300',
+        )}
+      >
+        {entry.is_break ? 'Break' : 'Race'}
+      </button>
 
       {/* Fields */}
-      <div className="flex-1 grid grid-cols-12 gap-1.5 min-w-0">
+      <div className="flex-1 grid grid-cols-[repeat(14,minmax(0,1fr))] gap-1.5 min-w-0">
         {/* Row label (new / edit rejected) */}
         {rowLabel && (
-          <div className="col-span-12 -mb-0.5">
+          <div className="col-span-full -mb-0.5">
             <span className={cn(
               'text-[10px] font-medium px-1.5 py-0.5 rounded',
               changeInfo?.rowStatus === 'rejected'
                 ? 'text-red-600 bg-red-100'
-                : 'text-green-700 bg-green-100',
+                : 'text-amber-700 bg-amber-100',
             )}>
               {rowLabel}
             </span>
@@ -198,7 +196,7 @@ export function EntryRow({
 
         {/* Title */}
         <FieldWrapper
-          colSpan="col-span-4"
+          colSpan="col-span-5"
           field="title"
           changeInfo={changeInfo}
           savedDisplay={fmtSaved('title')}
@@ -264,7 +262,7 @@ export function EntryRow({
 
         {/* Notes */}
         <FieldWrapper
-          colSpan="col-span-2"
+          colSpan="col-span-3"
           field="notes"
           changeInfo={changeInfo}
           savedDisplay={fmtSaved('notes')}
@@ -281,34 +279,34 @@ export function EntryRow({
 
         {/* Validation messages */}
         {hasError && (
-          <p className="col-span-12 text-xs text-red-600 -mt-0.5 px-0.5">
+          <p className="col-span-full text-xs text-red-600 -mt-0.5 px-0.5">
             {errors!.messages.join(' · ')}
           </p>
         )}
       </div>
 
-      {/* Revert row (edited rows only) */}
-      {changeInfo?.rowKind === 'edited' && onRevertRow && (
+      {/* Trailing controls: revert (edited only) + delete */}
+      <div className="flex items-center gap-0.5 mt-1.5 shrink-0">
+        {changeInfo?.rowKind === 'edited' && onRevertRow && (
+          <button
+            type="button"
+            onClick={onRevertRow}
+            aria-label="Revert all changes on this row"
+            title="Revert all changes"
+            className="w-5 h-5 flex items-center justify-center text-gray-300 group-hover/row:text-amber-400 hover:text-amber-600 transition-colors text-sm leading-none"
+          >
+            ↩
+          </button>
+        )}
         <button
           type="button"
-          onClick={onRevertRow}
-          aria-label="Revert all changes on this row"
-          title="Revert all changes"
-          className="mt-1.5 w-5 h-5 flex items-center justify-center text-amber-400 hover:text-amber-600 transition-colors shrink-0 text-sm leading-none"
+          onClick={onDelete}
+          aria-label="Delete entry"
+          className="w-5 h-5 flex items-center justify-center text-gray-200 group-hover/row:text-gray-400 hover:text-red-500 transition-colors text-sm leading-none"
         >
-          ↩
+          ✕
         </button>
-      )}
-
-      {/* Delete */}
-      <button
-        type="button"
-        onClick={onDelete}
-        aria-label="Delete entry"
-        className="mt-1.5 w-5 h-5 flex items-center justify-center text-gray-300 hover:text-red-500 transition-colors shrink-0 text-sm leading-none"
-      >
-        ✕
-      </button>
+      </div>
     </div>
   )
 }
