@@ -195,7 +195,7 @@ export function TimetableBuilder({
 
       {/* Active day content */}
       {activeDay ? (
-        <div className="space-y-3">
+        <div className="space-y-2 md:space-y-3">
           <div className="flex items-center justify-between">
             <p className="text-xs text-gray-400">
               {formatDate(activeDay.date)}
@@ -208,7 +208,7 @@ export function TimetableBuilder({
               <button
                 type="button"
                 onClick={() => setRemovingDayId(activeDay.id)}
-                className="text-xs text-red-400 hover:text-red-600 transition-colors"
+                className="hidden md:block text-xs text-red-400 hover:text-red-600 transition-colors"
               >
                 Remove this day
               </button>
@@ -216,7 +216,16 @@ export function TimetableBuilder({
           </div>
 
           {/* Copy / Paste toolbar */}
-          <div className="flex flex-wrap items-center justify-end gap-2">
+          <div className="flex flex-wrap items-center gap-2 md:justify-end">
+            {days.length > 1 && (
+              <button
+                type="button"
+                onClick={() => setRemovingDayId(activeDay.id)}
+                className="text-xs text-red-400 hover:text-red-600 transition-colors mr-auto md:hidden"
+              >
+                Remove this day
+              </button>
+            )}
             <button
               type="button"
               onClick={handleCopyClick}
