@@ -5,9 +5,10 @@ import { DayTab } from './DayTab'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { addEventDay, removeEventDay, updateDayLabel } from '@/app/admin/events/actions'
 import type { EntryDraft, EntryValidationError, EntryChangeInfo } from './EntryRow'
+import type { DayClipboard } from './EventEditor'
 import type { EventDay } from '@/lib/types/database'
 import { formatDate } from '@/lib/utils/slug'
-import { cn, TAB_ACTIVE, TAB_INACTIVE, BTN_PRIMARY, LABEL_COMPACT, SUCCESS_BANNER } from '@/lib/styles'
+import { cn, TAB_ACTIVE, TAB_INACTIVE, BTN_PRIMARY, BTN_SECONDARY_SM, LABEL_COMPACT, SUCCESS_BANNER } from '@/lib/styles'
 
 interface TimetableBuilderProps {
   eventId: string
@@ -24,6 +25,9 @@ interface TimetableBuilderProps {
   onRevertEntry?: (dayId: string, localId: string) => void
   onRevertEntryField?: (dayId: string, localId: string, field: string) => void
   onSave: () => void
+  clipboard: DayClipboard | null
+  onCopyDay: (dayId: string) => void
+  onPasteDay: (dayId: string, mode: 'append' | 'replace') => void
 }
 
 export function TimetableBuilder({
@@ -41,6 +45,9 @@ export function TimetableBuilder({
   onRevertEntry,
   onRevertEntryField,
   onSave,
+  clipboard,
+  onCopyDay,
+  onPasteDay,
 }: TimetableBuilderProps) {
   const [activeDayId, setActiveDayId] = useState<string>(days[0]?.id ?? '')
 
@@ -54,6 +61,8 @@ export function TimetableBuilder({
 
   const [editingLabelDayId, setEditingLabelDayId] = useState<string | null>(null)
   const [labelDraft, setLabelDraft] = useState('')
+  const [copyFlash, setCopyFlash] = useState(false)
+  const [pasteDialogMode, setPasteDialogMode] = useState<'append' | 'replace' | null>(null)
 
   const activeDay = days.find((d) => d.id === activeDayId) ?? days[0] ?? null
   const activeDayEntries = activeDay ? (dayEntries[activeDay.id] ?? []) : []
@@ -98,6 +107,30 @@ export function TimetableBuilder({
 
   function dayLabel(day: EventDay) {
     return day.label ?? formatDate(day.date)
+  }
+
+  function handleCopyClick() {
+    if (!activeDay || activeDayEntries.length === 0) return
+    onCopyDay(activeDay.id)
+    setCopyFlash(true)
+    setTimeout(() => setCopyFlash(false), 1500)
+  }
+
+  function handlePasteClick() {
+    if (!clipboard || !activeDay) return
+    // Empty-target fast path: paste immediately without a dialog
+    if (activeDayEntries.length === 0) {
+      onPasteDay(activeDay.id, 'append')
+      return
+    }
+    // Populated target: open mode-selection dialog with Append preselected
+    setPasteDialogMode('append')
+  }
+
+  function handleConfirmPaste() {
+    if (!clipboard || !activeDay || !pasteDialogMode) return
+    onPasteDay(activeDay.id, pasteDialogMode)
+    setPasteDialogMode(null)
   }
 
   // Does this day have any pending/rejected changes?
@@ -182,6 +215,28 @@ export function TimetableBuilder({
             )}
           </div>
 
+          {/* Copy / Paste toolbar */}
+          <div className="flex items-center justify-end gap-2">
+            <button
+              type="button"
+              onClick={handleCopyClick}
+              disabled={activeDayEntries.length === 0}
+              className={cn(BTN_SECONDARY_SM, activeDayEntries.length === 0 && 'opacity-40 cursor-not-allowed')}
+            >
+              {copyFlash ? 'Copied' : 'Copy day'}
+            </button>
+            {clipboard && clipboard.entries.length > 0 && (
+              <button
+                type="button"
+                onClick={handlePasteClick}
+                title={clipboard.sourceDayLabel ? `From "${clipboard.sourceDayLabel}"` : undefined}
+                className={BTN_SECONDARY_SM}
+              >
+                Paste ({clipboard.entries.length} {clipboard.entries.length === 1 ? 'entry' : 'entries'})
+              </button>
+            )}
+          </div>
+
           <DayTab
             dayId={activeDay.id}
             entries={activeDayEntries}
@@ -258,6 +313,52 @@ export function TimetableBuilder({
         onConfirm={() => removingDayId && handleRemoveDay(removingDayId)}
         onCancel={() => setRemovingDayId(null)}
       />
+
+      {/* Paste mode dialog — shown only when target day already has entries */}
+      <ConfirmDialog
+        open={pasteDialogMode !== null}
+        title="Paste into this day?"
+        description={`This day already has ${activeDayEntries.length} ${activeDayEntries.length === 1 ? 'entry' : 'entries'}.`}
+        confirmLabel={pasteDialogMode === 'replace' ? 'Paste (replace)' : 'Paste (append)'}
+        confirmDestructive={pasteDialogMode === 'replace'}
+        onConfirm={handleConfirmPaste}
+        onCancel={() => setPasteDialogMode(null)}
+      >
+        {clipboard && (
+          <div className="space-y-2">
+            <label className="flex items-start gap-2 cursor-pointer p-2 rounded border border-gray-200 hover:bg-gray-50">
+              <input
+                type="radio"
+                name="paste-mode"
+                checked={pasteDialogMode === 'append'}
+                onChange={() => setPasteDialogMode('append')}
+                className="mt-0.5 text-gray-900 focus:ring-gray-500"
+              />
+              <span className="text-sm">
+                <span className="font-medium text-gray-900">Append to day</span>
+                <span className="block text-xs text-gray-500 mt-0.5">
+                  Add {clipboard.entries.length} {clipboard.entries.length === 1 ? 'entry' : 'entries'} after the existing {activeDayEntries.length}.
+                </span>
+              </span>
+            </label>
+            <label className="flex items-start gap-2 cursor-pointer p-2 rounded border border-gray-200 hover:bg-gray-50">
+              <input
+                type="radio"
+                name="paste-mode"
+                checked={pasteDialogMode === 'replace'}
+                onChange={() => setPasteDialogMode('replace')}
+                className="mt-0.5 text-gray-900 focus:ring-gray-500"
+              />
+              <span className="text-sm">
+                <span className="font-medium text-gray-900">Replace all entries</span>
+                <span className="block text-xs text-gray-500 mt-0.5">
+                  Remove existing {activeDayEntries.length} {activeDayEntries.length === 1 ? 'entry' : 'entries'} and replace with {clipboard.entries.length} copied {clipboard.entries.length === 1 ? 'entry' : 'entries'}.
+                </span>
+              </span>
+            </label>
+          </div>
+        )}
+      </ConfirmDialog>
     </div>
   )
 }

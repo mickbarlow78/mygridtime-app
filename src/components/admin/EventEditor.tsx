@@ -50,6 +50,33 @@ interface SavedMeta {
 }
 
 // ---------------------------------------------------------------------------
+// Clipboard
+// ---------------------------------------------------------------------------
+
+/** Stripped entry values captured at copy time — no server IDs, no DnD keys. */
+interface ClipboardEntry {
+  title: string
+  start_time: string
+  end_time: string
+  category: string
+  notes: string
+  is_break: boolean
+}
+
+/**
+ * In-memory clipboard for day-level copy/paste.
+ * Scoped to the current editor session — cleared on unmount.
+ */
+export interface DayClipboard {
+  sourceEventId: string
+  sourceDayId: string
+  /** Display label captured at copy time (e.g. "Saturday Practice"). */
+  sourceDayLabel: string | null
+  entries: ClipboardEntry[]
+  copiedAt: number
+}
+
+// ---------------------------------------------------------------------------
 // Validation
 // ---------------------------------------------------------------------------
 
@@ -376,6 +403,8 @@ export function EventEditor({ event, days: initialDays, entries: initialEntries,
   const [templateSuccess, setTemplateSuccess] = useState(false)
   const [urlCopied, setUrlCopied] = useState(false)
   const [publishAck, setPublishAck] = useState(false)
+  const [publishUrlCopied, setPublishUrlCopied] = useState(false)
+  const [clipboard, setClipboard] = useState<DayClipboard | null>(null)
 
   // ── Public URL (read-only, derived from event slug) ──────────────────────
   const publicUrl = (() => {
@@ -920,6 +949,60 @@ export function EventEditor({ event, days: initialDays, entries: initialEntries,
   }
 
   // ---------------------------------------------------------------------------
+  // Day clipboard handlers
+  // ---------------------------------------------------------------------------
+
+  function handleCopyDay(dayId: string) {
+    const entries = dayEntries[dayId] ?? []
+    const day = days.find((d) => d.id === dayId)
+    setClipboard({
+      sourceEventId: event.id,
+      sourceDayId: dayId,
+      sourceDayLabel: day?.label ?? day?.date ?? null,
+      entries: entries.map(({ title, start_time, end_time, category, notes, is_break }) => ({
+        title, start_time, end_time, category, notes, is_break,
+      })),
+      copiedAt: Date.now(),
+    })
+  }
+
+  function handlePasteDay(targetDayId: string, mode: 'append' | 'replace') {
+    if (!clipboard) return
+    const existing = mode === 'append' ? (dayEntries[targetDayId] ?? []) : []
+    const startSort = existing.length
+
+    if (mode === 'replace') {
+      const deletedIds = (dayEntries[targetDayId] ?? [])
+        .map((e) => e.id)
+        .filter((id): id is string => id !== null)
+      if (deletedIds.length > 0) {
+        setDeletedEntryIds((prev) => [...prev, ...deletedIds])
+      }
+    }
+
+    const pasted: EntryDraft[] = clipboard.entries.map((e, i) => ({
+      _localId: crypto.randomUUID(),
+      id: null,
+      event_day_id: targetDayId,
+      title: e.title,
+      start_time: e.start_time,
+      end_time: e.end_time,
+      category: e.category,
+      notes: e.notes,
+      is_break: e.is_break,
+      sort_order: startSort + i,
+    }))
+
+    setDayEntries((prev) => ({
+      ...prev,
+      [targetDayId]: [...existing, ...pasted],
+    }))
+    // Clear validation errors for the target day so pasted rows aren't pre-flagged
+    setValidationErrors((prev) => { const next = { ...prev }; delete next[targetDayId]; return next })
+    setTimetableSuccess(false)
+  }
+
+  // ---------------------------------------------------------------------------
   // Dialog descriptions
   // ---------------------------------------------------------------------------
 
@@ -1105,6 +1188,9 @@ export function EventEditor({ event, days: initialDays, entries: initialEntries,
             onRevertEntry={handleRevertEntry}
             onRevertEntryField={handleRevertEntryField}
             onSave={handleSaveTimetable}
+            clipboard={clipboard}
+            onCopyDay={handleCopyDay}
+            onPasteDay={handlePasteDay}
           />
         </div>
       </section>
@@ -1159,9 +1245,26 @@ export function EventEditor({ event, days: initialDays, entries: initialEntries,
         {event.slug && (
           <div>
             <label className={LABEL_COMPACT}>Public URL</label>
-            <p className="text-xs font-mono text-gray-700 bg-gray-50 border border-gray-200 rounded px-2 py-1.5 break-all">
-              {publicUrl}
-            </p>
+            <div className="flex items-center gap-2">
+              <p className="flex-1 text-xs font-mono text-gray-700 bg-gray-50 border border-gray-200 rounded px-2 py-1.5 break-all">
+                {publicUrl}
+              </p>
+              <button
+                type="button"
+                onClick={async () => {
+                  try {
+                    await navigator.clipboard.writeText(publicUrl)
+                    setPublishUrlCopied(true)
+                    setTimeout(() => setPublishUrlCopied(false), 2000)
+                  } catch {
+                    // Clipboard unavailable — silently ignore
+                  }
+                }}
+                className="shrink-0 text-xs text-gray-400 hover:text-gray-600 border border-gray-200 rounded px-2 py-1.5 hover:border-gray-300 transition-colors whitespace-nowrap"
+              >
+                {publishUrlCopied ? 'Copied!' : 'Copy'}
+              </button>
+            </div>
           </div>
         )}
         <label className="flex items-start gap-2 text-sm text-gray-700 cursor-pointer select-none">
