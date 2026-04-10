@@ -41,10 +41,10 @@ export function EventActionsBar({
     <section
       className={cn(
         CARD,
-        'px-4 py-3 flex items-center justify-between gap-3 flex-wrap',
+        'px-4 py-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between',
       )}
     >
-      <div className="flex items-center gap-2 min-w-0 flex-wrap">
+      <div className="flex items-center gap-2 min-w-0">
         <StatusBadge status={status} />
         <span className="text-xs text-gray-500 truncate">{STATUS_HINT[status]}</span>
         {isDirty && (
@@ -58,7 +58,7 @@ export function EventActionsBar({
         )}
       </div>
 
-      <div className="flex items-center gap-2 flex-wrap justify-end">
+      <div className="flex items-center gap-2 flex-wrap">
         {/* Primary slot */}
         {status === 'draft' && (
           <button

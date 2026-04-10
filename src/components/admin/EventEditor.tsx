@@ -295,6 +295,20 @@ function computeEntryChangeInfos(
 // Build initial entry state from database rows
 // ---------------------------------------------------------------------------
 
+// Stable serialize for dirty detection — excludes _localId (ephemeral UUID,
+// differs between the two buildDayEntries calls that seed dayEntries and
+// savedDayEntries, so must not be included in equality checks).
+function serializeDayEntries(entries: Record<string, EntryDraft[]>): string {
+  return JSON.stringify(
+    Object.fromEntries(
+      Object.entries(entries).map(([k, v]) => [
+        k,
+        v.map(({ _localId: _omit, ...rest }) => rest),
+      ])
+    )
+  )
+}
+
 function buildDayEntries(days: EventDay[], entries: TimetableEntry[]): Record<string, EntryDraft[]> {
   const map: Record<string, EntryDraft[]> = {}
   for (const day of days) {
@@ -438,7 +452,7 @@ export function EventEditor({ event, days: initialDays, entries: initialEntries,
     [currentMeta, savedMeta, notificationEmails, savedNotificationEmails]
   )
   const timetableDirty = useMemo(
-    () => JSON.stringify(dayEntries) !== JSON.stringify(savedDayEntries) || deletedEntryIds.length > 0,
+    () => serializeDayEntries(dayEntries) !== serializeDayEntries(savedDayEntries) || deletedEntryIds.length > 0,
     [dayEntries, savedDayEntries, deletedEntryIds]
   )
   const isDirty = metaDirty || timetableDirty
