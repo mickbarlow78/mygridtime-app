@@ -136,7 +136,7 @@ export function EntryRow({
     return String(v)
   }
 
-  const baseInput = 'w-full text-sm px-2 py-1.5 border rounded focus:outline-none focus:ring-1 focus:ring-gray-400'
+  const baseInput = 'w-full text-base px-2.5 py-2 border rounded focus:outline-none focus:ring-1 focus:ring-gray-400 md:text-sm md:px-2 md:py-1.5'
 
   // Row label: show a pill for new-pending and all rejected states; silent for pending-edited
   const rowLabel = !changeInfo ? null
@@ -149,40 +149,79 @@ export function EntryRow({
       ref={setNodeRef}
       style={style}
       className={cn(
-        'group/row flex items-start gap-2 px-3 py-2.5 rounded-md border',
+        'group/row flex flex-col gap-2 px-3 py-2.5 rounded-md border md:flex-row md:items-start md:gap-2',
         isDragging && 'shadow-lg opacity-60 z-50',
         rowBg(changeInfo),
         entry.is_break && !changeInfo && 'bg-gray-50',
       )}
     >
-      {/* Drag handle */}
-      <button
-        {...attributes}
-        {...listeners}
-        type="button"
-        aria-label="Drag to reorder"
-        className="mt-2 text-gray-300 hover:text-gray-500 cursor-grab active:cursor-grabbing shrink-0 select-none leading-none"
-      >
-        ⠿
-      </button>
+      {/* Top strip (mobile) / inline controls (desktop via md:contents) */}
+      <div className="flex items-center justify-between md:contents">
+        <div className="flex items-center gap-2 md:contents">
+          {/* Drag handle */}
+          <button
+            {...attributes}
+            {...listeners}
+            type="button"
+            aria-label="Drag to reorder"
+            className="p-1 text-lg text-gray-300 hover:text-gray-500 cursor-grab active:cursor-grabbing shrink-0 select-none leading-none md:p-0 md:text-base md:mt-2"
+          >
+            ⠿
+          </button>
 
-      {/* Break pill toggle */}
-      <button
-        type="button"
-        onClick={() => upd({ is_break: !entry.is_break })}
-        title={entry.is_break ? 'Click to mark as race' : 'Click to mark as break'}
-        className={cn(
-          'mt-2 shrink-0 text-[10px] font-medium px-1.5 py-0.5 rounded border transition-colors leading-none',
-          entry.is_break
-            ? 'text-blue-700 bg-blue-50 border-blue-200 hover:bg-blue-100'
-            : 'text-gray-400 bg-white border-gray-200 hover:text-gray-600 hover:border-gray-300',
-        )}
-      >
-        {entry.is_break ? 'Break' : 'Race'}
-      </button>
+          {/* Break pill toggle */}
+          <button
+            type="button"
+            onClick={() => upd({ is_break: !entry.is_break })}
+            title={entry.is_break ? 'Click to mark as race' : 'Click to mark as break'}
+            className={cn(
+              'shrink-0 text-xs font-medium px-2 py-1 rounded border transition-colors leading-none md:text-[10px] md:px-1.5 md:py-0.5 md:mt-2',
+              entry.is_break
+                ? 'text-blue-700 bg-blue-50 border-blue-200 hover:bg-blue-100'
+                : 'text-gray-400 bg-white border-gray-200 hover:text-gray-600 hover:border-gray-300',
+            )}
+          >
+            {entry.is_break ? 'Break' : 'Race'}
+          </button>
+        </div>
+
+        {/* Trailing controls: revert (edited only) + duplicate + delete */}
+        <div className="flex items-center gap-1 shrink-0 md:order-last md:gap-0.5 md:mt-1.5">
+          {changeInfo?.rowKind === 'edited' && onRevertRow && (
+            <button
+              type="button"
+              onClick={onRevertRow}
+              aria-label="Revert all changes on this row"
+              title="Revert all changes"
+              className="w-9 h-9 flex items-center justify-center text-amber-500 hover:text-amber-600 transition-colors text-lg leading-none md:w-5 md:h-5 md:text-sm md:text-gray-300 md:group-hover/row:text-amber-400"
+            >
+              ↩
+            </button>
+          )}
+          {onDuplicate && (
+            <button
+              type="button"
+              onClick={onDuplicate}
+              aria-label="Duplicate this entry"
+              title="Duplicate row"
+              className="w-9 h-9 flex items-center justify-center text-gray-500 hover:text-gray-700 transition-colors text-lg leading-none md:w-5 md:h-5 md:text-sm md:text-gray-200 md:group-hover/row:text-gray-400 md:hover:text-gray-600"
+            >
+              ⧉
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={onDelete}
+            aria-label="Delete entry"
+            className="w-9 h-9 flex items-center justify-center text-gray-500 hover:text-red-500 transition-colors text-lg leading-none md:w-5 md:h-5 md:text-sm md:text-gray-200 md:group-hover/row:text-gray-400"
+          >
+            ✕
+          </button>
+        </div>
+      </div>
 
       {/* Fields */}
-      <div className="flex-1 grid grid-cols-[repeat(14,minmax(0,1fr))] gap-1.5 min-w-0">
+      <div className="flex-1 grid grid-cols-2 gap-2 min-w-0 md:grid-cols-[repeat(14,minmax(0,1fr))] md:gap-1.5">
         {/* Row label (new / edit rejected) */}
         {rowLabel && (
           <div className="col-span-full -mb-0.5">
@@ -199,7 +238,7 @@ export function EntryRow({
 
         {/* Title */}
         <FieldWrapper
-          colSpan="col-span-5"
+          colSpan="col-span-2 md:col-span-5"
           field="title"
           changeInfo={changeInfo}
           savedDisplay={fmtSaved('title')}
@@ -216,7 +255,7 @@ export function EntryRow({
 
         {/* Start time */}
         <FieldWrapper
-          colSpan="col-span-2"
+          colSpan="col-span-1 md:col-span-2"
           field="start_time"
           changeInfo={changeInfo}
           savedDisplay={fmtSaved('start_time')}
@@ -232,7 +271,7 @@ export function EntryRow({
 
         {/* End time */}
         <FieldWrapper
-          colSpan="col-span-2"
+          colSpan="col-span-1 md:col-span-2"
           field="end_time"
           changeInfo={changeInfo}
           savedDisplay={fmtSaved('end_time')}
@@ -248,7 +287,7 @@ export function EntryRow({
 
         {/* Category */}
         <FieldWrapper
-          colSpan="col-span-2"
+          colSpan="col-span-2 md:col-span-2"
           field="category"
           changeInfo={changeInfo}
           savedDisplay={fmtSaved('category')}
@@ -265,7 +304,7 @@ export function EntryRow({
 
         {/* Notes */}
         <FieldWrapper
-          colSpan="col-span-3"
+          colSpan="col-span-2 md:col-span-3"
           field="notes"
           changeInfo={changeInfo}
           savedDisplay={fmtSaved('notes')}
@@ -286,40 +325,6 @@ export function EntryRow({
             {errors!.messages.join(' · ')}
           </p>
         )}
-      </div>
-
-      {/* Trailing controls: revert (edited only) + duplicate + delete */}
-      <div className="flex items-center gap-0.5 mt-1.5 shrink-0">
-        {changeInfo?.rowKind === 'edited' && onRevertRow && (
-          <button
-            type="button"
-            onClick={onRevertRow}
-            aria-label="Revert all changes on this row"
-            title="Revert all changes"
-            className="w-5 h-5 flex items-center justify-center text-gray-300 group-hover/row:text-amber-400 hover:text-amber-600 transition-colors text-sm leading-none"
-          >
-            ↩
-          </button>
-        )}
-        {onDuplicate && (
-          <button
-            type="button"
-            onClick={onDuplicate}
-            aria-label="Duplicate this entry"
-            title="Duplicate row"
-            className="w-5 h-5 flex items-center justify-center text-gray-200 group-hover/row:text-gray-400 hover:text-gray-600 transition-colors text-sm leading-none"
-          >
-            ⧉
-          </button>
-        )}
-        <button
-          type="button"
-          onClick={onDelete}
-          aria-label="Delete entry"
-          className="w-5 h-5 flex items-center justify-center text-gray-200 group-hover/row:text-gray-400 hover:text-red-500 transition-colors text-sm leading-none"
-        >
-          ✕
-        </button>
       </div>
     </div>
   )

@@ -102,9 +102,9 @@ export function DayTab({
 
   return (
     <div className="space-y-2">
-      {/* Column headers */}
+      {/* Column headers — desktop only */}
       {entries.length > 0 && (
-        <div className="flex items-center gap-2 px-3 pb-0.5">
+        <div className="hidden md:flex items-center gap-2 px-3 pb-0.5">
           <div className="w-10 shrink-0" />
           <div className="flex-1 grid grid-cols-[repeat(14,minmax(0,1fr))] gap-1.5 text-[10px] text-gray-400 font-medium uppercase tracking-wide">
             <span className="col-span-5">Title</span>
@@ -144,7 +144,7 @@ export function DayTab({
       <button
         type="button"
         onClick={handleAddEntry}
-        className="w-full mt-1 py-2 text-sm text-gray-500 border border-dashed border-gray-300 rounded-md hover:border-gray-400 hover:text-gray-700 transition-colors"
+        className="w-full mt-1 py-3 text-sm text-gray-500 border border-dashed border-gray-300 rounded-md hover:border-gray-400 hover:text-gray-700 transition-colors md:py-2"
       >
         + Add entry
       </button>

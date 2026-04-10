@@ -202,7 +202,7 @@ export function TimetableBuilder({
               {activeDay.label && activeDay.label !== formatDate(activeDay.date) && (
                 <span className="ml-1">· {activeDay.label}</span>
               )}
-              <span className="ml-2 text-gray-300">— double-click tab to rename</span>
+              <span className="ml-2 text-gray-300 hidden md:inline">— double-click tab to rename</span>
             </p>
             {days.length > 1 && (
               <button
@@ -216,12 +216,12 @@ export function TimetableBuilder({
           </div>
 
           {/* Copy / Paste toolbar */}
-          <div className="flex items-center justify-end gap-2">
+          <div className="flex flex-wrap items-center justify-end gap-2">
             <button
               type="button"
               onClick={handleCopyClick}
               disabled={activeDayEntries.length === 0}
-              className={cn(BTN_SECONDARY_SM, activeDayEntries.length === 0 && 'opacity-40 cursor-not-allowed')}
+              className={cn(BTN_SECONDARY_SM, 'py-2 md:py-1.5', activeDayEntries.length === 0 && 'opacity-40 cursor-not-allowed')}
             >
               {copyFlash ? 'Copied' : 'Copy day'}
             </button>
@@ -230,7 +230,7 @@ export function TimetableBuilder({
                 type="button"
                 onClick={handlePasteClick}
                 title={clipboard.sourceDayLabel ? `From "${clipboard.sourceDayLabel}"` : undefined}
-                className={BTN_SECONDARY_SM}
+                className={cn(BTN_SECONDARY_SM, 'py-2 md:py-1.5')}
               >
                 Paste ({clipboard.entries.length} {clipboard.entries.length === 1 ? 'entry' : 'entries'})
               </button>
@@ -255,7 +255,7 @@ export function TimetableBuilder({
       )}
 
       {/* Save timetable */}
-      <div className="flex items-center gap-4 pt-2 border-t border-gray-100">
+      <div className="flex flex-wrap items-center gap-3 pt-2 border-t border-gray-100 md:gap-4">
         <button
           type="button"
           onClick={onSave}
