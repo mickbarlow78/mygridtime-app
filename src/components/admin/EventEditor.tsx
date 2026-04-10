@@ -432,6 +432,17 @@ export function EventEditor({ event, days: initialDays, entries: initialEntries,
     [savedDayEntries, dayEntries, rejectedAddedLocalIds, rejectedEditedIds, days]
   )
 
+  // ── Derived: unsaved-changes awareness ───────────────────────────────────
+  const metaDirty = useMemo(
+    () => META_FIELDS.some((k) => (currentMeta[k] || null) !== (savedMeta[k] || null)) || notificationEmails !== savedNotificationEmails,
+    [currentMeta, savedMeta, notificationEmails, savedNotificationEmails]
+  )
+  const timetableDirty = useMemo(
+    () => JSON.stringify(dayEntries) !== JSON.stringify(savedDayEntries) || deletedEntryIds.length > 0,
+    [dayEntries, savedDayEntries, deletedEntryIds]
+  )
+  const isDirty = metaDirty || timetableDirty
+
   // ── Derived: saved entries by db id for field revert ────────────────────
   const savedEntriesById = useMemo((): Record<string, EntryDraft> => {
     const map: Record<string, EntryDraft> = {}
@@ -1027,10 +1038,20 @@ export function EventEditor({ event, days: initialDays, entries: initialEntries,
   return (
     <div className="space-y-6">
 
+      {/* ── Section anchor nav (desktop only) ──────────────────────────────── */}
+      <nav aria-label="Editor sections" className="hidden sm:flex items-center gap-4 text-xs text-gray-500">
+        <span className="text-gray-400">Jump to:</span>
+        <a href="#event-details"      className="hover:text-gray-900 transition-colors">Details</a>
+        <a href="#timetable-section"  className="hover:text-gray-900 transition-colors">Timetable</a>
+        <a href="#event-history"      className="hover:text-gray-900 transition-colors">History</a>
+        <a href="#event-audit"        className="hover:text-gray-900 transition-colors">Audit</a>
+      </nav>
+
       {/* ── Lifecycle actions ───────────────────────────────────────────────── */}
       <EventActionsBar
         status={status}
         publicHref={event.slug ? publicUrl : null}
+        isDirty={isDirty}
         onPublish={() => { setDialog('publish'); setDialogError(null); setPublishAck(false) }}
         onUnpublish={() => { setDialog('unpublish'); setDialogError(null) }}
         onArchive={() => { setDialog('archive'); setDialogError(null) }}
@@ -1045,7 +1066,7 @@ export function EventEditor({ event, days: initialDays, entries: initialEntries,
       />
 
       {/* ── Event metadata ──────────────────────────────────────────────────── */}
-      <section className={`${CARD} overflow-hidden`}>
+      <section id="event-details" className={`${CARD} overflow-hidden`}>
         <div className="px-6 py-4 border-b border-gray-100 flex items-center gap-3">
           <h2 className={H2}>Event details</h2>
           <StatusBadge status={status} />
@@ -1202,10 +1223,14 @@ export function EventEditor({ event, days: initialDays, entries: initialEntries,
       </section>
 
       {/* ── Version history ──────────────────────────────────────────────────── */}
-      <VersionHistory versions={versions} />
+      <div id="event-history">
+        <VersionHistory versions={versions} />
+      </div>
 
       {/* ── Audit log ─────────────────────────────────────────────────────────── */}
-      <AuditLogView entries={auditLog} />
+      <div id="event-audit">
+        <AuditLogView entries={auditLog} />
+      </div>
 
       {/* ── Review modal ──────────────────────────────────────────────────────── */}
       <ReviewModal

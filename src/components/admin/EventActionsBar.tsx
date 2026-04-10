@@ -8,6 +8,7 @@ interface EventActionsBarProps {
   status: Event['status']
   /** Absolute or relative public URL for the event, or null when no slug exists yet. */
   publicHref: string | null
+  isDirty?: boolean
   onPublish: () => void
   onUnpublish: () => void
   onArchive: () => void
@@ -29,6 +30,7 @@ const STATUS_HINT: Record<Event['status'], string> = {
 export function EventActionsBar({
   status,
   publicHref,
+  isDirty,
   onPublish,
   onUnpublish,
   onArchive,
@@ -42,9 +44,18 @@ export function EventActionsBar({
         'px-4 py-3 flex items-center justify-between gap-3 flex-wrap',
       )}
     >
-      <div className="flex items-center gap-2 min-w-0">
+      <div className="flex items-center gap-2 min-w-0 flex-wrap">
         <StatusBadge status={status} />
         <span className="text-xs text-gray-500 truncate">{STATUS_HINT[status]}</span>
+        {isDirty && (
+          <span
+            className="text-xs font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-0.5 whitespace-nowrap"
+            role="status"
+            aria-live="polite"
+          >
+            Unsaved changes
+          </span>
+        )}
       </div>
 
       <div className="flex items-center gap-2 flex-wrap justify-end">
