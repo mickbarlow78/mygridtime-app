@@ -1086,23 +1086,23 @@ export function EventEditor({ event, days: initialDays, entries: initialEntries,
           <StatusBadge status={status} />
         </div>
 
-        <form onSubmit={handleSaveMetadata} className={`${CARD_PADDING} space-y-4`}>
+        <form onSubmit={handleSaveMetadata} className={`${CARD_PADDING} grid grid-cols-1 md:grid-cols-3 gap-4`}>
           {/* Title */}
-          <div>
+          <div className="md:col-span-2">
             <MetaFieldLabel label="Title *" field="title" current={title} />
             <input type="text" value={title} onChange={(e) => { setTitle(e.target.value); setRejectedMetaFields((p) => { const s = new Set(p); s.delete('title'); return s }) }}
               required className={metaInputClass('title', title)} />
           </div>
 
           {/* Venue */}
-          <div>
+          <div className="md:col-span-2">
             <MetaFieldLabel label="Venue" field="venue" current={venue} />
             <input type="text" value={venue} onChange={(e) => { setVenue(e.target.value); setRejectedMetaFields((p) => { const s = new Set(p); s.delete('venue'); return s }) }}
               placeholder="e.g. Whilton Mill Karting" className={metaInputClass('venue', venue)} />
           </div>
 
           {/* Dates + timezone */}
-          <div className="grid grid-cols-3 gap-3">
+          <div className="md:col-span-3 grid grid-cols-3 gap-3">
             <div>
               <MetaFieldLabel label="Start date *" field="start_date" current={startDate} />
               <input type="date" value={startDate} required
@@ -1132,7 +1132,7 @@ export function EventEditor({ event, days: initialDays, entries: initialEntries,
           </div>
 
           {/* Notes */}
-          <div>
+          <div className="md:col-span-3">
             <MetaFieldLabel label="Notes" field="notes" current={notes} />
             <textarea value={notes} rows={2} placeholder="Organiser notes…"
               onChange={(e) => { setNotes(e.target.value); setRejectedMetaFields((p) => { const s = new Set(p); s.delete('notes'); return s }) }}
@@ -1141,7 +1141,7 @@ export function EventEditor({ event, days: initialDays, entries: initialEntries,
           </div>
 
           {/* Notification emails */}
-          <div>
+          <div className="md:col-span-3">
             <label className={LABEL_COMPACT}>
               Notification emails
             </label>
@@ -1159,7 +1159,7 @@ export function EventEditor({ event, days: initialDays, entries: initialEntries,
 
           {/* Public URL — read-only, shown whenever slug exists */}
           {event.slug && (
-            <div>
+            <div className="md:col-span-2">
               <label className={LABEL_COMPACT}>
                 Public URL
               </label>
@@ -1187,7 +1187,7 @@ export function EventEditor({ event, days: initialDays, entries: initialEntries,
           )}
 
           {/* Save row */}
-          <div className="flex items-center gap-4">
+          <div className="md:col-span-3 flex items-center gap-4">
             <button type="submit"
               className={BTN_PRIMARY}>
               Save details
