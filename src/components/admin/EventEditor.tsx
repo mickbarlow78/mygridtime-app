@@ -6,7 +6,6 @@ import { useRouter } from 'next/navigation'
 import { TimetableBuilder } from './TimetableBuilder'
 import { AuditLogView } from './AuditLogView'
 import { EventActionsBar } from './EventActionsBar'
-import { StatusBadge } from '@/components/ui/StatusBadge'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { ReviewModal, type ReviewCard, type ChangeCard } from '@/components/ui/ReviewModal'
 import { cn, CARD, CARD_PADDING, H2, HELP_TEXT, INPUT, LABEL_COMPACT, BTN_PRIMARY, SUCCESS_BANNER } from '@/lib/styles'
@@ -1081,12 +1080,11 @@ export function EventEditor({ event, days: initialDays, entries: initialEntries,
 
       {/* ── Event metadata ──────────────────────────────────────────────────── */}
       <section id="event-details" className={`${CARD} overflow-hidden`}>
-        <div className="px-6 py-4 border-b border-gray-100 flex items-center gap-3">
+        <div className="px-6 py-3 border-b border-gray-100">
           <h2 className={H2}>Event details</h2>
-          <StatusBadge status={status} />
         </div>
 
-        <form onSubmit={handleSaveMetadata} className={`${CARD_PADDING} grid grid-cols-1 md:grid-cols-12 gap-4`}>
+        <form onSubmit={handleSaveMetadata} className={`${CARD_PADDING} grid grid-cols-1 md:grid-cols-12 gap-3`}>
           {/* Title */}
           <div className="md:col-span-7">
             <MetaFieldLabel label="Title *" field="title" current={title} />
@@ -1134,9 +1132,9 @@ export function EventEditor({ event, days: initialDays, entries: initialEntries,
           {/* Notes */}
           <div className="md:col-span-12">
             <MetaFieldLabel label="Notes" field="notes" current={notes} />
-            <textarea value={notes} rows={2} placeholder="Organiser notes…"
+            <textarea value={notes} rows={1} placeholder="Organiser notes…"
               onChange={(e) => { setNotes(e.target.value); setRejectedMetaFields((p) => { const s = new Set(p); s.delete('notes'); return s }) }}
-              className={metaInputClass('notes', notes) + ' resize-none'} />
+              className={metaInputClass('notes', notes) + ' resize-y'} />
             <p className={HELP_TEXT}>Internal — not shown publicly</p>
           </div>
 
@@ -1159,27 +1157,25 @@ export function EventEditor({ event, days: initialDays, entries: initialEntries,
 
           {/* Public URL — read-only, shown whenever slug exists */}
           {event.slug && (
-            <div className="md:col-span-12">
-              <label className={LABEL_COMPACT}>Public URL</label>
+            <div className="md:col-span-12 flex flex-col gap-0.5">
               <div className="flex items-center gap-2 max-w-xl">
+                <span className="shrink-0 text-xs text-gray-400 whitespace-nowrap">Public URL</span>
                 <input
                   type="text"
                   readOnly
                   value={publicUrl}
-                  className="flex-1 text-xs px-2.5 py-1.5 border border-gray-200 rounded-md bg-gray-50 text-gray-500 font-mono focus:outline-none truncate"
+                  className="flex-1 text-xs px-2 py-1 border border-gray-200 rounded bg-gray-50 text-gray-400 font-mono focus:outline-none truncate"
                 />
                 <button
                   type="button"
                   onClick={handleCopyPublicUrl}
-                  className="shrink-0 text-xs text-gray-400 hover:text-gray-600 border border-gray-200 rounded px-2.5 py-1.5 hover:border-gray-300 transition-colors whitespace-nowrap"
+                  className="shrink-0 text-xs text-gray-400 hover:text-gray-600 border border-gray-200 rounded px-2.5 py-1 hover:border-gray-300 transition-colors whitespace-nowrap"
                 >
                   {urlCopied ? 'Copied!' : 'Copy'}
                 </button>
               </div>
               {status !== 'published' && (
-                <p className={HELP_TEXT}>
-                  Not published — this URL will return a 404 until the event is published.
-                </p>
+                <p className={HELP_TEXT}>Not published — 404 until published.</p>
               )}
             </div>
           )}
