@@ -1086,23 +1086,23 @@ export function EventEditor({ event, days: initialDays, entries: initialEntries,
           <StatusBadge status={status} />
         </div>
 
-        <form onSubmit={handleSaveMetadata} className={`${CARD_PADDING} grid grid-cols-1 md:grid-cols-3 gap-4`}>
+        <form onSubmit={handleSaveMetadata} className={`${CARD_PADDING} grid grid-cols-1 md:grid-cols-12 gap-4`}>
           {/* Title */}
-          <div className="md:col-span-2">
+          <div className="md:col-span-7">
             <MetaFieldLabel label="Title *" field="title" current={title} />
             <input type="text" value={title} onChange={(e) => { setTitle(e.target.value); setRejectedMetaFields((p) => { const s = new Set(p); s.delete('title'); return s }) }}
               required className={metaInputClass('title', title)} />
           </div>
 
           {/* Venue */}
-          <div className="md:col-span-2">
+          <div className="md:col-span-5">
             <MetaFieldLabel label="Venue" field="venue" current={venue} />
             <input type="text" value={venue} onChange={(e) => { setVenue(e.target.value); setRejectedMetaFields((p) => { const s = new Set(p); s.delete('venue'); return s }) }}
               placeholder="e.g. Whilton Mill Karting" className={metaInputClass('venue', venue)} />
           </div>
 
           {/* Dates + timezone */}
-          <div className="md:col-span-3 grid grid-cols-3 gap-3">
+          <div className="md:col-span-12 grid grid-cols-3 gap-3">
             <div>
               <MetaFieldLabel label="Start date *" field="start_date" current={startDate} />
               <input type="date" value={startDate} required
@@ -1132,7 +1132,7 @@ export function EventEditor({ event, days: initialDays, entries: initialEntries,
           </div>
 
           {/* Notes */}
-          <div className="md:col-span-3">
+          <div className="md:col-span-12">
             <MetaFieldLabel label="Notes" field="notes" current={notes} />
             <textarea value={notes} rows={2} placeholder="Organiser notes…"
               onChange={(e) => { setNotes(e.target.value); setRejectedMetaFields((p) => { const s = new Set(p); s.delete('notes'); return s }) }}
@@ -1141,7 +1141,7 @@ export function EventEditor({ event, days: initialDays, entries: initialEntries,
           </div>
 
           {/* Notification emails */}
-          <div className="md:col-span-3">
+          <div className="md:col-span-12">
             <label className={LABEL_COMPACT}>
               Notification emails
             </label>
@@ -1159,21 +1159,19 @@ export function EventEditor({ event, days: initialDays, entries: initialEntries,
 
           {/* Public URL — read-only, shown whenever slug exists */}
           {event.slug && (
-            <div className="md:col-span-2">
-              <label className={LABEL_COMPACT}>
-                Public URL
-              </label>
-              <div className="flex items-center gap-2">
+            <div className="md:col-span-12">
+              <label className={LABEL_COMPACT}>Public URL</label>
+              <div className="flex items-center gap-2 max-w-xl">
                 <input
                   type="text"
                   readOnly
                   value={publicUrl}
-                  className="flex-1 text-sm px-3 py-2 border border-gray-200 rounded-md bg-gray-50 text-gray-600 font-mono focus:outline-none"
+                  className="flex-1 text-xs px-2.5 py-1.5 border border-gray-200 rounded-md bg-gray-50 text-gray-500 font-mono focus:outline-none truncate"
                 />
                 <button
                   type="button"
                   onClick={handleCopyPublicUrl}
-                  className="shrink-0 text-xs text-gray-400 hover:text-gray-600 border border-gray-200 rounded px-2.5 py-2 hover:border-gray-300 transition-colors whitespace-nowrap"
+                  className="shrink-0 text-xs text-gray-400 hover:text-gray-600 border border-gray-200 rounded px-2.5 py-1.5 hover:border-gray-300 transition-colors whitespace-nowrap"
                 >
                   {urlCopied ? 'Copied!' : 'Copy'}
                 </button>
@@ -1187,7 +1185,7 @@ export function EventEditor({ event, days: initialDays, entries: initialEntries,
           )}
 
           {/* Save row */}
-          <div className="md:col-span-3 flex items-center gap-4">
+          <div className="md:col-span-12 flex items-center gap-4">
             <button type="submit"
               className={BTN_PRIMARY}>
               Save details
