@@ -102,7 +102,6 @@ function validateTimetable(
     if (entries.length === 0)
       globalErrors.push(`Day "${day.label ?? day.date}" has no entries. Add at least one or remove the day.`)
 
-    const titles: string[] = []
     for (const entry of entries) {
       const fields: string[] = []
       const messages: string[] = []
@@ -111,9 +110,6 @@ function validateTimetable(
       if (entry.end_time && entry.start_time && entry.end_time <= entry.start_time)
         { fields.push('end_time'); messages.push('End time must be after start time.') }
       if (fields.length > 0) dayErrs.push({ _localId: entry._localId, fields, messages })
-      if (entry.title.trim() && titles.includes(entry.title.trim().toLowerCase()))
-        dayErrs.push({ _localId: entry._localId, fields: [], messages: [`Duplicate title "${entry.title.trim()}" on this day.`] })
-      if (entry.title.trim()) titles.push(entry.title.trim().toLowerCase())
     }
     if (dayErrs.length > 0) entryErrors[day.id] = dayErrs
   }
@@ -771,20 +767,30 @@ export function EventEditor({ event, days: initialDays, entries: initialEntries,
 
     debugLog('EventEditor', 'CALL saveDayEntries notifyOnSave:', notifyOnSave)
     const result = await saveDayEntries(event.id, allEntries, deletedEntryIds, notifyOnSave)
-    if (!result.success) { setTimetableError(result.error); return false }
+    if (!result.success) {
+      const friendly = /cannot affect row a second time|duplicate key/i.test(result.error)
+        ? 'Could not save the timetable — the editor is out of sync with the server. Please refresh the page and try again.'
+        : result.error
+      setTimetableError(friendly)
+      return false
+    }
 
     // Assign server-generated IDs only to accepted new entries.
-    // Rejected new entries (id === null, in rejAddedLocalIds) are skipped in the
-    // payload so savedIds has no slot for them — do not increment idx for them.
+    // savedIds is positionally aligned with allEntries (the full payload), so we
+    // must advance slotIdx for every entry that made it into the payload.
+    // Only rejected-added entries were skipped in the payload build (line 738),
+    // so they are the only ones that do NOT consume a slot here.
     const savedIds = result.data.savedIds
-    let newIdx = 0
+    let slotIdx = 0
     const updated: Record<string, EntryDraft[]> = {}
     for (const day of days) {
       updated[day.id] = (dayEntries[day.id] ?? []).map((e) => {
-        if (e.id !== null) return e                          // existing entry
-        if (rejAddedLocalIds.has(e._localId)) return e      // rejected new — keep id: null
-        const serverId = savedIds[newIdx++]                  // accepted new — assign server id
-        return serverId ? { ...e, id: serverId } : e
+        // Rejected added entries were skipped in the payload — no slot.
+        if (e.id === null && rejAddedLocalIds.has(e._localId)) return e
+        // Every other entry consumed one slot in the same order as the payload build.
+        const serverId = savedIds[slotIdx++]
+        if (e.id !== null) return e                          // existing — keep our id
+        return serverId ? { ...e, id: serverId } : e         // accepted new — assign server id
       })
     }
 

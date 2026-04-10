@@ -58,6 +58,30 @@ export function DayTab({
     onEntriesChange(dayId, entries.map((e) => (e._localId === updated._localId ? updated : e)))
   }
 
+  function handleDuplicateEntry(localId: string) {
+    const idx = entries.findIndex((e) => e._localId === localId)
+    if (idx === -1) return
+    const source = entries[idx]
+    const clone: EntryDraft = {
+      _localId: crypto.randomUUID(),
+      id: null,
+      event_day_id: dayId,
+      title: source.title,
+      start_time: source.start_time,
+      end_time: source.end_time,
+      category: source.category,
+      notes: source.notes,
+      is_break: source.is_break,
+      sort_order: 0, // recalculated below
+    }
+    const next = [
+      ...entries.slice(0, idx + 1),
+      clone,
+      ...entries.slice(idx + 1),
+    ].map((e, i) => ({ ...e, sort_order: i }))
+    onEntriesChange(dayId, next)
+  }
+
   function handleAddEntry() {
     const newEntry: EntryDraft = {
       _localId: crypto.randomUUID(),
@@ -103,6 +127,7 @@ export function DayTab({
               changeInfo={entryChangeInfos?.[entry._localId]}
               onChange={handleEntryChange}
               onDelete={() => onDeleteEntry(dayId, entry._localId)}
+              onDuplicate={() => handleDuplicateEntry(entry._localId)}
               onRevertRow={onRevertEntry ? () => onRevertEntry(dayId, entry._localId) : undefined}
               onRevertField={onRevertEntryField ? (f) => onRevertEntryField(dayId, entry._localId, f) : undefined}
             />

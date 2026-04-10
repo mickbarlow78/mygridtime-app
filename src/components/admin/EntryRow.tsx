@@ -43,6 +43,8 @@ interface EntryRowProps {
   changeInfo?: EntryChangeInfo
   onChange: (updated: EntryDraft) => void
   onDelete: () => void
+  /** Insert a clone of this row immediately below it. */
+  onDuplicate?: () => void
   /** Revert all changed fields to saved values (only meaningful for 'edited' rows). */
   onRevertRow?: () => void
   /** Revert a single field to its saved value. */
@@ -113,6 +115,7 @@ export function EntryRow({
   changeInfo,
   onChange,
   onDelete,
+  onDuplicate,
   onRevertRow,
   onRevertField,
 }: EntryRowProps) {
@@ -285,7 +288,7 @@ export function EntryRow({
         )}
       </div>
 
-      {/* Trailing controls: revert (edited only) + delete */}
+      {/* Trailing controls: revert (edited only) + duplicate + delete */}
       <div className="flex items-center gap-0.5 mt-1.5 shrink-0">
         {changeInfo?.rowKind === 'edited' && onRevertRow && (
           <button
@@ -296,6 +299,17 @@ export function EntryRow({
             className="w-5 h-5 flex items-center justify-center text-gray-300 group-hover/row:text-amber-400 hover:text-amber-600 transition-colors text-sm leading-none"
           >
             ↩
+          </button>
+        )}
+        {onDuplicate && (
+          <button
+            type="button"
+            onClick={onDuplicate}
+            aria-label="Duplicate this entry"
+            title="Duplicate row"
+            className="w-5 h-5 flex items-center justify-center text-gray-200 group-hover/row:text-gray-400 hover:text-gray-600 transition-colors text-sm leading-none"
+          >
+            ⧉
           </button>
         )}
         <button
