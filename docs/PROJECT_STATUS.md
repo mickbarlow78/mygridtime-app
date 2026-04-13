@@ -9,6 +9,7 @@
 | Auth | Supabase Auth (magic links, OAuth) |
 | Email | Resend (transactional) |
 | Styling | Tailwind CSS 3 |
+| Monitoring | Sentry (@sentry/nextjs) |
 | Deployment | Netlify |
 | Drag & Drop | @dnd-kit |
 | Language | TypeScript 5 |
@@ -36,7 +37,8 @@
 - **Version history**: timetable snapshots created on each publish
 - **Templates**: save event structure as reusable template, load into new events
 - **Audit log**: tracks event lifecycle + timetable changes with field-level diffs
-- **Error boundaries**: `global-error.tsx`, root `error.tsx`, `(public)/error.tsx`, `admin/error.tsx`, `my/error.tsx` — styled error recovery UI across all route segments
+- **Error boundaries**: `global-error.tsx`, root `error.tsx`, `(public)/error.tsx`, `admin/error.tsx`, `my/error.tsx` — styled error recovery UI across all route segments, all report to Sentry
+- **Monitoring**: Sentry error tracking — client, server, and edge runtime coverage. Exceptions captured from all error boundaries and key server-side catch blocks. Conservative 10% trace sampling.
 
 ## In Progress
 
@@ -44,7 +46,6 @@
 
 ## Not Started
 
-- **Monitoring**: no external monitoring (Sentry, etc.) — only DB logs + `debug.ts` console output
 - **Testing**: no test framework configured
 - **Consumer dashboard** (`/my/*`): stub pages only — alerts, drivers, upload
 - **Web push notifications**: VAPID keys unused, no service worker
@@ -54,10 +55,11 @@
 
 ## Current Critical Work
 
-No critical notification issues remaining. Both save and publish flows are opt-in.
+All P0 items complete. Production monitoring (Sentry) is live. Both save and publish notification flows are opt-in.
 
 Current behaviour:
 - `saveDayEntries()` — opt-in checkbox in review modal, default unchecked. Correct.
 - `publishEvent()` — opt-in checkbox in publish dialog, default unchecked. Correct.
 - Metadata-only changes do not trigger notifications.
 - Reorder changes are classified as substantive (can trigger notification if opted in).
+- `DEBUG_NOTIFICATIONS` is env-driven (`false` by default), no longer hardcoded to `true`.

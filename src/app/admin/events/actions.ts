@@ -7,6 +7,7 @@ import type { EventStatus, Json } from '@/lib/types/database'
 import { sendEventNotification } from '@/lib/resend/notifications'
 import { debugLog } from '@/lib/debug'
 import { getActiveOrg } from '@/lib/utils/active-org'
+import * as Sentry from '@sentry/nextjs'
 
 // ---------------------------------------------------------------------------
 // Internal helpers
@@ -299,8 +300,9 @@ export async function publishEvent(eventId: string, notify: boolean = false): Pr
     await writeAuditLog(supabase, user.id, eventId, 'event.published', {
       version: nextVersion,
     })
-  } catch {
+  } catch (err) {
     // Snapshot failure should not block the publish
+    Sentry.captureException(err, { tags: { action: 'publishEvent.snapshot' } })
     await writeAuditLog(supabase, user.id, eventId, 'event.published')
   }
 

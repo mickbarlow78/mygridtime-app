@@ -8,6 +8,7 @@ import { setActiveOrgId, getActiveOrg } from '@/lib/utils/active-org'
 import { getResendClient, getFromAddress } from '@/lib/resend/client'
 import { orgInviteSubject, orgInviteHtml, orgInviteText } from '@/lib/resend/templates'
 import type { OrgBranding } from '@/lib/types/database'
+import * as Sentry from '@sentry/nextjs'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -448,8 +449,9 @@ export async function inviteMember(input: {
             acceptUrl,
           }),
         })
-      } catch {
+      } catch (err) {
         // Email failure is non-fatal — invite is already created
+        Sentry.captureException(err, { tags: { action: 'inviteMember.email' } })
       }
     }
 
@@ -457,6 +459,7 @@ export async function inviteMember(input: {
     return { success: true, data: undefined }
   } catch (err) {
     // Catch any unexpected exception so the server action never crashes the page
+    Sentry.captureException(err, { tags: { action: 'inviteMember' } })
     const message = err instanceof Error ? err.message : 'An unexpected error occurred.'
     return { success: false, error: message }
   }

@@ -26,7 +26,7 @@
 
 **Impact**: Production errors may go undetected. No alerting, no dashboards, no error aggregation.
 
-**Status**: Open
+**Status**: Resolved — Sentry integrated via `@sentry/nextjs`. Client, server, and edge runtimes covered. All 5 error boundaries capture to Sentry. Key server-side catch blocks in `events/actions.ts`, `orgs/actions.ts`, and `notifications.ts` report to Sentry. Conservative 10% trace sampling.
 
 ---
 
@@ -55,8 +55,8 @@
 
 ## MGT-006: Debug logging enabled by default
 
-**Description**: `DEBUG_NOTIFICATIONS` in `src/lib/debug.ts` is set to `true`. This outputs verbose notification tracing to the console in all environments.
+**Description**: `DEBUG_NOTIFICATIONS` in `src/lib/debug.ts` was hardcoded to `true`. This output verbose notification tracing to the console in all environments.
 
 **Impact**: Potential information leakage in production logs. Noise in log output.
 
-**Status**: Open
+**Status**: Resolved — `DEBUG_NOTIFICATIONS` is now driven by the `DEBUG_NOTIFICATIONS` env var (defaults to `false`). Set to `"true"` in `.env.local` for local debugging only.

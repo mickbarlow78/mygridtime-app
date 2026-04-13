@@ -28,6 +28,7 @@
 
 import { getResendClient, getFromAddress } from './client'
 import { debugLog } from '@/lib/debug'
+import * as Sentry from '@sentry/nextjs'
 import {
   eventPublishedSubject,
   eventPublishedHtml,
@@ -168,6 +169,7 @@ export async function sendEventNotification(
       }
     } catch (err) {
       // Unexpected error (network, etc.) — log and continue to next recipient
+      Sentry.captureException(err, { tags: { action: 'sendEventNotification', recipient: to } })
       await supabase.from('notification_log').insert({
         event_id: eventId,
         type,

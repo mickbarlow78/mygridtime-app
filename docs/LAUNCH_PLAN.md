@@ -14,7 +14,7 @@ A stable, deployable product where:
 
 1. ~~**Fix publish auto-notify bug**~~ ✓ — `publishEvent()` now requires opt-in before sending notifications
 2. ~~**Add error boundaries**~~ ✓ — `global-error.tsx`, root `error.tsx`, plus section-level boundaries for `(public)`, `admin`, and `my`
-3. **Production logging/monitoring** — replace console-only logging with observable error tracking
+3. ~~**Production logging/monitoring**~~ ✓ — Sentry integrated for client, server, and edge error tracking. All error boundaries report to Sentry. Key server-side catch blocks captured.
 
 Dependencies: None — these are independent and can be done in parallel.
 
@@ -25,7 +25,7 @@ Dependencies: None — these are independent and can be done in parallel.
 4. ~~**Notification confirmation UX on publish**~~ ✓ — opt-in checkbox added to publish dialog, consistent with save flow
 5. **Basic smoke tests** — cover publish, save, and notification flows at minimum
 6. **Review notification edge cases** — verify debounce works under rapid publish/unpublish/republish cycles
-7. **Environment hardening** — ensure `DEBUG_NOTIFICATIONS` is off in production, validate required env vars on startup
+7. ~~**Environment hardening (partial)**~~ ✓ — `DEBUG_NOTIFICATIONS` is now env-driven (defaults to `false`). Remaining: validate required env vars on startup.
 
 Dependencies: Items 4 depends on P0 #1 (both now complete).
 

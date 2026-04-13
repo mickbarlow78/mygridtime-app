@@ -69,3 +69,15 @@
 **Date**: 2026-04-13
 
 **Status**: Active
+
+---
+
+## DEC-007: Sentry for production error monitoring
+
+**Decision**: Use `@sentry/nextjs` as the sole production error monitoring tool. Conservative configuration: 10% trace sampling, no session replay, source map upload gated behind `SENTRY_AUTH_TOKEN` so builds never break without it.
+
+**Reason**: Console-only error logging is invisible in production. Sentry provides error aggregation, alerting, and stack traces without building custom infrastructure. Keeping the config lean avoids complexity for the first pass — replay and performance profiling can be added later if needed.
+
+**Date**: 2026-04-13
+
+**Status**: Active
