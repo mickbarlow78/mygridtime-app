@@ -25,7 +25,7 @@ Dependencies: None — these are independent and can be done in parallel.
 4. ~~**Notification confirmation UX on publish**~~ ✓ — opt-in checkbox added to publish dialog, consistent with save flow
 5. **Basic smoke tests** — cover publish, save, and notification flows at minimum
 6. **Review notification edge cases** — verify debounce works under rapid publish/unpublish/republish cycles
-7. ~~**Environment hardening (partial)**~~ ✓ — `DEBUG_NOTIFICATIONS` is now env-driven (defaults to `false`). Remaining: validate required env vars on startup.
+7. ~~**Environment hardening**~~ ✓ — `DEBUG_NOTIFICATIONS` is env-driven (defaults to `false`). Startup env validation via `src/lib/env.ts` validates required vars on server boot, fails fast in production.
 
 Dependencies: Items 4 depends on P0 #1 (both now complete).
 

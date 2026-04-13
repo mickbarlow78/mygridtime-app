@@ -81,3 +81,15 @@
 **Date**: 2026-04-13
 
 **Status**: Active
+
+---
+
+## DEC-008: Startup environment variable validation
+
+**Decision**: Validate environment variables once on server startup via `instrumentation.ts`, using a centralized registry in `src/lib/env.ts`. Three severity levels: `required` (error everywhere), `server-required` (error in production, warn in dev), `feature-required` (warn everywhere). No new dependencies — hand-rolled validation with ~120 lines.
+
+**Reason**: Env var errors were previously lazy — failures only surfaced when a feature was first used at runtime. A misconfigured production deploy could serve errors to users. Startup validation fails fast with a clear message listing exactly which vars are missing and why they matter.
+
+**Date**: 2026-04-13
+
+**Status**: Active
