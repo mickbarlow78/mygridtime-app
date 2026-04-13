@@ -227,7 +227,7 @@ export async function updateEventMetadata(
 
 // ---------------------------------------------------------------------------
 
-export async function publishEvent(eventId: string): Promise<ActionResult> {
+export async function publishEvent(eventId: string, notify: boolean = false): Promise<ActionResult> {
   const { supabase, user, membership } = await requireEditor()
   if (!membership) return { success: false, error: 'You do not have permission to perform this action.' }
 
@@ -304,8 +304,10 @@ export async function publishEvent(eventId: string): Promise<ActionResult> {
     await writeAuditLog(supabase, user.id, eventId, 'event.published')
   }
 
-  // Send publish notification — fire-and-forget; failures are logged, not thrown
-  await sendEventNotification(supabase, eventId, 'event.published')
+  // Send publish notification only when the caller explicitly opted in
+  if (notify) {
+    await sendEventNotification(supabase, eventId, 'event.published')
+  }
 
   return { success: true, data: undefined }
 }

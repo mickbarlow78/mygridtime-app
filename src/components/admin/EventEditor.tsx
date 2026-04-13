@@ -412,6 +412,7 @@ export function EventEditor({ event, days: initialDays, entries: initialEntries,
   const [templateSuccess, setTemplateSuccess] = useState(false)
   const [urlCopied, setUrlCopied] = useState(false)
   const [publishAck, setPublishAck] = useState(false)
+  const [notifyOnPublish, setNotifyOnPublish] = useState(false)
   const [publishUrlCopied, setPublishUrlCopied] = useState(false)
   const [clipboard, setClipboard] = useState<DayClipboard | null>(null)
 
@@ -559,7 +560,7 @@ export function EventEditor({ event, days: initialDays, entries: initialEntries,
         document.getElementById('timetable-section')?.scrollIntoView({ behavior: 'smooth' })
         return
       }
-      result = await publishEvent(event.id)
+      result = await publishEvent(event.id, notifyOnPublish)
     } else if (kind === 'unpublish') {
       result = await unpublishEvent(event.id)
     } else if (kind === 'archive') {
@@ -1065,7 +1066,7 @@ export function EventEditor({ event, days: initialDays, entries: initialEntries,
         status={status}
         publicHref={event.slug ? publicUrl : null}
         isDirty={isDirty}
-        onPublish={() => { setDialog('publish'); setDialogError(null); setPublishAck(false) }}
+        onPublish={() => { setDialog('publish'); setDialogError(null); setPublishAck(false); setNotifyOnPublish(false) }}
         onUnpublish={() => { setDialog('unpublish'); setDialogError(null) }}
         onArchive={() => { setDialog('archive'); setDialogError(null) }}
         onDuplicate={() => {
@@ -1315,6 +1316,19 @@ export function EventEditor({ event, days: initialDays, entries: initialEntries,
           />
           <span>I understand this event will be publicly accessible.</span>
         </label>
+        {notificationEmails.trim() ? (
+          <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={notifyOnPublish}
+              onChange={(e) => setNotifyOnPublish(e.target.checked)}
+              className="rounded border-gray-300 text-gray-900 focus:ring-gray-500"
+            />
+            Notify attendees about this publish
+          </label>
+        ) : (
+          <p className="text-sm text-gray-400">No notification email addresses set for this event.</p>
+        )}
         {dialogError && <p className="text-sm text-red-600">{dialogError}</p>}
       </ConfirmDialog>
 
