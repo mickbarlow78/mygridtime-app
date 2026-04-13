@@ -105,3 +105,15 @@
 **Date**: 2026-04-13
 
 **Status**: Active
+
+---
+
+## DEC-010: Dev-only auto-login route
+
+**Decision**: Provide `/api/auth/dev-session` as a development-only route that creates a real Supabase session for `DEV_ADMIN_EMAIL` and redirects to `/admin`. Hard-gated on `NODE_ENV === 'development'` — returns 404 in all other environments.
+
+**Reason**: Claude Preview and other local testing tools cannot complete the magic-link auth flow. A real session (not a fake bypass) is required because RLS policies, server actions, and middleware all depend on a valid Supabase session. The route uses `auth.admin.generateLink()` + `verifyOtp()` to create a genuine session without sending an email.
+
+**Date**: 2026-04-13
+
+**Status**: Active

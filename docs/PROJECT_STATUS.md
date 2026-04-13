@@ -17,7 +17,7 @@
 
 ## Architecture
 
-- Server actions (`'use server'`) for all mutations — no REST API routes (except Stripe stub)
+- Server actions (`'use server'`) for all mutations — no REST API routes (except Stripe stub and dev-only `/api/auth/dev-session`)
 - Supabase RLS enforces org-level access control via `get_user_org_role()`
 - Multi-tenant: organisations → members → events → days → entries
 - Soft deletes on events (`deleted_at`)
@@ -42,6 +42,7 @@
 - **Monitoring**: Sentry error tracking — client, server, and edge runtime coverage. Exceptions captured from all error boundaries and key server-side catch blocks. Conservative 10% trace sampling.
 - **Environment validation**: Startup env var validation via `src/lib/env.ts`. Required vars (Supabase) error in all environments; server-required vars (service role key) error in production; feature-required vars (Resend) warn everywhere. Runs once in `instrumentation.ts` on nodejs runtime.
 - **Testing**: Vitest configured with `@` path alias. 45 smoke tests covering pure utility functions: app-url, slug, time, resend client, email templates, env validation. No jsdom, no component tests, no Supabase mocking.
+- **Dev tooling**: `/api/auth/dev-session` route creates a real Supabase session for `DEV_ADMIN_EMAIL` and redirects to `/admin`. Hard-gated on `NODE_ENV === 'development'` — returns 404 outside dev. Enables Claude Preview and local testing without magic-link email flow (DEC-010).
 
 ## In Progress
 

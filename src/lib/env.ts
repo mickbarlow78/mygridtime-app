@@ -51,6 +51,7 @@ const ENV_VARS: EnvVarDef[] = [
   { name: 'SENTRY_PROJECT', level: 'optional', description: 'Sentry project (build-time source maps)' },
   { name: 'SENTRY_AUTH_TOKEN', level: 'optional', description: 'Sentry auth token (build-time source maps)' },
   { name: 'DEBUG_NOTIFICATIONS', level: 'optional', description: 'Verbose notification debug logging' },
+  { name: 'DEV_ADMIN_EMAIL', level: 'optional', description: 'Auto-login email for local dev (development only)' },
 ]
 
 /** At least one of these must be set for email links and redirects. */
