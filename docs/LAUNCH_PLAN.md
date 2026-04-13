@@ -13,7 +13,7 @@ A stable, deployable product where:
 ## P0 — Release Blocking
 
 1. ~~**Fix publish auto-notify bug**~~ ✓ — `publishEvent()` now requires opt-in before sending notifications
-2. **Add error boundaries** — at minimum, root-level and per-route `error.tsx` files to prevent white screens
+2. ~~**Add error boundaries**~~ ✓ — `global-error.tsx`, root `error.tsx`, plus section-level boundaries for `(public)`, `admin`, and `my`
 3. **Production logging/monitoring** — replace console-only logging with observable error tracking
 
 Dependencies: None — these are independent and can be done in parallel.

@@ -16,7 +16,7 @@
 
 **Impact**: Poor user experience on any runtime error. No graceful recovery or actionable feedback.
 
-**Status**: Open
+**Status**: Resolved — error boundaries added at root (`global-error.tsx`, `error.tsx`), `(public)/error.tsx`, `admin/error.tsx`, and `my/error.tsx`. All routes now have styled error recovery UI.
 
 ---
 

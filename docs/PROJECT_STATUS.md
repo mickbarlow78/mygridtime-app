@@ -36,6 +36,7 @@
 - **Version history**: timetable snapshots created on each publish
 - **Templates**: save event structure as reusable template, load into new events
 - **Audit log**: tracks event lifecycle + timetable changes with field-level diffs
+- **Error boundaries**: `global-error.tsx`, root `error.tsx`, `(public)/error.tsx`, `admin/error.tsx`, `my/error.tsx` — styled error recovery UI across all route segments
 
 ## In Progress
 
@@ -43,7 +44,6 @@
 
 ## Not Started
 
-- **Error boundaries**: no `error.tsx` files exist
 - **Monitoring**: no external monitoring (Sentry, etc.) — only DB logs + `debug.ts` console output
 - **Testing**: no test framework configured
 - **Consumer dashboard** (`/my/*`): stub pages only — alerts, drivers, upload
