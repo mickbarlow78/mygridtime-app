@@ -12,6 +12,7 @@
 | Monitoring | Sentry (@sentry/nextjs) |
 | Deployment | Netlify |
 | Drag & Drop | @dnd-kit |
+| Testing | Vitest |
 | Language | TypeScript 5 |
 
 ## Architecture
@@ -40,6 +41,7 @@
 - **Error boundaries**: `global-error.tsx`, root `error.tsx`, `(public)/error.tsx`, `admin/error.tsx`, `my/error.tsx` — styled error recovery UI across all route segments, all report to Sentry
 - **Monitoring**: Sentry error tracking — client, server, and edge runtime coverage. Exceptions captured from all error boundaries and key server-side catch blocks. Conservative 10% trace sampling.
 - **Environment validation**: Startup env var validation via `src/lib/env.ts`. Required vars (Supabase) error in all environments; server-required vars (service role key) error in production; feature-required vars (Resend) warn everywhere. Runs once in `instrumentation.ts` on nodejs runtime.
+- **Testing**: Vitest configured with `@` path alias. 45 smoke tests covering pure utility functions: app-url, slug, time, resend client, email templates, env validation. No jsdom, no component tests, no Supabase mocking.
 
 ## In Progress
 
@@ -47,7 +49,6 @@
 
 ## Not Started
 
-- **Testing**: no test framework configured
 - **Consumer dashboard** (`/my/*`): stub pages only — alerts, drivers, upload
 - **Web push notifications**: VAPID keys unused, no service worker
 - **AI timetable extraction**: Claude Vision integration stub only
@@ -56,7 +57,7 @@
 
 ## Current Critical Work
 
-All P0 items complete. Production monitoring (Sentry) is live. Both save and publish notification flows are opt-in.
+All P0 and Must Have items complete. Production monitoring (Sentry) is live. Smoke tests (Vitest) cover pure utility functions. Notification edge cases verified. Next phase is Should Have (#8–11).
 
 Current behaviour:
 - `saveDayEntries()` — opt-in checkbox in review modal, default unchecked. Correct.

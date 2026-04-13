@@ -93,3 +93,15 @@
 **Date**: 2026-04-13
 
 **Status**: Active
+
+---
+
+## DEC-009: Vitest for smoke testing
+
+**Decision**: Use Vitest as the test framework. Tests are limited to pure utility functions — no jsdom, no component tests, no Supabase mocking. Run via `npm test` (CI) and `npm run test:watch` (local dev).
+
+**Reason**: The project had zero automated tests (MGT-004). Vitest is fast, TypeScript-native, and supports the existing `@` path alias with minimal config. Scope is deliberately narrow: only pure functions with no external dependencies are tested, keeping the test suite fast and maintenance-free. Integration and E2E testing can be added later as separate concerns.
+
+**Date**: 2026-04-13
+
+**Status**: Active

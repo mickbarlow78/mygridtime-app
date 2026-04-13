@@ -36,7 +36,7 @@
 
 **Impact**: Regressions can ship undetected. Refactoring is high-risk without automated coverage.
 
-**Status**: Open
+**Status**: Resolved — Vitest configured with 45 smoke tests covering pure utility functions (app-url, slug, time, resend client, email templates, env validation). Run via `npm test`.
 
 ---
 
@@ -49,7 +49,24 @@
 
 **Impact**: Recipients may miss legitimate notifications in rapid-action scenarios. Failed sends are retryable but only by repeating the triggering action (publish/save), not through a dedicated retry mechanism.
 
-**Status**: Open
+**Status**: Verified — all five edge cases confirmed against code (2026-04-13):
+1. Debounce works as intended (10-min per-recipient per-event, checks `status = 'sent'` only)
+2. Failed sends do not block retry (debounce ignores `status = 'failed'`)
+3. Explicit opt-in required for both publish and save notifications
+4. Unpublish does not trigger notifications
+5. Rapid publish/unpublish/republish: second publish notification silently dropped within 10-min window — acceptable by design (DEC-004)
+
+Remaining gap: no admin UI to view failed notifications or manually retry them.
+
+---
+
+## MGT-007: Invite URL uses hardcoded production fallback
+
+**Description**: `inviteMember()` in `src/app/admin/orgs/actions.ts` built the invite accept URL using `process.env.NEXT_PUBLIC_APP_URL ?? 'https://mygridtime.com'` instead of the canonical `getServerAppUrl()` helper. This meant invite emails in non-production environments (local dev, preview deploys) contained the wrong URL.
+
+**Impact**: Invite links in development/preview environments pointed to production instead of the current environment.
+
+**Status**: Resolved — replaced hardcoded URL logic with `getServerAppUrl()`, which respects the full env priority chain (APP_URL → NEXT_PUBLIC_APP_URL → URL → NEXT_PUBLIC_SITE_URL → localhost).
 
 ---
 

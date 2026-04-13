@@ -6,6 +6,7 @@ import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
 import { setActiveOrgId, getActiveOrg } from '@/lib/utils/active-org'
 import { getResendClient, getFromAddress } from '@/lib/resend/client'
+import { getServerAppUrl } from '@/lib/utils/app-url'
 import { orgInviteSubject, orgInviteHtml, orgInviteText } from '@/lib/resend/templates'
 import type { OrgBranding } from '@/lib/types/database'
 import * as Sentry from '@sentry/nextjs'
@@ -428,8 +429,7 @@ export async function inviteMember(input: {
     // Send invite email — failure never blocks invite creation
     const resend = getResendClient()
     if (resend && org) {
-      const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://mygridtime.com'
-      const acceptUrl = `${baseUrl}/invites/${invite.token}`
+      const acceptUrl = `${getServerAppUrl()}/invites/${invite.token}`
 
       try {
         await resend.emails.send({
