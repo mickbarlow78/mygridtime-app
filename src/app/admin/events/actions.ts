@@ -7,6 +7,7 @@ import type { EventStatus, Json } from '@/lib/types/database'
 import { sendEventNotification } from '@/lib/resend/notifications'
 import { debugLog } from '@/lib/debug'
 import { getActiveOrg } from '@/lib/utils/active-org'
+import { writeAuditLog } from '@/lib/audit'
 import * as Sentry from '@sentry/nextjs'
 
 // ---------------------------------------------------------------------------
@@ -51,20 +52,6 @@ async function generateUniqueSlug(
   return `${base}-${i}`
 }
 
-async function writeAuditLog(
-  supabase: Awaited<ReturnType<typeof createClient>>,
-  userId: string,
-  eventId: string,
-  action: string,
-  detail?: Record<string, unknown>
-) {
-  await supabase.from('audit_log').insert({
-    user_id: userId,
-    event_id: eventId,
-    action,
-    detail: (detail ?? null) as Json | null,
-  })
-}
 
 // ---------------------------------------------------------------------------
 // Event CRUD
@@ -834,4 +821,71 @@ export async function getSnapshotData(
       data: data.data as unknown as SnapshotDay[],
     },
   }
+}
+
+// ---------------------------------------------------------------------------
+// Audit Log Pagination
+// ---------------------------------------------------------------------------
+
+export interface AuditLogEntry {
+  id: string
+  user_id: string | null
+  event_id: string | null
+  action: string
+  detail: Json | null
+  created_at: string
+  user_email: string | null
+}
+
+/**
+ * Loads older audit log entries for cursor-based pagination.
+ * Uses created_at as the cursor — returns rows strictly older than the cursor.
+ */
+export async function loadMoreAuditLog(
+  eventId: string,
+  cursor: string,
+  pageSize: number = 25
+): Promise<ActionResult<{ entries: AuditLogEntry[]; hasMore: boolean }>> {
+  const { supabase, membership } = await requireEditor()
+  if (!membership) return { success: false, error: 'No permission.' }
+
+  const fetchSize = pageSize + 1
+
+  const { data: rows, error } = await supabase
+    .from('audit_log')
+    .select('*, users:user_id ( email )')
+    .eq('event_id', eventId)
+    .lt('created_at', cursor)
+    .order('created_at', { ascending: false })
+    .limit(fetchSize)
+
+  if (error) return { success: false, error: error.message }
+
+  type AuditRowRaw = {
+    id: string
+    user_id: string | null
+    event_id: string | null
+    action: string
+    detail: unknown
+    created_at: string
+    users: { email: string } | null
+  }
+
+  const allRows = (rows ?? []).map((row) => {
+    const raw = row as unknown as AuditRowRaw
+    return {
+      id: raw.id,
+      user_id: raw.user_id,
+      event_id: raw.event_id,
+      action: raw.action,
+      detail: raw.detail as Json | null,
+      created_at: raw.created_at,
+      user_email: raw.users?.email ?? null,
+    }
+  })
+
+  const hasMore = allRows.length > pageSize
+  const entries = hasMore ? allRows.slice(0, pageSize) : allRows
+
+  return { success: true, data: { entries, hasMore } }
 }

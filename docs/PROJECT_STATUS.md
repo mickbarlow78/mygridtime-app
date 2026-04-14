@@ -38,7 +38,7 @@
 - **Publish notifications**: opt-in checkbox in publish dialog, default unchecked
 - **Version history**: timetable snapshots created on each publish
 - **Templates**: save event structure as reusable template, load into new events
-- **Audit log**: tracks event lifecycle + timetable changes with field-level diffs
+- **Audit log**: tracks event lifecycle + timetable changes with field-level diffs. UI includes action-type filter dropdown, cursor-based pagination (load more), and labels for all action types including template operations. Shared `writeAuditLog()` helper extracted to `src/lib/audit.ts`.
 - **Error boundaries**: `global-error.tsx`, root `error.tsx`, `(public)/error.tsx`, `admin/error.tsx`, `my/error.tsx` — styled error recovery UI across all route segments, all report to Sentry
 - **Monitoring**: Sentry error tracking — client, server, and edge runtime coverage. Exceptions captured from all error boundaries and key server-side catch blocks. Conservative 10% trace sampling.
 - **Environment validation**: Startup env var validation via `src/lib/env.ts`. Required vars (Supabase) error in all environments; server-required vars (service role key) error in production; feature-required vars (Resend) warn everywhere. Runs once in `instrumentation.ts` on nodejs runtime.
@@ -61,7 +61,7 @@
 
 ## Current Critical Work
 
-All P0 and Must Have items complete. Consumer dashboard MVP (#8) complete. Notification preferences (#9) complete. Production monitoring (Sentry) is live. Smoke tests (Vitest) cover pure utility functions. Notification edge cases verified. Next phase is remaining Should Have (#10–11).
+All P0 and Must Have items complete. Consumer dashboard MVP (#8) complete. Notification preferences (#9) complete. Production monitoring (Sentry) is live. Smoke tests (Vitest) cover pure utility functions. Notification edge cases verified. Audit log UI MVP (#10) partially complete — filtering and pagination implemented; search, export, and date-range filtering deferred. Next phase is remaining Should Have (#10 full scope, #11).
 
 Current behaviour:
 - `saveDayEntries()` — opt-in checkbox in review modal, default unchecked. Correct.

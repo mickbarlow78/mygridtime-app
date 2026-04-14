@@ -5,6 +5,7 @@ import { slugify, getDatesInRange } from '@/lib/utils/slug'
 import { redirect } from 'next/navigation'
 import type { Json } from '@/lib/types/database'
 import { getActiveOrg } from '@/lib/utils/active-org'
+import { writeAuditLog } from '@/lib/audit'
 
 // ---------------------------------------------------------------------------
 // Helpers (mirrored from events/actions — not exported there)
@@ -39,20 +40,6 @@ async function generateUniqueSlug(
   return `${base}-${i}`
 }
 
-async function writeAuditLog(
-  supabase: Awaited<ReturnType<typeof createClient>>,
-  userId: string,
-  eventId: string,
-  action: string,
-  detail?: Record<string, unknown>
-) {
-  await supabase.from('audit_log').insert({
-    user_id: userId,
-    event_id: eventId,
-    action,
-    detail: (detail ?? null) as Json | null,
-  })
-}
 
 // ---------------------------------------------------------------------------
 // Types

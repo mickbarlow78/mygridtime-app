@@ -98,12 +98,14 @@ export default async function EventEditorPage({ params }: PageProps) {
 
   // Fetch audit log for this event, newest first
   // Join with public.users to get email addresses
+  // Fetch pageSize+1 to detect whether more rows exist
+  const auditPageSize = 25
   const { data: auditRows } = await supabase
     .from('audit_log')
     .select('*, users:user_id ( email )')
     .eq('event_id', params.id)
     .order('created_at', { ascending: false })
-    .limit(50)
+    .limit(auditPageSize + 1)
 
   // Flatten the joined email onto each row
   type AuditRowRaw = {
@@ -116,7 +118,7 @@ export default async function EventEditorPage({ params }: PageProps) {
     users: { email: string } | null
   }
 
-  const auditLog = (auditRows ?? []).map((row) => {
+  const allAuditRows = (auditRows ?? []).map((row) => {
     const raw = row as unknown as AuditRowRaw
     return {
       id: raw.id,
@@ -128,6 +130,9 @@ export default async function EventEditorPage({ params }: PageProps) {
       user_email: raw.users?.email ?? null,
     }
   })
+
+  const auditHasMore = allAuditRows.length > auditPageSize
+  const auditLog = auditHasMore ? allAuditRows.slice(0, auditPageSize) : allAuditRows
 
   return (
     <div className="space-y-8">
@@ -145,6 +150,7 @@ export default async function EventEditorPage({ params }: PageProps) {
         days={dayList}
         entries={entries ?? []}
         auditLog={auditLog}
+        auditHasMore={auditHasMore}
         versions={versions}
         unsubscribedEmails={unsubscribedEmails}
       />

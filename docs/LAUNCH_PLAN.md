@@ -35,7 +35,7 @@ Dependencies: Items 4 depends on P0 #1 (both now complete).
 
 8. ~~**Consumer dashboard MVP** (`/my/*`)~~ ✓ — read-only timetable list and detail view with auth guard, branding, and day tabs. Remaining: alerts, drivers, upload (Nice to Have)
 9. ~~**Notification preferences per recipient**~~ ✓ — global per-email unsubscribe via `notification_preferences` table. Token-based unsubscribe link in event emails. Public unsubscribe page at `/notifications/unsubscribe/[token]`. No auth required. `List-Unsubscribe` header included.
-10. **Audit log UI improvements** — filtering, search, export
+10. **Audit log UI improvements** — ~~filtering~~, search, export (MVP: action-type filter + cursor-based pagination implemented)
 11. **Template management UI** — browse, edit, delete templates from admin
 
 Dependencies: Item 9 depends on Must Have #4.

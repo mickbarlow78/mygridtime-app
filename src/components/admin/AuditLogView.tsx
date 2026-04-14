@@ -1,23 +1,42 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useTransition, useMemo } from 'react'
 import type { AuditLog } from '@/lib/types/database'
+import { loadMoreAuditLog, type AuditLogEntry } from '@/app/admin/events/actions'
 
 interface AuditLogViewProps {
   entries: (AuditLog & { user_email?: string | null })[]
+  eventId: string
+  initialHasMore: boolean
 }
 
 // ── Labels ──────────────────────────────────────────────────────────────────
 
 const actionLabels: Record<string, string> = {
-  'event.created':      'Event created',
-  'event.updated':      'Metadata updated',
-  'event.published':    'Published',
-  'event.unpublished':  'Unpublished',
-  'event.archived':     'Archived',
-  'event.duplicated':   'Duplicated from another event',
-  'timetable.updated':  'Timetable updated',
+  'event.created':               'Event created',
+  'event.updated':               'Metadata updated',
+  'event.published':             'Published',
+  'event.unpublished':           'Unpublished',
+  'event.archived':              'Archived',
+  'event.duplicated':            'Duplicated from another event',
+  'timetable.updated':           'Timetable updated',
+  'template.created':            'Saved as template',
+  'event.created_from_template': 'Created from template',
 }
+
+/** Options shown in the filter dropdown. Order matters for UX. */
+const filterOptions: { value: string; label: string }[] = [
+  { value: '',                          label: 'All actions' },
+  { value: 'event.created',             label: 'Event created' },
+  { value: 'event.updated',             label: 'Metadata updated' },
+  { value: 'event.published',           label: 'Published' },
+  { value: 'event.unpublished',         label: 'Unpublished' },
+  { value: 'event.archived',            label: 'Archived' },
+  { value: 'event.duplicated',          label: 'Duplicated from another event' },
+  { value: 'timetable.updated',         label: 'Timetable updated' },
+  { value: 'template.created',          label: 'Saved as template' },
+  { value: 'event.created_from_template', label: 'Created from template' },
+]
 
 const metaFieldLabels: Record<string, string> = {
   title:      'Title',
@@ -193,8 +212,31 @@ function TimetableDiff({ detail }: { detail: TimetableDetail }) {
 
 // ── Main component ───────────────────────────────────────────────────────────
 
-export function AuditLogView({ entries }: AuditLogViewProps) {
+export function AuditLogView({ entries: initialEntries, eventId, initialHasMore }: AuditLogViewProps) {
   const [open, setOpen] = useState(false)
+  const [allEntries, setAllEntries] = useState(initialEntries)
+  const [hasMore, setHasMore] = useState(initialHasMore)
+  const [loading, startLoading] = useTransition()
+  const [actionFilter, setActionFilter] = useState('')
+
+  // Client-side filtering on loaded entries
+  const filteredEntries = useMemo(
+    () => actionFilter ? allEntries.filter((e) => e.action === actionFilter) : allEntries,
+    [allEntries, actionFilter]
+  )
+
+  function handleLoadMore() {
+    if (!hasMore || loading || allEntries.length === 0) return
+    const cursor = allEntries[allEntries.length - 1].created_at
+
+    startLoading(async () => {
+      const result = await loadMoreAuditLog(eventId, cursor)
+      if (result.success) {
+        setAllEntries((prev) => [...prev, ...result.data.entries])
+        setHasMore(result.data.hasMore)
+      }
+    })
+  }
 
   return (
     <div className="border border-gray-200 rounded-lg overflow-hidden">
@@ -205,49 +247,82 @@ export function AuditLogView({ entries }: AuditLogViewProps) {
       >
         <span className="text-sm font-medium text-gray-700">
           Audit log
-          {entries.length > 0 && (
-            <span className="ml-2 text-xs text-gray-400">{entries.length} entries</span>
+          {allEntries.length > 0 && (
+            <span className="ml-2 text-xs text-gray-400">{allEntries.length} entries{hasMore ? '+' : ''}</span>
           )}
         </span>
         <span className="text-gray-400 text-xs">{open ? '▲' : '▼'}</span>
       </button>
 
       {open && (
-        <div className="divide-y divide-gray-100">
-          {entries.length === 0 ? (
-            <p className="px-4 py-3 text-sm text-gray-400">No audit entries yet.</p>
-          ) : (
-            entries.map((entry) => {
-              const detail = entry.detail
+        <div>
+          {/* Filter bar */}
+          {allEntries.length > 0 && (
+            <div className="px-4 py-2 border-b border-gray-100 bg-gray-50/50">
+              <select
+                value={actionFilter}
+                onChange={(e) => setActionFilter(e.target.value)}
+                className="text-xs border border-gray-200 rounded px-2 py-1 bg-white text-gray-700"
+              >
+                {filterOptions.map((opt) => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
+            </div>
+          )}
 
-              return (
-                <div key={entry.id} className="px-4 py-3">
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="min-w-0">
-                      <p className="text-sm text-gray-800">
-                        {actionLabels[entry.action] ?? entry.action}
+          <div className="divide-y divide-gray-100">
+            {filteredEntries.length === 0 ? (
+              <p className="px-4 py-3 text-sm text-gray-400">
+                {actionFilter ? 'No entries match this filter.' : 'No audit entries yet.'}
+              </p>
+            ) : (
+              filteredEntries.map((entry) => {
+                const detail = entry.detail
+
+                return (
+                  <div key={entry.id} className="px-4 py-3">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="min-w-0">
+                        <p className="text-sm text-gray-800">
+                          {actionLabels[entry.action] ?? entry.action}
+                        </p>
+                        {entry.user_email && (
+                          <p className="text-xs text-gray-400 mt-0.5">{entry.user_email}</p>
+                        )}
+                      </div>
+                      <p className="text-xs text-gray-400 whitespace-nowrap shrink-0 mt-0.5">
+                        {formatTimestamp(entry.created_at)}
                       </p>
-                      {entry.user_email && (
-                        <p className="text-xs text-gray-400 mt-0.5">{entry.user_email}</p>
-                      )}
                     </div>
-                    <p className="text-xs text-gray-400 whitespace-nowrap shrink-0 mt-0.5">
-                      {formatTimestamp(entry.created_at)}
-                    </p>
+
+                    {/* Metadata field diff (event.updated) */}
+                    {entry.action === 'event.updated' && isMetaChanges(detail) && (
+                      <MetaDiff changes={detail.changes} />
+                    )}
+
+                    {/* Timetable diff (timetable.updated) */}
+                    {entry.action === 'timetable.updated' && isTimetableDetail(detail) && (
+                      <TimetableDiff detail={detail} />
+                    )}
                   </div>
+                )
+              })
+            )}
+          </div>
 
-                  {/* Metadata field diff (event.updated) */}
-                  {entry.action === 'event.updated' && isMetaChanges(detail) && (
-                    <MetaDiff changes={detail.changes} />
-                  )}
-
-                  {/* Timetable diff (timetable.updated) */}
-                  {entry.action === 'timetable.updated' && isTimetableDetail(detail) && (
-                    <TimetableDiff detail={detail} />
-                  )}
-                </div>
-              )
-            })
+          {/* Load more button */}
+          {hasMore && !actionFilter && (
+            <div className="px-4 py-3 border-t border-gray-100">
+              <button
+                type="button"
+                onClick={handleLoadMore}
+                disabled={loading}
+                className="text-xs text-blue-600 hover:text-blue-800 disabled:text-gray-400"
+              >
+                {loading ? 'Loading...' : 'Load more'}
+              </button>
+            </div>
           )}
         </div>
       )}

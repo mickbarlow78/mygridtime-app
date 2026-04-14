@@ -36,6 +36,7 @@ interface EventEditorProps {
   days: EventDay[]
   entries: TimetableEntry[]
   auditLog: AuditEntry[]
+  auditHasMore: boolean
   versions: VersionSummary[]
   unsubscribedEmails?: string[]
 }
@@ -341,7 +342,7 @@ type MetaFieldState = 'unchanged' | 'pending' | 'rejected'
 // Component
 // ---------------------------------------------------------------------------
 
-export function EventEditor({ event, days: initialDays, entries: initialEntries, auditLog, versions, unsubscribedEmails = [] }: EventEditorProps) {
+export function EventEditor({ event, days: initialDays, entries: initialEntries, auditLog, auditHasMore, versions, unsubscribedEmails = [] }: EventEditorProps) {
   debugLog('EventEditor', 'loaded')
   const router = useRouter()
   const [, startTransition] = useTransition()
@@ -1251,7 +1252,7 @@ export function EventEditor({ event, days: initialDays, entries: initialEntries,
 
       {/* ── Audit log ─────────────────────────────────────────────────────────── */}
       <div id="event-audit">
-        <AuditLogView entries={auditLog} />
+        <AuditLogView entries={auditLog} eventId={event.id} initialHasMore={auditHasMore} />
       </div>
 
       {/* ── Review modal ──────────────────────────────────────────────────────── */}
