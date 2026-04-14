@@ -48,6 +48,7 @@
 - **Dev tooling**: `/api/auth/dev-session` route creates a real Supabase session for `DEV_ADMIN_EMAIL` and redirects to `/admin`. Hard-gated on `NODE_ENV === 'development'` — returns 404 outside dev. Enables Claude Preview and local testing without magic-link email flow (DEC-010).
 - **Template management UI (#11)**: Dedicated admin page at `/admin/templates` — server component listing all org templates with name, day count, and created date. Per-row "Use template" link navigates to `/admin/events/new?template={id}` with automatic preselection in `TemplatePicker`. Delete with confirmation dialog via client subcomponent (`TemplateActions`). Empty state guides users to save from event editor. Backend: `saveAsTemplate`, `listTemplates`, `deleteTemplate`, `createEventFromTemplate` server actions. New-event page reads `?template=` query param to preselect template mode.
 - **Launch hardening (Tier 1)**: Viewport meta + manifest link in root layout. Security headers (X-Frame-Options, X-Content-Type-Options, Referrer-Policy) via `next.config.mjs`. `robots.txt` blocks `/admin`, `/my`, `/auth`, `/api`, `/invites`, `/notifications`. Dynamic `sitemap.ts` includes public routes and published event slugs. Loading skeletons for `/admin`, `/admin/events/[id]`, and `/my`. Privacy policy and terms of service at `/privacy` and `/terms`. Consumer stub pages (`/my/alerts`, `/my/drivers`, `/my/upload`) replaced with clean "Coming soon" UI — no internal phase language exposed.
+- **Launch hardening (Tier 2)**: Browser `confirm()` replaced with `ConfirmDialog` in MemberManager. Empty-state copy standardised across all user-facing pages. Admin empty states improved in MemberManager (members + pending invites) and VersionHistory. Responsive fixes for event editor date/time grid, action bar, and invite form. Basic ARIA fixes: `aria-expanded` on collapsibles, `aria-label` on filter/role controls, `aria-pressed` on break/race toggle.
 
 ## In Progress
 
@@ -63,7 +64,7 @@
 
 ## Current Critical Work
 
-All P0 and Must Have items complete. Should Have #8 (consumer dashboard MVP), #9 (notification preferences), and #11 (template management UI) complete. Should Have #10 (audit log UI) is partially complete — backend and core UI done, but search, export, and date-range filtering not yet delivered. Launch hardening Tier 1 complete (viewport, security headers, robots/sitemap, loading skeletons, legal pages, stub page cleanup). Next phase is completing #10, then Nice to Have items (#12–#16).
+All P0 and Must Have items complete. Should Have #8 (consumer dashboard MVP), #9 (notification preferences), and #11 (template management UI) complete. Should Have #10 (audit log UI) is partially complete — backend and core UI done, but search, export, and date-range filtering not yet delivered. Launch hardening Tier 1 complete (viewport, security headers, robots/sitemap, loading skeletons, legal pages, stub page cleanup). Launch hardening Tier 2 complete (ConfirmDialog, empty-state copy, admin empty states, responsive fixes, ARIA fixes). Next phase is completing #10, then Nice to Have items (#12–#16).
 
 Current behaviour:
 - `saveDayEntries()` — opt-in checkbox in review modal, default unchecked. Correct.

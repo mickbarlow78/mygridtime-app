@@ -53,6 +53,16 @@ Dependencies: Item 9 depends on Must Have #4.
 
 ---
 
+## Launch Hardening — Tier 2
+
+~~L7. **Replace browser confirm() with ConfirmDialog**~~ ✓ — MemberManager member removal now uses the existing `ConfirmDialog` component with destructive styling instead of native `confirm()`
+~~L9. **Empty-state copy consistency**~~ ✓ — Standardised all user-facing empty states to use consistent "No timetables have been published yet" wording across public landing, consumer dashboard, and detail pages
+~~L11. **Admin empty states**~~ ✓ — MemberManager (members + pending invites) and VersionHistory now show helpful guidance instead of blank/hidden sections
+~~L13. **Responsive fixes in event editor**~~ ✓ — Date/time/timezone grid stacks on mobile; action bar wraps cleanly; invite form stacks vertically on narrow screens
+~~L14. **Basic ARIA/accessibility fixes**~~ ✓ — `aria-expanded` on AuditLogView and VersionHistory collapsibles; `aria-label` on filter dropdown and role selectors; `aria-pressed` on break/race toggle in EntryRow
+
+---
+
 ## Nice to Have
 
 12. **Web push notifications** — service worker, subscription management

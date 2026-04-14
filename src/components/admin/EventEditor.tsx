@@ -1103,7 +1103,7 @@ export function EventEditor({ event, days: initialDays, entries: initialEntries,
           </div>
 
           {/* Dates + timezone */}
-          <div className="md:col-span-12 grid grid-cols-3 gap-3">
+          <div className="md:col-span-12 grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
               <MetaFieldLabel label="Start date *" field="start_date" current={startDate} />
               <input type="date" value={startDate} required

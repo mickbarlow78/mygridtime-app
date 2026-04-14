@@ -243,6 +243,7 @@ export function AuditLogView({ entries: initialEntries, eventId, initialHasMore 
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
         className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 hover:bg-gray-100 transition-colors text-left"
       >
         <span className="text-sm font-medium text-gray-700">
@@ -262,6 +263,7 @@ export function AuditLogView({ entries: initialEntries, eventId, initialHasMore 
               <select
                 value={actionFilter}
                 onChange={(e) => setActionFilter(e.target.value)}
+                aria-label="Filter by action type"
                 className="text-xs border border-gray-200 rounded px-2 py-1 bg-white text-gray-700"
               >
                 {filterOptions.map((opt) => (

@@ -22,7 +22,15 @@ export function VersionHistory({ versions }: VersionHistoryProps) {
   const [loading, setLoading] = useState(false)
   const [activeDayIndex, setActiveDayIndex] = useState(0)
 
-  if (versions.length === 0) return null
+  if (versions.length === 0) {
+    return (
+      <div className="border border-gray-200 rounded-lg bg-white px-4 py-6 text-center">
+        <p className="text-sm text-gray-400">
+          No versions yet. A snapshot is saved each time you publish.
+        </p>
+      </div>
+    )
+  }
 
   async function handleView(snapshotId: string) {
     setLoading(true)
@@ -48,6 +56,7 @@ export function VersionHistory({ versions }: VersionHistoryProps) {
       <button
         type="button"
         onClick={() => setExpanded(!expanded)}
+        aria-expanded={expanded}
         className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
       >
         <span>Version History ({versions.length})</span>

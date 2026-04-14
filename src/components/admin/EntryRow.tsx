@@ -173,6 +173,8 @@ export function EntryRow({
           <button
             type="button"
             onClick={() => upd({ is_break: !entry.is_break })}
+            aria-pressed={entry.is_break}
+            aria-label={entry.is_break ? 'Marked as break, click to mark as race' : 'Marked as race, click to mark as break'}
             title={entry.is_break ? 'Click to mark as race' : 'Click to mark as break'}
             className={cn(
               'shrink-0 text-[11px] font-medium px-1.5 py-1 rounded border transition-colors leading-none md:text-[10px] md:px-1.5 md:py-0.5 md:mt-2',

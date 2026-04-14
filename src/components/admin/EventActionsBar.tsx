@@ -44,9 +44,9 @@ export function EventActionsBar({
         'px-4 py-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between',
       )}
     >
-      <div className="flex items-center gap-2 min-w-0">
+      <div className="flex items-center gap-2 min-w-0 flex-wrap">
         <StatusBadge status={status} />
-        <span className="text-xs text-gray-500 truncate">{STATUS_HINT[status]}</span>
+        <span className="text-xs text-gray-500 truncate max-w-[200px] sm:max-w-none">{STATUS_HINT[status]}</span>
         {isDirty && (
           <span
             className="text-xs font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-0.5 whitespace-nowrap"

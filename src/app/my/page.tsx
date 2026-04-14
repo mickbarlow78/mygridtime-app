@@ -47,7 +47,7 @@ export default async function MyTimetablesPage() {
 
       {eventList.length === 0 ? (
         <div className="py-16 text-center text-sm text-gray-400">
-          No published timetables available yet.
+          No timetables have been published yet.
         </div>
       ) : (
         <div className={`${LIST_CARD} mt-4`}>

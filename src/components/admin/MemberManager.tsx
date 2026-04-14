@@ -9,6 +9,7 @@ import {
   inviteMember,
   revokeInvite,
 } from '@/app/admin/orgs/actions'
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { H2, LIST_CARD, LIST_ROW, CARD, CARD_PADDING_COMPACT, LABEL_COMPACT, INPUT, BTN_PRIMARY, ERROR_BANNER, SUCCESS_BANNER } from '@/lib/styles'
 
 interface MemberManagerProps {
@@ -43,6 +44,9 @@ export function MemberManager({ orgId, initialMembers, initialInvites }: MemberM
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
+
+  // Confirm dialog state for member removal
+  const [removeTarget, setRemoveTarget] = useState<{ memberId: string; email: string } | null>(null)
 
   // Invite form state
   const [inviteEmail, setInviteEmail] = useState('')
@@ -96,7 +100,13 @@ export function MemberManager({ orgId, initialMembers, initialInvites }: MemberM
 
   function handleRemove(memberId: string, email: string) {
     clearMessages()
-    if (!confirm(`Remove ${email} from this organisation?`)) return
+    setRemoveTarget({ memberId, email })
+  }
+
+  function confirmRemove() {
+    if (!removeTarget) return
+    const { memberId } = removeTarget
+    setRemoveTarget(null)
     startTransition(async () => {
       const result = await removeMember({ memberId, orgId })
       if (!result.success) {
@@ -164,6 +174,7 @@ export function MemberManager({ orgId, initialMembers, initialInvites }: MemberM
                   value={member.role}
                   onChange={(e) => handleRoleChange(member.id, e.target.value)}
                   disabled={pending}
+                  aria-label={`Role for ${member.email}`}
                   className="text-xs bg-gray-50 border border-gray-200 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-gray-400 disabled:opacity-50"
                 >
                   {ROLES.map((r) => (
@@ -182,17 +193,23 @@ export function MemberManager({ orgId, initialMembers, initialInvites }: MemberM
             </div>
           ))}
           {members.length === 0 && (
-            <p className="px-4 py-3 text-sm text-gray-400">No members found.</p>
+            <p className="px-4 py-6 text-sm text-gray-400 text-center">
+              No members yet. Use the form below to invite people to this organisation.
+            </p>
           )}
         </div>
       </div>
 
       {/* Pending invites */}
-      {invites.length > 0 && (
-        <div>
-          <h3 className={`${H2} mb-3`}>Pending invites</h3>
-          <div className={LIST_CARD}>
-            {invites.map((invite) => (
+      <div>
+        <h3 className={`${H2} mb-3`}>Pending invites</h3>
+        <div className={LIST_CARD}>
+          {invites.length === 0 ? (
+            <p className="px-4 py-6 text-sm text-gray-400 text-center">
+              No pending invites. Invites you send will appear here until accepted.
+            </p>
+          ) : (
+            invites.map((invite) => (
               <div key={invite.id} className={LIST_ROW}>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm text-gray-900 truncate">{invite.email}</p>
@@ -208,16 +225,16 @@ export function MemberManager({ orgId, initialMembers, initialInvites }: MemberM
                   Revoke
                 </button>
               </div>
-            ))}
-          </div>
+            ))
+          )}
         </div>
-      )}
+      </div>
 
       {/* Invite form */}
       <div>
         <h3 className={`${H2} mb-3`}>Invite member</h3>
         <form onSubmit={handleInvite} className={`${CARD} ${CARD_PADDING_COMPACT}`}>
-          <div className="flex items-end gap-3">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
             <div className="flex-1">
               <label htmlFor="invite-email" className={LABEL_COMPACT}>
                 Email address
@@ -240,7 +257,7 @@ export function MemberManager({ orgId, initialMembers, initialInvites }: MemberM
                 id="invite-role"
                 value={inviteRole}
                 onChange={(e) => setInviteRole(e.target.value as 'admin' | 'editor' | 'viewer')}
-                className="text-sm bg-gray-50 border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+                className="text-sm bg-gray-50 border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent w-full sm:w-auto"
               >
                 {INVITE_ROLES.map((r) => (
                   <option key={r} value={r}>{r}</option>
@@ -250,13 +267,24 @@ export function MemberManager({ orgId, initialMembers, initialInvites }: MemberM
             <button
               type="submit"
               disabled={pending}
-              className={`${BTN_PRIMARY} whitespace-nowrap`}
+              className={`${BTN_PRIMARY} whitespace-nowrap w-full sm:w-auto`}
             >
               Send invite
             </button>
           </div>
         </form>
       </div>
+
+      {/* Remove member confirmation dialog */}
+      <ConfirmDialog
+        open={!!removeTarget}
+        title="Remove member"
+        description={`Remove ${removeTarget?.email ?? ''} from this organisation? They will lose access immediately.`}
+        confirmLabel="Remove"
+        confirmDestructive
+        onConfirm={confirmRemove}
+        onCancel={() => setRemoveTarget(null)}
+      />
     </div>
   )
 }

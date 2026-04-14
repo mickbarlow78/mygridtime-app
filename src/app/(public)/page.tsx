@@ -164,7 +164,7 @@ export default async function LandingPage() {
         {/* Events table */}
         {eventList.length === 0 ? (
           <div className="py-16 text-center text-sm text-gray-400">
-            No published events at the moment.
+            No timetables have been published yet.
           </div>
         ) : (
           <div className="bg-white border border-gray-200 rounded overflow-x-auto">

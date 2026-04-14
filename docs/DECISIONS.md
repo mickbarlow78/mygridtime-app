@@ -134,13 +134,13 @@
 
 ## DEC-013: Launch hardening tiered approach
 
-**Decision**: Launch hardening is split into three tiers. Tier 1 covers viewport/manifest, security headers, robots/sitemap, loading skeletons, legal pages, and stub page cleanup. Tier 2 and Tier 3 (CSP, rate limiting, advanced SEO, etc.) are deferred.
+**Decision**: Launch hardening is split into three tiers. Tier 1 covers viewport/manifest, security headers, robots/sitemap, loading skeletons, legal pages, and stub page cleanup. Tier 2 covers ConfirmDialog replacement, empty-state copy consistency, admin empty states, responsive fixes, and basic ARIA/accessibility. Tier 3 (CSP, rate limiting, advanced SEO, etc.) is deferred.
 
-**Reason**: Tier 1 items are low-risk, high-value improvements that make the product presentable and secure for initial launch without introducing complexity. Deferring CSP and rate limiting avoids breaking changes during launch preparation.
+**Reason**: Tier 1 items are low-risk, high-value improvements that make the product presentable and secure for initial launch without introducing complexity. Tier 2 items are polish/usability/accessibility improvements that improve first-use experience without feature expansion. Deferring CSP and rate limiting avoids breaking changes during launch preparation.
 
 **Date**: 2026-04-14
 
-**Status**: Active — Tier 1 complete
+**Status**: Active — Tier 1 and Tier 2 complete
 
 ---
 
