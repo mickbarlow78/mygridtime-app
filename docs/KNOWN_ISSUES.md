@@ -36,7 +36,7 @@
 
 **Impact**: Regressions can ship undetected. Refactoring is high-risk without automated coverage.
 
-**Status**: Resolved — Vitest configured with 45 smoke tests covering pure utility functions (app-url, slug, time, resend client, email templates, env validation). Run via `npm test`.
+**Status**: Resolved — Vitest configured with 51 smoke tests covering pure utility functions (app-url, slug, time, resend client, email templates including unsubscribe links, env validation). Run via `npm test`.
 
 ---
 
@@ -77,3 +77,13 @@ Remaining gap: no admin UI to view failed notifications or manually retry them.
 **Impact**: Potential information leakage in production logs. Noise in log output.
 
 **Status**: Resolved — `DEBUG_NOTIFICATIONS` is now driven by the `DEBUG_NOTIFICATIONS` env var (defaults to `false`). Set to `"true"` in `.env.local` for local debugging only.
+
+---
+
+## MGT-008: No admin UI for unsubscribe visibility
+
+**Description**: The `notification_preferences` table tracks per-email unsubscribe state, but there is no admin interface to view which recipients have unsubscribed. Admins cannot see unsubscribe status or re-subscribe recipients on their behalf.
+
+**Impact**: Admins have no visibility into why specific recipients stop receiving emails. Debugging requires direct database queries.
+
+**Status**: Open — acceptable for MVP. Admin visibility can be added to audit log UI improvements (Should Have #10) or as a standalone feature.

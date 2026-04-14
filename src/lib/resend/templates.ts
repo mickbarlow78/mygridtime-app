@@ -13,6 +13,7 @@ export interface EventEmailData {
   venue: string | null
   dateRange: string        // e.g. "Sat 15 Mar" or "Sat 15 Mar – Sun 16 Mar"
   publicUrl: string        // full URL to the public timetable page
+  unsubscribeUrl?: string  // token-based unsubscribe link
 }
 
 // ---------------------------------------------------------------------------
@@ -45,6 +46,9 @@ export function eventPublishedSubject(eventTitle: string): string {
 
 export function eventPublishedHtml(data: EventEmailData): string {
   const meta = buildMetaLine(data.venue, data.dateRange)
+  const unsubLine = data.unsubscribeUrl
+    ? `<br /><a href="${escHtml(data.unsubscribeUrl)}" style="color:#6b7280;">Unsubscribe from notifications</a>`
+    : ''
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -68,7 +72,7 @@ export function eventPublishedHtml(data: EventEmailData): string {
     </div>
     <div class="footer">
       You received this email because your address is on the notification list for this event.<br />
-      <a href="${escHtml(data.publicUrl)}" style="color:#6b7280;">${escHtml(data.publicUrl)}</a>
+      <a href="${escHtml(data.publicUrl)}" style="color:#6b7280;">${escHtml(data.publicUrl)}</a>${unsubLine}
     </div>
   </div>
 </body>
@@ -77,7 +81,7 @@ export function eventPublishedHtml(data: EventEmailData): string {
 
 export function eventPublishedText(data: EventEmailData): string {
   const meta = buildMetaLine(data.venue, data.dateRange)
-  return [
+  const lines = [
     `MyGridTime`,
     ``,
     `${data.eventTitle}`,
@@ -86,7 +90,11 @@ export function eventPublishedText(data: EventEmailData): string {
     `The timetable for this event has been published and is now publicly accessible.`,
     ``,
     `View timetable: ${data.publicUrl}`,
-  ].join('\n')
+  ]
+  if (data.unsubscribeUrl) {
+    lines.push(``, `Unsubscribe: ${data.unsubscribeUrl}`)
+  }
+  return lines.join('\n')
 }
 
 // ---------------------------------------------------------------------------
@@ -99,6 +107,9 @@ export function timetableUpdatedSubject(eventTitle: string): string {
 
 export function timetableUpdatedHtml(data: EventEmailData): string {
   const meta = buildMetaLine(data.venue, data.dateRange)
+  const unsubLine = data.unsubscribeUrl
+    ? `<br /><a href="${escHtml(data.unsubscribeUrl)}" style="color:#6b7280;">Unsubscribe from notifications</a>`
+    : ''
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -122,7 +133,7 @@ export function timetableUpdatedHtml(data: EventEmailData): string {
     </div>
     <div class="footer">
       You received this email because your address is on the notification list for this event.<br />
-      <a href="${escHtml(data.publicUrl)}" style="color:#6b7280;">${escHtml(data.publicUrl)}</a>
+      <a href="${escHtml(data.publicUrl)}" style="color:#6b7280;">${escHtml(data.publicUrl)}</a>${unsubLine}
     </div>
   </div>
 </body>
@@ -131,7 +142,7 @@ export function timetableUpdatedHtml(data: EventEmailData): string {
 
 export function timetableUpdatedText(data: EventEmailData): string {
   const meta = buildMetaLine(data.venue, data.dateRange)
-  return [
+  const lines = [
     `MyGridTime`,
     ``,
     `${data.eventTitle}`,
@@ -140,7 +151,11 @@ export function timetableUpdatedText(data: EventEmailData): string {
     `The timetable for this event has been updated. Please check the latest schedule before the event.`,
     ``,
     `View updated timetable: ${data.publicUrl}`,
-  ].join('\n')
+  ]
+  if (data.unsubscribeUrl) {
+    lines.push(``, `Unsubscribe: ${data.unsubscribeUrl}`)
+  }
+  return lines.join('\n')
 }
 
 // ---------------------------------------------------------------------------

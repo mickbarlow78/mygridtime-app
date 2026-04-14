@@ -19,6 +19,12 @@
  * notifications.  The timetable.updated email is specifically for schedule
  * changes that affect when participants need to be somewhere.
  *
+ * UNSUBSCRIBE
+ * ───────────
+ * Each recipient has a row in notification_preferences with a unique token.
+ * Unsubscribed recipients are silently skipped. Each email includes a
+ * token-based unsubscribe link that works without authentication.
+ *
  * FAILURE HANDLING
  * ────────────────
  * A failed Resend call logs the error to notification_log but does NOT
@@ -37,9 +43,11 @@ import {
   timetableUpdatedHtml,
   timetableUpdatedText,
 } from './templates'
+import type { EventEmailData } from './templates'
 import { formatDate } from '@/lib/utils/slug'
 import { getServerAppUrl } from '@/lib/utils/app-url'
 import type { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 
 type SupabaseClient = Awaited<ReturnType<typeof createClient>>
 type NotificationType = 'event.published' | 'timetable.updated'
@@ -65,11 +73,32 @@ export async function sendEventNotification(
 
   if (!event) return
 
-  // ── 2. Skip if no recipients ─────────────────────────────────────────────
-  const recipients = event.notification_emails ?? []
-  if (recipients.length === 0) return
+  // ── 2. Normalise recipients to lowercase, skip if none ──────────────────
+  const rawRecipients = event.notification_emails ?? []
+  if (rawRecipients.length === 0) return
+  const recipients = rawRecipients.map((e: string) => e.toLowerCase())
 
-  // ── 3. Build email data ──────────────────────────────────────────────────
+  // ── 3. Ensure preference rows exist & fetch preferences ─────────────────
+  const admin = createAdminClient()
+
+  // Upsert preference rows for all recipients (no-op if already exists)
+  for (const email of recipients) {
+    await admin
+      .from('notification_preferences')
+      .upsert({ email }, { onConflict: 'email', ignoreDuplicates: true })
+  }
+
+  // Fetch preferences for all recipients
+  const { data: prefs } = await admin
+    .from('notification_preferences')
+    .select('email, token, unsubscribed')
+    .in('email', recipients)
+
+  const prefMap = new Map(
+    (prefs ?? []).map((p) => [p.email, { token: p.token, unsubscribed: p.unsubscribed }])
+  )
+
+  // ── 4. Build shared email data (subject + base data) ────────────────────
   const dateRange =
     event.start_date === event.end_date
       ? formatDate(event.start_date)
@@ -78,29 +107,12 @@ export async function sendEventNotification(
   const appUrl = getServerAppUrl()
   const publicUrl = `${appUrl}/${event.slug}`
 
-  const emailData = {
-    eventTitle: event.title,
-    venue: event.venue,
-    dateRange,
-    publicUrl,
-  }
-
   const subject =
     type === 'event.published'
       ? eventPublishedSubject(event.title)
       : timetableUpdatedSubject(event.title)
 
-  const html =
-    type === 'event.published'
-      ? eventPublishedHtml(emailData)
-      : timetableUpdatedHtml(emailData)
-
-  const text =
-    type === 'event.published'
-      ? eventPublishedText(emailData)
-      : timetableUpdatedText(emailData)
-
-  // ── 4. Send via Resend — one send per recipient, debounce + log each ────
+  // ── 5. Send via Resend — one send per recipient, debounce + log each ────
   const resend = getResendClient()
   const from = getFromAddress()
   const now = new Date().toISOString()
@@ -109,6 +121,14 @@ export async function sendEventNotification(
 
   for (const to of recipients) {
     debugLog('sendEventNotification', 'recipient:', to)
+
+    // Skip unsubscribed recipients silently
+    const pref = prefMap.get(to)
+    if (pref?.unsubscribed) {
+      debugLog('sendEventNotification', 'SKIP unsubscribed:', to)
+      continue
+    }
+
     // Per-recipient debounce — skip if a successful send went out recently
     const { data: recent } = await supabase
       .from('notification_log')
@@ -123,6 +143,29 @@ export async function sendEventNotification(
 
     debugLog('sendEventNotification', 'debounce recent:', !!recent)
     if (recent) continue  // within debounce window for this recipient — skip
+
+    // Build per-recipient email data with unsubscribe URL
+    const unsubscribeUrl = pref?.token
+      ? `${appUrl}/notifications/unsubscribe/${pref.token}`
+      : undefined
+
+    const emailData: EventEmailData = {
+      eventTitle: event.title,
+      venue: event.venue,
+      dateRange,
+      publicUrl,
+      unsubscribeUrl,
+    }
+
+    const html =
+      type === 'event.published'
+        ? eventPublishedHtml(emailData)
+        : timetableUpdatedHtml(emailData)
+
+    const text =
+      type === 'event.published'
+        ? eventPublishedText(emailData)
+        : timetableUpdatedText(emailData)
 
     if (!resend) {
       // Resend not configured (missing API key) — log as failed and continue
@@ -139,12 +182,18 @@ export async function sendEventNotification(
 
     try {
       debugLog('sendEventNotification', 'ATTEMPT resend.emails.send to:', to)
+      const headers: Record<string, string> = {}
+      if (unsubscribeUrl) {
+        headers['List-Unsubscribe'] = `<${unsubscribeUrl}>`
+      }
+
       const { error: sendError } = await resend.emails.send({
         from,
         to,
         subject,
         html,
         text,
+        headers,
       })
 
       debugLog('sendEventNotification', 'resend result — error:', sendError ?? null)

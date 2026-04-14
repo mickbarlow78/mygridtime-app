@@ -23,6 +23,7 @@
 - Soft deletes on events (`deleted_at`)
 - Audit trail on all significant actions (`audit_log` table)
 - Notification logging to `notification_log` table with 10-minute debounce
+- Notification preferences in `notification_preferences` table (global per-email unsubscribe, token-based, service-role access only)
 
 ## Complete and Stable
 
@@ -42,7 +43,8 @@
 - **Monitoring**: Sentry error tracking — client, server, and edge runtime coverage. Exceptions captured from all error boundaries and key server-side catch blocks. Conservative 10% trace sampling.
 - **Environment validation**: Startup env var validation via `src/lib/env.ts`. Required vars (Supabase) error in all environments; server-required vars (service role key) error in production; feature-required vars (Resend) warn everywhere. Runs once in `instrumentation.ts` on nodejs runtime.
 - **Consumer dashboard MVP** (`/my/*`): read-only consumer dashboard. Auth-guarded layout with org membership check. Timetable list (`/my`) shows published events across all user's orgs. Timetable view (`/my/{id}`) renders full timetable with day tabs, branding, and TimetableDay component. "Manage events" link shown only for elevated roles (owner/admin/editor). Shared `resolveEffectiveBranding()` utility extracted to `src/lib/utils/branding.ts`.
-- **Testing**: Vitest configured with `@` path alias. 45 smoke tests covering pure utility functions: app-url, slug, time, resend client, email templates, env validation. No jsdom, no component tests, no Supabase mocking.
+- **Notification preferences**: Global per-email unsubscribe via `notification_preferences` table. Token-based unsubscribe link in all event notification emails. Public unsubscribe page at `/notifications/unsubscribe/[token]` — no auth required. Unsubscribed recipients silently skipped during send. `List-Unsubscribe` header included.
+- **Testing**: Vitest configured with `@` path alias. 51 smoke tests covering pure utility functions: app-url, slug, time, resend client, email templates (including unsubscribe links), env validation. No jsdom, no component tests, no Supabase mocking.
 - **Dev tooling**: `/api/auth/dev-session` route creates a real Supabase session for `DEV_ADMIN_EMAIL` and redirects to `/admin`. Hard-gated on `NODE_ENV === 'development'` — returns 404 outside dev. Enables Claude Preview and local testing without magic-link email flow (DEC-010).
 
 ## In Progress
@@ -59,7 +61,7 @@
 
 ## Current Critical Work
 
-All P0 and Must Have items complete. Consumer dashboard MVP (#8) complete. Production monitoring (Sentry) is live. Smoke tests (Vitest) cover pure utility functions. Notification edge cases verified. Next phase is remaining Should Have (#9–11).
+All P0 and Must Have items complete. Consumer dashboard MVP (#8) complete. Notification preferences (#9) complete. Production monitoring (Sentry) is live. Smoke tests (Vitest) cover pure utility functions. Notification edge cases verified. Next phase is remaining Should Have (#10–11).
 
 Current behaviour:
 - `saveDayEntries()` — opt-in checkbox in review modal, default unchecked. Correct.

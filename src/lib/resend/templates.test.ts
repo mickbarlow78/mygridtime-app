@@ -18,6 +18,11 @@ const eventData = {
   publicUrl: 'https://mygridtime.com/round-3',
 }
 
+const eventDataWithUnsub = {
+  ...eventData,
+  unsubscribeUrl: 'https://mygridtime.com/notifications/unsubscribe/abc-token-123',
+}
+
 const inviteData = {
   orgName: 'Test Org',
   inviterEmail: 'admin@example.com',
@@ -41,6 +46,28 @@ describe('event published templates', () => {
     expect(text).toContain('Round 3')
     expect(text).toContain('https://mygridtime.com/round-3')
   })
+
+  it('HTML contains unsubscribe link when provided', () => {
+    const html = eventPublishedHtml(eventDataWithUnsub)
+    expect(html).toContain('Unsubscribe from notifications')
+    expect(html).toContain('notifications/unsubscribe/abc-token-123')
+  })
+
+  it('text contains unsubscribe link when provided', () => {
+    const text = eventPublishedText(eventDataWithUnsub)
+    expect(text).toContain('Unsubscribe:')
+    expect(text).toContain('notifications/unsubscribe/abc-token-123')
+  })
+
+  it('HTML omits unsubscribe link when not provided', () => {
+    const html = eventPublishedHtml(eventData)
+    expect(html).not.toContain('Unsubscribe from notifications')
+  })
+
+  it('text omits unsubscribe link when not provided', () => {
+    const text = eventPublishedText(eventData)
+    expect(text).not.toContain('Unsubscribe')
+  })
 })
 
 describe('timetable updated templates', () => {
@@ -57,6 +84,18 @@ describe('timetable updated templates', () => {
   it('text contains public URL', () => {
     const text = timetableUpdatedText(eventData)
     expect(text).toContain('https://mygridtime.com/round-3')
+  })
+
+  it('HTML contains unsubscribe link when provided', () => {
+    const html = timetableUpdatedHtml(eventDataWithUnsub)
+    expect(html).toContain('Unsubscribe from notifications')
+    expect(html).toContain('notifications/unsubscribe/abc-token-123')
+  })
+
+  it('text contains unsubscribe link when provided', () => {
+    const text = timetableUpdatedText(eventDataWithUnsub)
+    expect(text).toContain('Unsubscribe:')
+    expect(text).toContain('notifications/unsubscribe/abc-token-123')
   })
 })
 

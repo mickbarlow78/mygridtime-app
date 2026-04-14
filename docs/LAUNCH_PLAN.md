@@ -23,7 +23,7 @@ Dependencies: None — these are independent and can be done in parallel.
 ## Must Have
 
 4. ~~**Notification confirmation UX on publish**~~ ✓ — opt-in checkbox added to publish dialog, consistent with save flow
-5. ~~**Basic smoke tests**~~ ✓ — Vitest configured with 45 smoke tests covering app-url, slug, time, resend client, email templates, and env validation. Pure-function tests only, no jsdom or Supabase mocking.
+5. ~~**Basic smoke tests**~~ ✓ — Vitest configured with 51 smoke tests covering app-url, slug, time, resend client, email templates (including unsubscribe links), and env validation. Pure-function tests only, no jsdom or Supabase mocking.
 6. ~~**Review notification edge cases**~~ ✓ — Verified: debounce works as designed, failed sends do not block retry, explicit opt-in required for both publish and save, unpublish does not notify, rapid publish/unpublish/republish drops the second notification within the 10-minute window (acceptable by design per DEC-004)
 7. ~~**Environment hardening**~~ ✓ — `DEBUG_NOTIFICATIONS` is env-driven (defaults to `false`). Startup env validation via `src/lib/env.ts` validates required vars on server boot, fails fast in production.
 
@@ -34,7 +34,7 @@ Dependencies: Items 4 depends on P0 #1 (both now complete).
 ## Should Have
 
 8. ~~**Consumer dashboard MVP** (`/my/*`)~~ ✓ — read-only timetable list and detail view with auth guard, branding, and day tabs. Remaining: alerts, drivers, upload (Nice to Have)
-9. **Notification preferences per recipient** — allow recipients to unsubscribe or manage frequency
+9. ~~**Notification preferences per recipient**~~ ✓ — global per-email unsubscribe via `notification_preferences` table. Token-based unsubscribe link in event emails. Public unsubscribe page at `/notifications/unsubscribe/[token]`. No auth required. `List-Unsubscribe` header included.
 10. **Audit log UI improvements** — filtering, search, export
 11. **Template management UI** — browse, edit, delete templates from admin
 

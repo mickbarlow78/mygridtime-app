@@ -129,3 +129,15 @@
 **Date**: 2026-04-14
 
 **Status**: Active
+
+---
+
+## DEC-012: Global token-based unsubscribe for notifications
+
+**Decision**: Use a `notification_preferences` table with a unique UUID token per email address. Unsubscribe links use the token (no auth required). Scope is global on/off per email — no per-event or frequency controls. All table access via service-role client only (RLS enabled, no policies). Email stored in lowercase with a CHECK constraint.
+
+**Reason**: Recipients are raw email strings in `events.notification_emails`, not authenticated users. A token-based approach allows unsubscribe without login. Global scope keeps the MVP simple — per-event preferences and frequency controls are deferred. Service-role-only access prevents unauthorized preference enumeration.
+
+**Date**: 2026-04-14
+
+**Status**: Active
