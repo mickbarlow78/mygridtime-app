@@ -125,3 +125,43 @@ Remaining gap: no admin UI to view failed notifications or manually retry them.
 - `duplicateEvent()` now tracks a `failureReason` for day and entry insert errors, rolls back the new event with `supabase.from('events').delete().eq('id', newEvent.id)` (cascade removes already-inserted children), reports to Sentry, and returns `{ success: false, error }`.
 - `createEventFromTemplate()` uses the same rollback pattern.
 - `saveDayEntries()` collects insert failures into an `insertFailures` array. If any failed, it reports to Sentry and returns an error *before* running the audit-log write and notification send — so the caller sees the failure and no notifications fire for a partial save. Deletes and updates applied earlier in the same call are left in place (no transaction), and the error message tells the caller to retry.
+
+---
+
+## MGT-012: "Save details" button not disabled while metadata save in flight
+
+**Description**: The `EventEditor` "Save details" button (`src/components/admin/EventEditor.tsx`) stayed enabled while a metadata save was in progress. Rapid clicks or re-submissions could fire concurrent `updateEventMetadata()` calls. The direct-save path (no review cards) never touched `reviewSaving`, so even the modal-driven pending treatment did not apply there.
+
+**Impact**: Possible duplicate server-action invocations, wasted round-trips, race conditions around `savedMeta` / `router.refresh()`, and an unclear button state for the user.
+
+**Status**: Resolved — the button is disabled and shows "Saving…" whenever `reviewSaving && reviewMode === 'metadata'`. `handleSaveMetadata()` now returns immediately if `reviewSaving` is already true (concurrent-submission guard) and wraps the direct-save path in `setReviewSaving(true)` / `finally setReviewSaving(false)` so both paths gate the button identically.
+
+---
+
+## MGT-013: Role changes applied instantly on select change
+
+**Description**: `MemberManager` committed a role change the moment the `<select>` fired `onChange`. An accidental click / arrow-key scroll could downgrade or promote a member with no confirmation, and no way to recover other than re-selecting the original role.
+
+**Impact**: High-blast-radius accidental role changes, especially downgrades that silently revoked permissions.
+
+**Status**: Resolved — role changes now route through the existing `ConfirmDialog`. Cancel relies on the controlled select (`value={member.role}`) to snap back to the unchanged role on re-render. The dialog uses a downgrade-aware description (explicit "they will immediately lose any permissions not granted to the {newRole} role" wording) plus destructive styling for downgrades. No audit-notes / undo surface added — scope kept tight.
+
+---
+
+## MGT-014: MemberManager refetch failures hidden from the user
+
+**Description**: `MemberManager.loadData()` caught all errors and silently returned, so a failing `listOrgMembers()` / `listOrgInvites()` after an invite, removal, role change, or revoke would leave the UI showing stale data with a success banner. The initial `useEffect` refetch had the same problem on org-switch.
+
+**Impact**: Users could see "Member removed." / "Role updated." while the on-screen list never reflected the change, causing confusion or repeated attempts on already-completed actions.
+
+**Status**: Resolved — `loadData()` now returns `{ success: true } | { success: false, error }`. Every call site (invite / remove / role-change / revoke / `useEffect` refetch) inspects the result and surfaces an inline error message on failure. The error wording is explicit that the primary action *did* succeed but the refresh did not (e.g. "Member removed, but the member list could not be refreshed: …"), so we never fake success.
+
+---
+
+## MGT-015: acceptInvite() pending-state update not error-checked
+
+**Description**: `acceptInvite()` in `src/app/admin/orgs/actions.ts` had two branches that updated `org_invites.accepted_at`: the "already-a-member" path and the "membership insert succeeded" path. Both fired the update without capturing `{ error }`. If the update failed for any reason (network blip, RLS/permission regression, row missing), the function returned `{ success: true }` and the invite row was left with `accepted_at = null`, so it would still show as "pending" forever.
+
+**Impact**: Stale pending invites that could not be revoked cleanly, inconsistent invite-list state, and a silent failure mode the team could not see without direct DB inspection.
+
+**Status**: Resolved — both update branches now check `{ error: markError }`, report to Sentry with `tags: { action: 'acceptInvite.markAccepted' | 'acceptInvite.markAcceptedExisting' }`, and return `{ success: false, error }` on failure. On the membership-insert path, the returned error explains that the member row *was* created (so the user has access) and the user should refresh and retry the accept step. No transaction/RPC added — out of scope for this pass.

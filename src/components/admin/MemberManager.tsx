@@ -48,6 +48,14 @@ export function MemberManager({ orgId, initialMembers, initialInvites }: MemberM
   // Confirm dialog state for member removal
   const [removeTarget, setRemoveTarget] = useState<{ memberId: string; email: string } | null>(null)
 
+  // Confirm dialog state for role changes
+  const [roleChangeTarget, setRoleChangeTarget] = useState<{
+    memberId: string
+    email: string
+    currentRole: string
+    newRole: 'owner' | 'admin' | 'editor' | 'viewer'
+  } | null>(null)
+
   // Invite form state
   const [inviteEmail, setInviteEmail] = useState('')
   const [inviteRole, setInviteRole] = useState<'admin' | 'editor' | 'viewer'>('editor')
@@ -60,19 +68,25 @@ export function MemberManager({ orgId, initialMembers, initialInvites }: MemberM
       isMounted.current = true
       return
     }
-    loadData()
+    loadData().then((r) => {
+      if (!r.success) setError(`Could not load members: ${r.error}`)
+    })
   }, [orgId])
 
-  async function loadData() {
+  async function loadData(): Promise<{ success: true } | { success: false; error: string }> {
     try {
       const [membersResult, invitesResult] = await Promise.all([
         listOrgMembers(orgId),
         listOrgInvites(orgId),
       ])
-      if (membersResult.success) setMembers(membersResult.data)
-      if (invitesResult.success) setInvites(invitesResult.data)
-    } catch {
-      // Silently swallow — UI retains last-known state
+      if (!membersResult.success) return { success: false, error: membersResult.error }
+      if (!invitesResult.success) return { success: false, error: invitesResult.error }
+      setMembers(membersResult.data)
+      setInvites(invitesResult.data)
+      return { success: true }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to refresh members.'
+      return { success: false, error: message }
     }
   }
 
@@ -83,17 +97,41 @@ export function MemberManager({ orgId, initialMembers, initialInvites }: MemberM
 
   function handleRoleChange(memberId: string, newRole: string) {
     clearMessages()
+    const member = members.find((m) => m.id === memberId)
+    if (!member) return
+    if (member.role === newRole) return
+    setRoleChangeTarget({
+      memberId,
+      email: member.email,
+      currentRole: member.role,
+      newRole: newRole as 'owner' | 'admin' | 'editor' | 'viewer',
+    })
+  }
+
+  function cancelRoleChange() {
+    // The <select> is controlled via value={member.role}, so React's next render
+    // will snap the displayed option back to the current (unchanged) role.
+    setRoleChangeTarget(null)
+  }
+
+  function confirmRoleChange() {
+    if (!roleChangeTarget) return
+    const { memberId, newRole } = roleChangeTarget
+    setRoleChangeTarget(null)
     startTransition(async () => {
       const result = await updateMemberRole({
         memberId,
         orgId,
-        newRole: newRole as 'owner' | 'admin' | 'editor' | 'viewer',
+        newRole,
       })
       if (!result.success) {
         setError(result.error)
       } else {
         setSuccess('Role updated.')
-        await loadData()
+        const refresh = await loadData()
+        if (!refresh.success) {
+          setError(`Role updated, but the member list could not be refreshed: ${refresh.error}`)
+        }
       }
     })
   }
@@ -113,7 +151,10 @@ export function MemberManager({ orgId, initialMembers, initialInvites }: MemberM
         setError(result.error)
       } else {
         setSuccess('Member removed.')
-        await loadData()
+        const refresh = await loadData()
+        if (!refresh.success) {
+          setError(`Member removed, but the member list could not be refreshed: ${refresh.error}`)
+        }
       }
     })
   }
@@ -129,7 +170,10 @@ export function MemberManager({ orgId, initialMembers, initialInvites }: MemberM
       } else {
         setSuccess(`Invite sent to ${inviteEmail}.`)
         setInviteEmail('')
-        await loadData()
+        const refresh = await loadData()
+        if (!refresh.success) {
+          setError(`Invite sent, but the invite list could not be refreshed: ${refresh.error}`)
+        }
       }
     })
   }
@@ -142,7 +186,10 @@ export function MemberManager({ orgId, initialMembers, initialInvites }: MemberM
         setError(result.error)
       } else {
         setSuccess('Invite revoked.')
-        await loadData()
+        const refresh = await loadData()
+        if (!refresh.success) {
+          setError(`Invite revoked, but the invite list could not be refreshed: ${refresh.error}`)
+        }
       }
     })
   }
@@ -285,6 +332,31 @@ export function MemberManager({ orgId, initialMembers, initialInvites }: MemberM
         onConfirm={confirmRemove}
         onCancel={() => setRemoveTarget(null)}
       />
+
+      {/* Role change confirmation dialog */}
+      <ConfirmDialog
+        open={!!roleChangeTarget}
+        title="Change role"
+        description={
+          roleChangeTarget
+            ? isDowngrade(roleChangeTarget.currentRole, roleChangeTarget.newRole)
+              ? `Downgrade ${roleChangeTarget.email} from ${roleChangeTarget.currentRole} to ${roleChangeTarget.newRole}? They will immediately lose any permissions not granted to the ${roleChangeTarget.newRole} role.`
+              : `Change ${roleChangeTarget.email} from ${roleChangeTarget.currentRole} to ${roleChangeTarget.newRole}? This takes effect immediately.`
+            : ''
+        }
+        confirmLabel="Change role"
+        confirmDestructive={
+          roleChangeTarget ? isDowngrade(roleChangeTarget.currentRole, roleChangeTarget.newRole) : false
+        }
+        onConfirm={confirmRoleChange}
+        onCancel={cancelRoleChange}
+      />
     </div>
   )
+}
+
+// Role privilege ordering — used to classify downgrades for dialog wording
+const ROLE_RANK: Record<string, number> = { owner: 3, admin: 2, editor: 1, viewer: 0 }
+function isDowngrade(current: string, next: string): boolean {
+  return (ROLE_RANK[next] ?? 0) < (ROLE_RANK[current] ?? 0)
 }

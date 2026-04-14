@@ -525,6 +525,8 @@ export function EventEditor({ event, days: initialDays, entries: initialEntries,
 
   async function handleSaveMetadata(e: React.FormEvent) {
     e.preventDefault()
+    // Guard against concurrent submissions — a metadata save is already in flight
+    if (reviewSaving) return
     if (!title.trim())          { setMetaError('Title is required.');                        return }
     if (!startDate || !endDate) { setMetaError('Start and end dates are required.');         return }
     if (endDate < startDate)    { setMetaError('End date must be on or after start date.'); return }
@@ -535,7 +537,14 @@ export function EventEditor({ event, days: initialDays, entries: initialEntries,
     const cards = computeMetaCards(savedMeta, currentMeta, rejectedMetaFields)
     if (cards.length === 0) {
       // No reviewable field changes — save directly (covers notification_emails-only edits)
-      await performMetaSave(rejectedMetaFields)
+      setReviewMode('metadata')
+      setReviewSaving(true)
+      try {
+        await performMetaSave(rejectedMetaFields)
+      } finally {
+        setReviewSaving(false)
+        setReviewMode(null)
+      }
       return
     }
 
@@ -1198,8 +1207,10 @@ export function EventEditor({ event, days: initialDays, entries: initialEntries,
           {/* Save row */}
           <div className="md:col-span-12 flex items-center gap-4">
             <button type="submit"
-              className={BTN_PRIMARY}>
-              Save details
+              disabled={reviewSaving && reviewMode === 'metadata'}
+              aria-busy={reviewSaving && reviewMode === 'metadata'}
+              className={`${BTN_PRIMARY} disabled:opacity-50 disabled:cursor-not-allowed`}>
+              {reviewSaving && reviewMode === 'metadata' ? 'Saving…' : 'Save details'}
             </button>
             {metaSuccess && <p className={SUCCESS_BANNER} role="status">Details saved.</p>}
             {metaError   && <p className="text-sm text-red-600">{metaError}</p>}

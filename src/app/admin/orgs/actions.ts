@@ -528,11 +528,18 @@ export async function acceptInvite(token: string): Promise<ActionResult<{ orgId:
     .maybeSingle()
 
   if (existingMember) {
-    // Mark invite as accepted anyway
-    await admin
+    // Already a member — still mark the invite as accepted so it disappears
+    // from the pending list. If the update fails, surface it: a silently
+    // unchecked update leaves a stale pending invite behind forever.
+    const { error: markError } = await admin
       .from('org_invites')
       .update({ accepted_at: new Date().toISOString() })
       .eq('id', invite.id)
+
+    if (markError) {
+      Sentry.captureException(markError, { tags: { action: 'acceptInvite.markAcceptedExisting' } })
+      return { success: false, error: 'Could not mark the invite as accepted. Please try again.' }
+    }
 
     return { success: true, data: { orgId: invite.org_id, role: invite.role } }
   }
@@ -548,11 +555,23 @@ export async function acceptInvite(token: string): Promise<ActionResult<{ orgId:
 
   if (memberError) return { success: false, error: memberError.message }
 
-  // Mark invite as accepted
-  await admin
+  // Mark invite as accepted. Error-check the update — if this fails, the
+  // member row is already inserted so the user DOES have access, but the
+  // invite row is left with accepted_at = null and would show as "pending"
+  // forever. Surface the failure so the caller can retry / raise an alert
+  // rather than silently reporting success.
+  const { error: markError } = await admin
     .from('org_invites')
     .update({ accepted_at: new Date().toISOString() })
     .eq('id', invite.id)
+
+  if (markError) {
+    Sentry.captureException(markError, { tags: { action: 'acceptInvite.markAccepted' } })
+    return {
+      success: false,
+      error: 'You have been added to the organisation, but the invite could not be marked as accepted. Please refresh and try again.',
+    }
+  }
 
   // Set active org to the one they just joined
   setActiveOrgId(invite.org_id)
