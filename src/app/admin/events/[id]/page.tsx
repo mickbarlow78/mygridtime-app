@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { notFound, redirect } from 'next/navigation'
 import Link from 'next/link'
 import { EventEditor } from '@/components/admin/EventEditor'
@@ -77,6 +78,24 @@ export default async function EventEditorPage({ params }: PageProps) {
     published_by_email: row.published_by ? snapshotEmailMap[row.published_by] ?? null : null,
   }))
 
+  // Fetch unsubscribed notification recipients (service-role required — RLS has no policies)
+  let unsubscribedEmails: string[] = []
+  const rawEmails = event.notification_emails ?? []
+  if (rawEmails.length > 0) {
+    try {
+      const admin = createAdminClient()
+      const normalised = rawEmails.map((e: string) => e.toLowerCase())
+      const { data: prefs } = await admin
+        .from('notification_preferences')
+        .select('email')
+        .in('email', normalised)
+        .eq('unsubscribed', true)
+      unsubscribedEmails = (prefs ?? []).map((p) => p.email)
+    } catch {
+      // Degrade silently — admin visibility is non-critical
+    }
+  }
+
   // Fetch audit log for this event, newest first
   // Join with public.users to get email addresses
   const { data: auditRows } = await supabase
@@ -127,6 +146,7 @@ export default async function EventEditorPage({ params }: PageProps) {
         entries={entries ?? []}
         auditLog={auditLog}
         versions={versions}
+        unsubscribedEmails={unsubscribedEmails}
       />
     </div>
   )

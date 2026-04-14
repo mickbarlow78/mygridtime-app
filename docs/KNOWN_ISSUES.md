@@ -86,4 +86,4 @@ Remaining gap: no admin UI to view failed notifications or manually retry them.
 
 **Impact**: Admins have no visibility into why specific recipients stop receiving emails. Debugging requires direct database queries.
 
-**Status**: Open — acceptable for MVP. Admin visibility can be added to audit log UI improvements (Should Have #10) or as a standalone feature.
+**Status**: Resolved — admin event editor now shows a read-only amber info block listing unsubscribed recipients next to the notification emails field. No admin override capability — visibility only.

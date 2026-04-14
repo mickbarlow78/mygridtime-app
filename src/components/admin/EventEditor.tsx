@@ -37,6 +37,7 @@ interface EventEditorProps {
   entries: TimetableEntry[]
   auditLog: AuditEntry[]
   versions: VersionSummary[]
+  unsubscribedEmails?: string[]
 }
 
 interface SavedMeta {
@@ -340,7 +341,7 @@ type MetaFieldState = 'unchanged' | 'pending' | 'rejected'
 // Component
 // ---------------------------------------------------------------------------
 
-export function EventEditor({ event, days: initialDays, entries: initialEntries, auditLog, versions }: EventEditorProps) {
+export function EventEditor({ event, days: initialDays, entries: initialEntries, auditLog, versions, unsubscribedEmails = [] }: EventEditorProps) {
   debugLog('EventEditor', 'loaded')
   const router = useRouter()
   const [, startTransition] = useTransition()
@@ -1154,6 +1155,18 @@ export function EventEditor({ event, days: initialDays, entries: initialEntries,
             <p className={HELP_TEXT}>
               Notified when this event is published or the timetable changes. Separate multiple addresses with commas.
             </p>
+            {unsubscribedEmails.length > 0 && (
+              <div className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                <p className="font-medium">
+                  {unsubscribedEmails.length} recipient{unsubscribedEmails.length === 1 ? '' : 's'} unsubscribed
+                </p>
+                <ul className="mt-1 list-disc list-inside text-amber-700">
+                  {unsubscribedEmails.map((email) => (
+                    <li key={email}>{email}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </div>
 
           {/* Public URL — read-only, shown whenever slug exists */}
