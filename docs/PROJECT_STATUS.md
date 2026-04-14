@@ -41,6 +41,7 @@
 - **Error boundaries**: `global-error.tsx`, root `error.tsx`, `(public)/error.tsx`, `admin/error.tsx`, `my/error.tsx` — styled error recovery UI across all route segments, all report to Sentry
 - **Monitoring**: Sentry error tracking — client, server, and edge runtime coverage. Exceptions captured from all error boundaries and key server-side catch blocks. Conservative 10% trace sampling.
 - **Environment validation**: Startup env var validation via `src/lib/env.ts`. Required vars (Supabase) error in all environments; server-required vars (service role key) error in production; feature-required vars (Resend) warn everywhere. Runs once in `instrumentation.ts` on nodejs runtime.
+- **Consumer dashboard MVP** (`/my/*`): read-only consumer dashboard. Auth-guarded layout with org membership check. Timetable list (`/my`) shows published events across all user's orgs. Timetable view (`/my/{id}`) renders full timetable with day tabs, branding, and TimetableDay component. "Manage events" link shown only for elevated roles (owner/admin/editor). Shared `resolveEffectiveBranding()` utility extracted to `src/lib/utils/branding.ts`.
 - **Testing**: Vitest configured with `@` path alias. 45 smoke tests covering pure utility functions: app-url, slug, time, resend client, email templates, env validation. No jsdom, no component tests, no Supabase mocking.
 - **Dev tooling**: `/api/auth/dev-session` route creates a real Supabase session for `DEV_ADMIN_EMAIL` and redirects to `/admin`. Hard-gated on `NODE_ENV === 'development'` — returns 404 outside dev. Enables Claude Preview and local testing without magic-link email flow (DEC-010).
 
@@ -50,7 +51,7 @@
 
 ## Not Started
 
-- **Consumer dashboard** (`/my/*`): stub pages only — alerts, drivers, upload
+- **Consumer dashboard — alerts, drivers, upload** (`/my/alerts`, `/my/drivers`, `/my/upload`): stub pages only
 - **Web push notifications**: VAPID keys unused, no service worker
 - **AI timetable extraction**: Claude Vision integration stub only
 - **Stripe payments**: webhook returns 501, no subscription logic
@@ -58,7 +59,7 @@
 
 ## Current Critical Work
 
-All P0 and Must Have items complete. Production monitoring (Sentry) is live. Smoke tests (Vitest) cover pure utility functions. Notification edge cases verified. Next phase is Should Have (#8–11).
+All P0 and Must Have items complete. Consumer dashboard MVP (#8) complete. Production monitoring (Sentry) is live. Smoke tests (Vitest) cover pure utility functions. Notification edge cases verified. Next phase is remaining Should Have (#9–11).
 
 Current behaviour:
 - `saveDayEntries()` — opt-in checkbox in review modal, default unchecked. Correct.

@@ -117,3 +117,15 @@
 **Date**: 2026-04-13
 
 **Status**: Active
+
+---
+
+## DEC-011: Consumer dashboard is read-only MVP
+
+**Decision**: The `/my/*` consumer dashboard shows published timetables only. No editing, no preferences, no alerts/drivers/upload pages. Access requires org membership (any role including viewer). The "Manage events" link is shown only for elevated roles (owner/admin/editor).
+
+**Reason**: Consumers need a simple way to view their timetables without the complexity of the admin interface. Read-only scope keeps the first iteration small and testable. Alerts, drivers, and upload are deferred to Nice to Have phase.
+
+**Date**: 2026-04-14
+
+**Status**: Active

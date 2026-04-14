@@ -24,30 +24,9 @@ import type { Metadata } from 'next'
 import { TimetableDay } from '@/components/public/TimetableDay'
 import type { PublicEntry } from '@/components/public/TimetableDay'
 import { formatDate } from '@/lib/utils/slug'
-import type { Json, OrgBranding } from '@/lib/types/database'
+import { resolveEffectiveBranding } from '@/lib/utils/branding'
+import type { Json } from '@/lib/types/database'
 import { cn, PAGE_BG, HEADER, HEADER_INNER, CONTAINER_FULL, H1_PUBLIC, AUTH_EMAIL, AUTH_LINK } from '@/lib/styles'
-
-// ---------------------------------------------------------------------------
-// Branding helpers
-// ---------------------------------------------------------------------------
-
-/**
- * Resolves the effective branding by merging event-level and org-level settings.
- * Event fields take precedence over org fields, on a per-field basis.
- * Returns null values for any field that isn't set at either level.
- */
-function resolveEffectiveBranding(
-  eventBranding: Json | null,
-  orgBranding: Json | null
-): { primaryColor: string | null; logoUrl: string | null; headerText: string | null } {
-  const evt = (eventBranding ?? {}) as Record<string, string | null>
-  const org = (orgBranding  ?? {}) as Record<string, string | null>
-  return {
-    primaryColor: evt.primaryColor ?? org.primaryColor ?? null,
-    logoUrl:      evt.logoUrl      ?? org.logoUrl      ?? null,
-    headerText:   evt.headerText   ?? org.headerText   ?? null,
-  }
-}
 
 export const dynamic = 'force-dynamic'
 

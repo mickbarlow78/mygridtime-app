@@ -33,7 +33,7 @@ Dependencies: Items 4 depends on P0 #1 (both now complete).
 
 ## Should Have
 
-8. **Consumer dashboard** (`/my/*`) — alerts, driver/parent view, individual timetable view
+8. ~~**Consumer dashboard MVP** (`/my/*`)~~ ✓ — read-only timetable list and detail view with auth guard, branding, and day tabs. Remaining: alerts, drivers, upload (Nice to Have)
 9. **Notification preferences per recipient** — allow recipients to unsubscribe or manage frequency
 10. **Audit log UI improvements** — filtering, search, export
 11. **Template management UI** — browse, edit, delete templates from admin

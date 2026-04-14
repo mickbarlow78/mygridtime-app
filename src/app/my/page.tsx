@@ -1,9 +1,81 @@
-// Phase 7: Driver/parent dashboard — personal timetable list.
-export default function MyTimetablesPage() {
+import { createClient } from '@/lib/supabase/server'
+import Link from 'next/link'
+import { formatDate } from '@/lib/utils/slug'
+import { H1, LIST_CARD } from '@/lib/styles'
+
+export const dynamic = 'force-dynamic'
+
+export default async function MyTimetablesPage() {
+  const supabase = createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  if (!user) return null // layout handles redirect
+
+  // Fetch all org memberships for this user
+  const { data: memberships } = await supabase
+    .from('org_members')
+    .select('org_id, organisations(name)')
+    .eq('user_id', user.id)
+
+  if (!memberships || memberships.length === 0) return null // layout handles no-access
+
+  const orgIds = memberships.map((m) => m.org_id)
+
+  // Build a lookup of org_id → org name
+  const orgNames = new Map<string, string>()
+  for (const m of memberships) {
+    const org = m.organisations as unknown as { name: string } | null
+    orgNames.set(m.org_id, org?.name ?? '')
+  }
+
+  // Fetch published events for all user's orgs
+  const { data: events } = await supabase
+    .from('events')
+    .select('id, title, venue, start_date, end_date, org_id, slug')
+    .in('org_id', orgIds)
+    .eq('status', 'published')
+    .is('deleted_at', null)
+    .order('start_date', { ascending: false })
+
+  const eventList = events ?? []
+
   return (
-    <div className="p-8">
-      <h1 className="text-2xl font-bold">My Timetables</h1>
-      <p className="mt-2 text-gray-500">Driver/parent dashboard — Phase 7.</p>
+    <div>
+      <h1 className={H1}>My Timetables</h1>
+
+      {eventList.length === 0 ? (
+        <div className="py-16 text-center text-sm text-gray-400">
+          No published timetables available yet.
+        </div>
+      ) : (
+        <div className={`${LIST_CARD} mt-4`}>
+          {eventList.map((event) => {
+            const dateRange =
+              event.start_date === event.end_date
+                ? formatDate(event.start_date)
+                : `${formatDate(event.start_date)} – ${formatDate(event.end_date)}`
+
+            return (
+              <Link
+                key={event.id}
+                href={`/my/${event.id}`}
+                className="block px-4 py-3 hover:bg-gray-50 transition-colors"
+              >
+                <p className="text-sm font-medium text-gray-900">{event.title}</p>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  {event.venue && <span>{event.venue} · </span>}
+                  <span>{dateRange}</span>
+                  {orgNames.get(event.org_id) && (
+                    <span className="text-gray-400"> · {orgNames.get(event.org_id)}</span>
+                  )}
+                </p>
+              </Link>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 }
