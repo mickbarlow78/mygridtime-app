@@ -34,9 +34,9 @@ Dependencies: Items 4 depends on P0 #1 (both now complete).
 ## Should Have
 
 8. ~~**Consumer dashboard MVP** (`/my/*`)~~ ✓ — read-only timetable list and detail view with auth guard, branding, and day tabs. Remaining: alerts, drivers, upload (Nice to Have)
-9. ~~**Notification preferences per recipient**~~ ✓ — global per-email unsubscribe via `notification_preferences` table. Token-based unsubscribe link in event emails. Public unsubscribe page at `/notifications/unsubscribe/[token]`. No auth required. `List-Unsubscribe` header included.
-10. **Audit log UI improvements** — ~~filtering~~, search, export (MVP: action-type filter + cursor-based pagination implemented)
-11. **Template management UI** — browse, edit, delete templates from admin
+9. ~~**Notification preferences per recipient**~~ ✓ — global per-email unsubscribe via `notification_preferences` table. Token-based unsubscribe link in event emails. Public unsubscribe page at `/notifications/unsubscribe/[token]`. No auth required. `List-Unsubscribe` header included. Admin event editor shows unsubscribed recipients (read-only amber info block).
+10. **Audit log UI improvements** — PARTIAL. Done: action-type filter dropdown (10 types), cursor-based pagination (load more), labels for all action types. Not done: search, export, date-range filtering.
+11. ~~**Template management UI**~~ ✓ — Dedicated admin page at `/admin/templates` to browse, use, and delete templates. Per-row "Use template" link with preselection on new-event page via `?template=` query param. Server actions, `TemplatePicker`, and template creation in new-event flow all complete.
 
 Dependencies: Item 9 depends on Must Have #4.
 

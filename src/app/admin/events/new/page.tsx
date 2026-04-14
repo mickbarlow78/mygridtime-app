@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { createEvent } from '../actions'
 import { listTemplates, createEventFromTemplate } from '@/app/admin/templates/actions'
@@ -28,12 +28,22 @@ export default function NewEventPage() {
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null)
   const [templatesLoaded, setTemplatesLoaded] = useState(false)
 
+  const searchParams = useSearchParams()
+  const preselectedTemplate = searchParams.get('template')
+
   useEffect(() => {
     listTemplates().then((result) => {
-      if (result.success) setTemplates(result.data)
+      if (result.success) {
+        setTemplates(result.data)
+        // If ?template= is present and matches a real template, preselect it
+        if (preselectedTemplate && result.data.some((t) => t.id === preselectedTemplate)) {
+          setMode('template')
+          setSelectedTemplateId(preselectedTemplate)
+        }
+      }
       setTemplatesLoaded(true)
     })
-  }, [])
+  }, [preselectedTemplate])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()

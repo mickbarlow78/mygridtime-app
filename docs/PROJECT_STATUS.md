@@ -46,22 +46,23 @@
 - **Notification preferences**: Global per-email unsubscribe via `notification_preferences` table. Token-based unsubscribe link in all event notification emails. Public unsubscribe page at `/notifications/unsubscribe/[token]` — no auth required. Unsubscribed recipients silently skipped during send. `List-Unsubscribe` header included. Admin event editor shows read-only unsubscribe state next to notification emails field (MGT-008 resolved).
 - **Testing**: Vitest configured with `@` path alias. 51 smoke tests covering pure utility functions: app-url, slug, time, resend client, email templates (including unsubscribe links), env validation. No jsdom, no component tests, no Supabase mocking.
 - **Dev tooling**: `/api/auth/dev-session` route creates a real Supabase session for `DEV_ADMIN_EMAIL` and redirects to `/admin`. Hard-gated on `NODE_ENV === 'development'` — returns 404 outside dev. Enables Claude Preview and local testing without magic-link email flow (DEC-010).
+- **Template management UI (#11)**: Dedicated admin page at `/admin/templates` — server component listing all org templates with name, day count, and created date. Per-row "Use template" link navigates to `/admin/events/new?template={id}` with automatic preselection in `TemplatePicker`. Delete with confirmation dialog via client subcomponent (`TemplateActions`). Empty state guides users to save from event editor. Backend: `saveAsTemplate`, `listTemplates`, `deleteTemplate`, `createEventFromTemplate` server actions. New-event page reads `?template=` query param to preselect template mode.
 
 ## In Progress
 
-(None)
+- **Audit log UI improvements (#10)** — PARTIAL. Done: action-type filter dropdown (10 types), cursor-based pagination (load more), labels for all action types, shared `writeAuditLog()` helper. Not done: search, export, date-range filtering.
 
 ## Not Started
 
 - **Consumer dashboard — alerts, drivers, upload** (`/my/alerts`, `/my/drivers`, `/my/upload`): stub pages only
-- **Web push notifications**: VAPID keys unused, no service worker
-- **AI timetable extraction**: Claude Vision integration stub only
-- **Stripe payments**: webhook returns 501, no subscription logic
-- **SMS/WhatsApp notifications**: Twilio not integrated
+- **Web push notifications**: VAPID keys unused, no service worker, no `web-push` dependency
+- **AI timetable extraction**: Claude Vision integration stub only, no `@anthropic-ai/sdk` dependency
+- **Stripe payments**: webhook returns 501, no subscription logic, no `stripe` dependency
+- **SMS/WhatsApp notifications**: Twilio not integrated, no `twilio` dependency
 
 ## Current Critical Work
 
-All P0 and Must Have items complete. Consumer dashboard MVP (#8) complete. Notification preferences (#9) complete. Production monitoring (Sentry) is live. Smoke tests (Vitest) cover pure utility functions. Notification edge cases verified. Audit log UI MVP (#10) partially complete — filtering and pagination implemented; search, export, and date-range filtering deferred. Next phase is remaining Should Have (#10 full scope, #11).
+All P0 and Must Have items complete. Should Have #8 (consumer dashboard MVP), #9 (notification preferences), and #11 (template management UI) complete. Should Have #10 (audit log UI) is partially complete — backend and core UI done, but search, export, and date-range filtering not yet delivered. Next phase is completing #10, then Nice to Have items (#12–#16).
 
 Current behaviour:
 - `saveDayEntries()` — opt-in checkbox in review modal, default unchecked. Correct.
