@@ -153,3 +153,15 @@
 **Date**: 2026-04-14
 
 **Status**: Active
+
+---
+
+## DEC-014: Audit log uses load-all with client-side filtering
+
+**Decision**: The audit log UI loads all entries (up to 2000) on panel open, then performs all filtering (action type, search, date range) and CSV export client-side. No server-side search or date filtering. The `loadAllAuditLog()` server action replaces cursor-based pagination for the primary flow.
+
+**Reason**: Per-event audit log volume is small (typically under a few hundred entries). Loading all entries avoids pagination/filter conflict (server-paginated results can't be filtered or searched client-side without re-fetching). Client-side filtering makes CSV export trivial — just serialize the current filtered set. No new dependencies needed. A 2000-row safety cap prevents runaway queries; a subtle UI warning is shown if the cap is hit.
+
+**Date**: 2026-04-14
+
+**Status**: Active

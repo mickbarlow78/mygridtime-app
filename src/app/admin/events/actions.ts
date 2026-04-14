@@ -838,6 +838,58 @@ export interface AuditLogEntry {
 }
 
 /**
+ * Loads all audit log entries for an event (no pagination).
+ * Used by AuditLogView to enable client-side filtering and CSV export.
+ * Safety cap: 2000 rows to prevent runaway queries.
+ */
+export async function loadAllAuditLog(
+  eventId: string
+): Promise<ActionResult<{ entries: AuditLogEntry[]; capped: boolean }>> {
+  const { supabase, membership } = await requireEditor()
+  if (!membership) return { success: false, error: 'No permission.' }
+
+  // Safety cap — per-event volume is small, but guard against edge cases
+  const CAP = 2000
+
+  const { data: rows, error } = await supabase
+    .from('audit_log')
+    .select('*, users:user_id ( email )')
+    .eq('event_id', eventId)
+    .order('created_at', { ascending: false })
+    .limit(CAP + 1)
+
+  if (error) return { success: false, error: error.message }
+
+  type AuditRowRaw = {
+    id: string
+    user_id: string | null
+    event_id: string | null
+    action: string
+    detail: unknown
+    created_at: string
+    users: { email: string } | null
+  }
+
+  const allRows = (rows ?? []).map((row) => {
+    const raw = row as unknown as AuditRowRaw
+    return {
+      id: raw.id,
+      user_id: raw.user_id,
+      event_id: raw.event_id,
+      action: raw.action,
+      detail: raw.detail as Json | null,
+      created_at: raw.created_at,
+      user_email: raw.users?.email ?? null,
+    }
+  })
+
+  const capped = allRows.length > CAP
+  const entries = capped ? allRows.slice(0, CAP) : allRows
+
+  return { success: true, data: { entries, capped } }
+}
+
+/**
  * Loads older audit log entries for cursor-based pagination.
  * Uses created_at as the cursor — returns rows strictly older than the cursor.
  */

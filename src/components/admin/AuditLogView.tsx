@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useTransition, useMemo } from 'react'
+import { useState, useTransition, useMemo, useEffect, useCallback } from 'react'
 import type { AuditLog } from '@/lib/types/database'
-import { loadMoreAuditLog, type AuditLogEntry } from '@/app/admin/events/actions'
+import { loadAllAuditLog, type AuditLogEntry } from '@/app/admin/events/actions'
 
 interface AuditLogViewProps {
   entries: (AuditLog & { user_email?: string | null })[]
@@ -117,6 +117,36 @@ function formatTimestamp(ts: string): string {
   })
 }
 
+// ── CSV helpers ──────────────────────────────────────────────────────────────
+
+function csvEscape(value: string): string {
+  if (value.includes(',') || value.includes('"') || value.includes('\n')) {
+    return `"${value.replace(/"/g, '""')}"`
+  }
+  return value
+}
+
+function entriesToCsv(entries: Array<{ created_at: string; action: string; user_email?: string | null; detail?: unknown }>): string {
+  const header = ['Timestamp', 'Action', 'User', 'Detail']
+  const rows = entries.map((e) => [
+    e.created_at,
+    actionLabels[e.action] ?? e.action,
+    e.user_email ?? '',
+    e.detail ? JSON.stringify(e.detail) : '',
+  ])
+  return [header, ...rows].map((row) => row.map(csvEscape).join(',')).join('\n')
+}
+
+function downloadCsv(csv: string, filename: string) {
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
 // ── Sub-renderers ────────────────────────────────────────────────────────────
 
 function MetaDiff({ changes }: { changes: Record<string, FieldChange> }) {
@@ -215,28 +245,76 @@ function TimetableDiff({ detail }: { detail: TimetableDetail }) {
 export function AuditLogView({ entries: initialEntries, eventId, initialHasMore }: AuditLogViewProps) {
   const [open, setOpen] = useState(false)
   const [allEntries, setAllEntries] = useState(initialEntries)
-  const [hasMore, setHasMore] = useState(initialHasMore)
-  const [loading, startLoading] = useTransition()
+  const [loadingAll, startLoadingAll] = useTransition()
+  const [allLoaded, setAllLoaded] = useState(!initialHasMore)
+  const [capped, setCapped] = useState(false)
+
+  // Filter state
   const [actionFilter, setActionFilter] = useState('')
+  const [searchQuery, setSearchQuery] = useState('')
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
 
-  // Client-side filtering on loaded entries
-  const filteredEntries = useMemo(
-    () => actionFilter ? allEntries.filter((e) => e.action === actionFilter) : allEntries,
-    [allEntries, actionFilter]
-  )
-
-  function handleLoadMore() {
-    if (!hasMore || loading || allEntries.length === 0) return
-    const cursor = allEntries[allEntries.length - 1].created_at
-
-    startLoading(async () => {
-      const result = await loadMoreAuditLog(eventId, cursor)
+  // Auto-load all entries when panel opens and there are more to load
+  const loadAll = useCallback(() => {
+    startLoadingAll(async () => {
+      const result = await loadAllAuditLog(eventId)
       if (result.success) {
-        setAllEntries((prev) => [...prev, ...result.data.entries])
-        setHasMore(result.data.hasMore)
+        setAllEntries(result.data.entries)
+        setCapped(result.data.capped)
+        setAllLoaded(true)
       }
     })
+  }, [eventId])
+
+  useEffect(() => {
+    if (open && !allLoaded && !loadingAll) {
+      loadAll()
+    }
+  }, [open, allLoaded, loadingAll, loadAll])
+
+  // Combined client-side filter pipeline
+  const filteredEntries = useMemo(() => {
+    let result = allEntries
+
+    // Action filter
+    if (actionFilter) {
+      result = result.filter((e) => e.action === actionFilter)
+    }
+
+    // Date from (inclusive, day-level)
+    if (dateFrom) {
+      const from = new Date(dateFrom + 'T00:00:00')
+      result = result.filter((e) => new Date(e.created_at) >= from)
+    }
+
+    // Date to (inclusive, day-level — include entire day)
+    if (dateTo) {
+      const to = new Date(dateTo + 'T23:59:59.999')
+      result = result.filter((e) => new Date(e.created_at) <= to)
+    }
+
+    // Search (case-insensitive across label, email, detail)
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase()
+      result = result.filter((e) => {
+        const label = (actionLabels[e.action] ?? e.action).toLowerCase()
+        const email = (e.user_email ?? '').toLowerCase()
+        const detail = e.detail ? JSON.stringify(e.detail).toLowerCase() : ''
+        return label.includes(q) || email.includes(q) || detail.includes(q)
+      })
+    }
+
+    return result
+  }, [allEntries, actionFilter, dateFrom, dateTo, searchQuery])
+
+  function handleExportCsv() {
+    const csv = entriesToCsv(filteredEntries)
+    const date = new Date().toISOString().slice(0, 10)
+    downloadCsv(csv, `audit-log-${date}.csv`)
   }
+
+  const controlsDisabled = loadingAll && !allLoaded
 
   return (
     <div className="border border-gray-200 rounded-lg overflow-hidden">
@@ -249,7 +327,9 @@ export function AuditLogView({ entries: initialEntries, eventId, initialHasMore 
         <span className="text-sm font-medium text-gray-700">
           Audit log
           {allEntries.length > 0 && (
-            <span className="ml-2 text-xs text-gray-400">{allEntries.length} entries{hasMore ? '+' : ''}</span>
+            <span className="ml-2 text-xs text-gray-400">
+              {allEntries.length} entries{!allLoaded ? '+' : ''}
+            </span>
           )}
         </span>
         <span className="text-gray-400 text-xs">{open ? '▲' : '▼'}</span>
@@ -259,24 +339,83 @@ export function AuditLogView({ entries: initialEntries, eventId, initialHasMore 
         <div>
           {/* Filter bar */}
           {allEntries.length > 0 && (
-            <div className="px-4 py-2 border-b border-gray-100 bg-gray-50/50">
-              <select
-                value={actionFilter}
-                onChange={(e) => setActionFilter(e.target.value)}
-                aria-label="Filter by action type"
-                className="text-xs border border-gray-200 rounded px-2 py-1 bg-white text-gray-700"
-              >
-                {filterOptions.map((opt) => (
-                  <option key={opt.value} value={opt.value}>{opt.label}</option>
-                ))}
-              </select>
+            <div className="px-4 py-2 border-b border-gray-100 bg-gray-50/50 space-y-2">
+              {/* Row 1: action filter + search */}
+              <div className="flex flex-wrap gap-2">
+                <select
+                  value={actionFilter}
+                  onChange={(e) => setActionFilter(e.target.value)}
+                  disabled={controlsDisabled}
+                  aria-label="Filter by action type"
+                  className="text-xs border border-gray-200 rounded px-2 py-1 bg-white text-gray-700"
+                >
+                  {filterOptions.map((opt) => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
+                </select>
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  disabled={controlsDisabled}
+                  placeholder="Search logs..."
+                  aria-label="Search audit log"
+                  className="text-xs border border-gray-200 rounded px-2 py-1 bg-white text-gray-700 min-w-[140px] flex-1 max-w-xs"
+                />
+              </div>
+
+              {/* Row 2: date range + export */}
+              <div className="flex flex-wrap items-center gap-2">
+                <label className="text-xs text-gray-500">From</label>
+                <input
+                  type="date"
+                  value={dateFrom}
+                  onChange={(e) => setDateFrom(e.target.value)}
+                  disabled={controlsDisabled}
+                  aria-label="Filter from date"
+                  className="text-xs border border-gray-200 rounded px-2 py-1 bg-white text-gray-700"
+                />
+                <label className="text-xs text-gray-500">To</label>
+                <input
+                  type="date"
+                  value={dateTo}
+                  onChange={(e) => setDateTo(e.target.value)}
+                  disabled={controlsDisabled}
+                  aria-label="Filter to date"
+                  className="text-xs border border-gray-200 rounded px-2 py-1 bg-white text-gray-700"
+                />
+                <button
+                  type="button"
+                  onClick={handleExportCsv}
+                  disabled={controlsDisabled || filteredEntries.length === 0}
+                  className="ml-auto text-xs text-blue-600 hover:text-blue-800 disabled:text-gray-400 border border-gray-200 rounded px-2 py-1 bg-white"
+                >
+                  Export CSV
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Loading indicator while fetching all entries */}
+          {loadingAll && !allLoaded && (
+            <div className="px-4 py-2 text-xs text-gray-400 border-b border-gray-100">
+              Loading all entries...
+            </div>
+          )}
+
+          {/* Cap warning — shown only when the 2000-row safety cap was actually hit */}
+          {capped && (
+            <div className="px-4 py-2 text-xs text-amber-600 bg-amber-50 border-b border-gray-100">
+              Showing first 2,000 entries. Older entries are not included.
             </div>
           )}
 
           <div className="divide-y divide-gray-100">
             {filteredEntries.length === 0 ? (
               <p className="px-4 py-3 text-sm text-gray-400">
-                {actionFilter ? 'No entries match this filter.' : 'No audit entries yet.'}
+                {actionFilter || searchQuery || dateFrom || dateTo
+                  ? 'No entries match the current filters.'
+                  : 'No audit entries yet.'}
               </p>
             ) : (
               filteredEntries.map((entry) => {
@@ -312,20 +451,6 @@ export function AuditLogView({ entries: initialEntries, eventId, initialHasMore 
               })
             )}
           </div>
-
-          {/* Load more button */}
-          {hasMore && !actionFilter && (
-            <div className="px-4 py-3 border-t border-gray-100">
-              <button
-                type="button"
-                onClick={handleLoadMore}
-                disabled={loading}
-                className="text-xs text-blue-600 hover:text-blue-800 disabled:text-gray-400"
-              >
-                {loading ? 'Loading...' : 'Load more'}
-              </button>
-            </div>
-          )}
         </div>
       )}
     </div>
