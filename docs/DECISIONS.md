@@ -132,6 +132,18 @@
 
 ---
 
+## DEC-013: Launch hardening tiered approach
+
+**Decision**: Launch hardening is split into three tiers. Tier 1 covers viewport/manifest, security headers, robots/sitemap, loading skeletons, legal pages, and stub page cleanup. Tier 2 and Tier 3 (CSP, rate limiting, advanced SEO, etc.) are deferred.
+
+**Reason**: Tier 1 items are low-risk, high-value improvements that make the product presentable and secure for initial launch without introducing complexity. Deferring CSP and rate limiting avoids breaking changes during launch preparation.
+
+**Date**: 2026-04-14
+
+**Status**: Active — Tier 1 complete
+
+---
+
 ## DEC-012: Global token-based unsubscribe for notifications
 
 **Decision**: Use a `notification_preferences` table with a unique UUID token per email address. Unsubscribe links use the token (no auth required). Scope is global on/off per email — no per-event or frequency controls. All table access via service-role client only (RLS enabled, no policies). Email stored in lowercase with a CHECK constraint.

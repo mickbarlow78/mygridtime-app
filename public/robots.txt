@@ -1,0 +1,10 @@
+User-agent: *
+Allow: /
+Disallow: /admin/
+Disallow: /my/
+Disallow: /auth/
+Disallow: /api/
+Disallow: /invites/
+Disallow: /notifications/
+
+Sitemap: https://mygridtime.com/sitemap.xml

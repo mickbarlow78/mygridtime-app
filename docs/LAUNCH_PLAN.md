@@ -42,6 +42,17 @@ Dependencies: Item 9 depends on Must Have #4.
 
 ---
 
+## Launch Hardening — Tier 1
+
+~~L1. **Viewport metadata + manifest link**~~ ✓ — `viewport` export and `manifest` metadata added to root layout
+~~L2. **Security headers**~~ ✓ — X-Frame-Options (DENY), X-Content-Type-Options (nosniff), Referrer-Policy (strict-origin-when-cross-origin) via `next.config.mjs`
+~~L3. **robots.txt + sitemap**~~ ✓ — static `robots.txt` blocks private routes; dynamic `sitemap.ts` includes public routes and published event slugs
+~~L5. **Consumer stub page cleanup**~~ ✓ — `/my/alerts`, `/my/drivers`, `/my/upload` replaced with clean "Coming soon" UI, no internal phase language
+~~L6. **Loading skeletons**~~ ✓ — `loading.tsx` added for `/admin`, `/admin/events/[id]`, and `/my`
+~~L8. **Privacy policy + terms**~~ ✓ — `/privacy` and `/terms` pages with credible content covering email, auth, notifications, third-party services
+
+---
+
 ## Nice to Have
 
 12. **Web push notifications** — service worker, subscription management
