@@ -1,7 +1,7 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
-import { slugify, getDatesInRange } from '@/lib/utils/slug'
+import { slugify, getDatesInRange, countDaysInRange, MAX_EVENT_DAYS } from '@/lib/utils/slug'
 import { redirect } from 'next/navigation'
 import type { Json } from '@/lib/types/database'
 import { getActiveOrg } from '@/lib/utils/active-org'
@@ -199,6 +199,19 @@ export async function createEventFromTemplate(
 
   if (!input.title.trim()) return { success: false, error: 'Event title is required.' }
   if (!input.start_date || !input.end_date) return { success: false, error: 'Dates are required.' }
+
+  // Enforce the event day-span limit before touching the DB so we never
+  // silently drop template days or date-range days.
+  const requestedDays = countDaysInRange(input.start_date, input.end_date)
+  if (requestedDays === 0) {
+    return { success: false, error: 'End date must be on or after the start date.' }
+  }
+  if (requestedDays > MAX_EVENT_DAYS) {
+    return {
+      success: false,
+      error: `Events are limited to ${MAX_EVENT_DAYS} days. The selected range spans ${requestedDays} days — please shorten it.`,
+    }
+  }
 
   // Fetch template
   const { data: template, error: tplErr } = await supabase

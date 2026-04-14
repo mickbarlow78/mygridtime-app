@@ -1,10 +1,11 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
+import { headers } from 'next/headers'
 import Link from 'next/link'
 import { signOut } from './actions'
 import { getActiveOrg, getUserOrgs } from '@/lib/utils/active-org'
 import { OrgSelector } from '@/components/admin/OrgSelector'
-import { PAGE_BG, HEADER, HEADER_INNER, CONTAINER_FULL, AUTH_EMAIL, AUTH_LINK, HEADER_NAV_LINK } from '@/lib/styles'
+import { PAGE_BG, HEADER, HEADER_INNER, CONTAINER_FULL, AUTH_EMAIL, AUTH_LINK, HEADER_NAV_LINK, BTN_PRIMARY } from '@/lib/styles'
 
 /**
  * Admin layout — Server Component.
@@ -49,6 +50,32 @@ export default async function AdminLayout({
   const userOrgs = activeOrg ? await getUserOrgs(supabase, user.id) : []
 
   const authorized = !!activeOrg
+
+  // First-run onboarding: a newly signed-in user with zero memberships is
+  // allowed to reach /admin/orgs/new so they can create their first org.
+  // We use the x-pathname header set by middleware to detect the route.
+  // Viewer-only members (memberships exist but none elevated) still see
+  // the access-denied state below — they need to be invited, not to self-serve.
+  const pathname = headers().get('x-pathname') ?? ''
+  let allowNoOrgOnboarding = false
+  if (!authorized && pathname === '/admin/orgs/new') {
+    const { count } = await supabase
+      .from('org_members')
+      .select('org_id', { count: 'exact', head: true })
+      .eq('user_id', user.id)
+    allowNoOrgOnboarding = (count ?? 0) === 0
+  }
+
+  // Detect "no memberships at all" for the access-denied state so we can
+  // offer a "Create your first organisation" CTA for that case.
+  let hasZeroMemberships = false
+  if (!authorized && !allowNoOrgOnboarding) {
+    const { count } = await supabase
+      .from('org_members')
+      .select('org_id', { count: 'exact', head: true })
+      .eq('user_id', user.id)
+    hasZeroMemberships = (count ?? 0) === 0
+  }
 
   return (
     <div className={PAGE_BG}>
@@ -100,10 +127,29 @@ export default async function AdminLayout({
       </header>
 
       <main className={`${CONTAINER_FULL} py-6`}>
-        {authorized ? (
+        {authorized || allowNoOrgOnboarding ? (
           children
+        ) : hasZeroMemberships ? (
+          /* First-run onboarding state — user is signed in but has no orgs yet */
+          <div className="flex flex-col items-center justify-center py-24 text-center space-y-4">
+            <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center mb-2">
+              <svg className="w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 21h16.5M4.5 3h15M5.25 3v18m13.5-18v18M9 6.75h1.5m-1.5 3h1.5m-1.5 3h1.5m3-6H15m-1.5 3H15m-1.5 3H15M9 21v-3.375c0-.621.504-1.125 1.125-1.125h3.75c.621 0 1.125.504 1.125 1.125V21" />
+              </svg>
+            </div>
+            <h1 className="text-base font-semibold text-gray-900">Welcome to MyGridTime</h1>
+            <p className="text-sm text-gray-500 max-w-sm">
+              You are signed in as <span className="font-medium text-gray-700">{user.email}</span>,
+              but you do not belong to any organisation yet. Create one to start building timetables,
+              or ask an existing organisation admin to invite you.
+            </p>
+            <Link href="/admin/orgs/new" className={BTN_PRIMARY}>
+              Create your first organisation
+            </Link>
+          </div>
         ) : (
-          /* Access denied — shown to authenticated users without an allowed role */
+          /* Access denied — shown to authenticated users without an allowed role
+             (viewer-only members fall through to this branch). */
           <div className="flex flex-col items-center justify-center py-24 text-center space-y-3">
             <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center mb-2">
               <svg className="w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">

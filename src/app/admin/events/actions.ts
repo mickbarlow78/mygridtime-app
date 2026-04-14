@@ -1,7 +1,7 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
-import { slugify, getDatesInRange } from '@/lib/utils/slug'
+import { slugify, getDatesInRange, countDaysInRange, MAX_EVENT_DAYS } from '@/lib/utils/slug'
 import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
 import type { EventStatus, Json } from '@/lib/types/database'
@@ -101,6 +101,20 @@ export async function createEvent(input: CreateEventInput): Promise<ActionResult
   const { supabase, user, membership } = await requireEditor()
   if (!membership) {
     return { success: false, error: 'You do not have permission to create events.' }
+  }
+
+  // Enforce the event day-span limit up front so we never silently drop days.
+  // `getDatesInRange` no longer caps at 14 — the caller is responsible for
+  // rejecting oversized ranges with a clear error.
+  const requestedDays = countDaysInRange(input.start_date, input.end_date)
+  if (requestedDays === 0) {
+    return { success: false, error: 'End date must be on or after the start date.' }
+  }
+  if (requestedDays > MAX_EVENT_DAYS) {
+    return {
+      success: false,
+      error: `Events are limited to ${MAX_EVENT_DAYS} days. The selected range spans ${requestedDays} days — please shorten it.`,
+    }
   }
 
   const slug = await generateUniqueSlug(supabase, input.title)
@@ -390,6 +404,21 @@ export async function duplicateEvent(
 ): Promise<ActionResult<{ id: string }>> {
   const { supabase, user, membership } = await requireEditor()
   if (!membership) return { success: false, error: 'You do not have permission to duplicate events.' }
+
+  // Guard the new date range up front. Duplicate reuses the source's day
+  // offsets, but the new event still advertises the user-supplied date range
+  // on the record — reject ranges longer than the supported limit instead
+  // of silently creating an event whose day count doesn't match its dates.
+  const requestedDays = countDaysInRange(input.start_date, input.end_date)
+  if (requestedDays === 0) {
+    return { success: false, error: 'End date must be on or after the start date.' }
+  }
+  if (requestedDays > MAX_EVENT_DAYS) {
+    return {
+      success: false,
+      error: `Events are limited to ${MAX_EVENT_DAYS} days. The selected range spans ${requestedDays} days — please shorten it.`,
+    }
+  }
 
   // Fetch source event
   const { data: source, error: srcErr } = await supabase

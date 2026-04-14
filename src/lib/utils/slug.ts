@@ -13,16 +13,52 @@ export function slugify(text: string): string {
 }
 
 /**
+ * Maximum number of days an event can span. Enforced by callers that
+ * build events from a date range (create, create-from-template). Kept here
+ * so the limit lives next to the range helper it constrains.
+ */
+export const MAX_EVENT_DAYS = 14
+
+/**
+ * Hard safety cap inside getDatesInRange() to defend against pathological
+ * inputs (e.g. a typo that spans years). Well above MAX_EVENT_DAYS — callers
+ * are expected to validate against MAX_EVENT_DAYS themselves and return a
+ * clear error, rather than relying on this cap to silently truncate.
+ */
+const SAFETY_CAP_DAYS = 366
+
+/**
+ * Returns the inclusive number of days between two ISO date strings.
+ * Returns 0 for reversed or invalid ranges. Does NOT enforce
+ * MAX_EVENT_DAYS — callers compare and surface their own error.
+ */
+export function countDaysInRange(startDate: string, endDate: string): number {
+  const start = new Date(startDate + 'T00:00:00Z')
+  const end = new Date(endDate + 'T00:00:00Z')
+  if (isNaN(start.getTime()) || isNaN(end.getTime())) return 0
+  if (end < start) return 0
+  const msPerDay = 24 * 60 * 60 * 1000
+  return Math.floor((end.getTime() - start.getTime()) / msPerDay) + 1
+}
+
+/**
  * Returns an array of ISO date strings (YYYY-MM-DD) for every day
  * from startDate to endDate inclusive.
+ *
+ * Note: this helper no longer silently caps at 14 days. Callers that feed
+ * its output into row inserts MUST validate the range length against
+ * MAX_EVENT_DAYS *before* calling this and return a clear error on
+ * overflow — otherwise the caller is responsible for any truncation.
+ * A high safety cap (SAFETY_CAP_DAYS) still bounds the loop to prevent
+ * runaway date generation from malformed input.
  */
 export function getDatesInRange(startDate: string, endDate: string): string[] {
   const dates: string[] = []
   const current = new Date(startDate + 'T00:00:00Z')
   const end = new Date(endDate + 'T00:00:00Z')
-  // Guard against invalid or reversed ranges (max 14 days)
+  if (isNaN(current.getTime()) || isNaN(end.getTime())) return dates
   let count = 0
-  while (current <= end && count < 14) {
+  while (current <= end && count < SAFETY_CAP_DAYS) {
     dates.push(current.toISOString().split('T')[0])
     current.setUTCDate(current.getUTCDate() + 1)
     count++

@@ -61,6 +61,8 @@ export function TimetableBuilder({
 
   const [editingLabelDayId, setEditingLabelDayId] = useState<string | null>(null)
   const [labelDraft, setLabelDraft] = useState('')
+  const [labelError, setLabelError] = useState<string | null>(null)
+  const [savingLabel, setSavingLabel] = useState(false)
   const [copyFlash, setCopyFlash] = useState(false)
   const [pasteDialogMode, setPasteDialogMode] = useState<'append' | 'replace' | null>(null)
 
@@ -100,7 +102,18 @@ export function TimetableBuilder({
   }
 
   async function handleSaveLabel(dayId: string) {
-    await updateDayLabel(dayId, labelDraft)
+    // Guard against double-invocation (blur + Enter can fire back-to-back).
+    if (savingLabel) return
+    setSavingLabel(true)
+    setLabelError(null)
+    const result = await updateDayLabel(dayId, labelDraft)
+    setSavingLabel(false)
+    if (!result.success) {
+      // Do NOT exit edit mode — the draft is still unsaved. Show the error
+      // inline so the user can see what went wrong and retry or cancel.
+      setLabelError(`Could not save this day label: ${result.error}`)
+      return
+    }
     onDaysChange(days.map((d) => d.id === dayId ? { ...d, label: labelDraft.trim() || null } : d))
     setEditingLabelDayId(null)
   }
@@ -150,7 +163,7 @@ export function TimetableBuilder({
               key={day.id}
               type="button"
               onClick={() => setActiveDayId(day.id)}
-              onDoubleClick={() => { setEditingLabelDayId(day.id); setLabelDraft(day.label ?? '') }}
+              onDoubleClick={() => { setEditingLabelDayId(day.id); setLabelDraft(day.label ?? ''); setLabelError(null) }}
               className={cn(
                 day.id === activeDayId ? TAB_ACTIVE : TAB_INACTIVE,
                 'whitespace-nowrap',
@@ -166,7 +179,7 @@ export function TimetableBuilder({
                   onBlur={() => handleSaveLabel(day.id)}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') handleSaveLabel(day.id)
-                    if (e.key === 'Escape') setEditingLabelDayId(null)
+                    if (e.key === 'Escape') { setEditingLabelDayId(null); setLabelError(null) }
                   }}
                   onClick={(e) => e.stopPropagation()}
                   className="w-28 text-sm border border-gray-300 rounded px-1 py-0 focus:outline-none"
@@ -192,6 +205,21 @@ export function TimetableBuilder({
           + Day
         </button>
       </div>
+
+      {/* Day-label save error — shown inline when updateDayLabel() fails.
+          The tab stays in edit mode so the user can retry or press Esc. */}
+      {labelError && (
+        <div className="flex items-start gap-2 rounded-md bg-red-50 border border-red-100 px-3 py-2 text-xs text-red-700">
+          <span className="flex-1">{labelError}</span>
+          <button
+            type="button"
+            onClick={() => { setEditingLabelDayId(null); setLabelError(null) }}
+            className="underline underline-offset-2 hover:text-red-900"
+          >
+            Cancel
+          </button>
+        </div>
+      )}
 
       {/* Active day content */}
       {activeDay ? (

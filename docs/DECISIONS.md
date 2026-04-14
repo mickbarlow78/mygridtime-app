@@ -173,6 +173,30 @@
 
 ---
 
+## DEC-016: 14-day event span is a hard limit, enforced by the caller
+
+**Decision**: `MAX_EVENT_DAYS` (14) is a hard limit on how many days a single event can cover. It is enforced by the server actions that build events (`createEvent`, `createEventFromTemplate`, `duplicateEvent`) *before* any DB write. `getDatesInRange()` is a pure helper and does not enforce the limit itself — it only has a 366-day runaway-loop safety cap. An oversized range returns a clear `"Events are limited to 14 days…"` error instead of silently producing a shorter event.
+
+**Reason**: The old behaviour was to silently truncate inside `getDatesInRange()`, which produced events with fewer days than the user had asked for and reported success. That is data loss masquerading as a successful write. Moving the limit check to the caller makes truncation impossible and makes the error visible to the user. The product limit stays at 14; changing it is out of scope for bug-pass 3 and would require a separate review of templates, notifications, and UI day-tab layout.
+
+**Date**: 2026-04-14
+
+**Status**: Active
+
+---
+
+## DEC-017: Notifications refuse to send without a working unsubscribe link
+
+**Decision**: `sendEventNotification()` will not send to a recipient whose `notification_preferences` row is missing at send time. Such recipients are logged as `status: 'failed'` in `notification_log` with a reason string, and the underlying upsert/fetch errors are captured to Sentry. The rest of the recipients in the batch still receive their emails normally.
+
+**Reason**: A missing preference row means no unsubscribe token, which means the email would be sent without a working unsubscribe link and without the List-Unsubscribe header. Sending anyway would be non-compliant and would hide a real infrastructure failure. Refusing to send makes the failure loud (visible in `notification_log` and Sentry) without breaking the other recipients in the batch.
+
+**Date**: 2026-04-14
+
+**Status**: Active
+
+---
+
 ## DEC-014: Audit log uses load-all with client-side filtering
 
 **Decision**: The audit log UI loads all entries (up to 2000) on panel open, then performs all filtering (action type, search, date range) and CSV export client-side. No server-side search or date filtering. The `loadAllAuditLog()` server action replaces cursor-based pagination for the primary flow.

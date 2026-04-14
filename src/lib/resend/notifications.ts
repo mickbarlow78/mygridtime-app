@@ -81,18 +81,37 @@ export async function sendEventNotification(
   // ── 3. Ensure preference rows exist & fetch preferences ─────────────────
   const admin = createAdminClient()
 
-  // Upsert preference rows for all recipients (no-op if already exists)
+  // Upsert preference rows for all recipients (no-op if already exists).
+  // Track any failures so we can surface them — a missing preference row
+  // means we cannot generate an unsubscribe token for that recipient, and
+  // we refuse to send without a working unsubscribe link. Failures are
+  // reported to Sentry; other recipients' sends still proceed.
+  const upsertFailedEmails = new Set<string>()
   for (const email of recipients) {
-    await admin
+    const { error: upsertError } = await admin
       .from('notification_preferences')
       .upsert({ email }, { onConflict: 'email', ignoreDuplicates: true })
+    if (upsertError) {
+      upsertFailedEmails.add(email)
+      Sentry.captureException(upsertError, {
+        tags: { action: 'sendEventNotification.preferenceUpsert' },
+        extra: { eventId, email, type },
+      })
+    }
   }
 
   // Fetch preferences for all recipients
-  const { data: prefs } = await admin
+  const { data: prefs, error: prefsError } = await admin
     .from('notification_preferences')
     .select('email, token, unsubscribed')
     .in('email', recipients)
+
+  if (prefsError) {
+    Sentry.captureException(prefsError, {
+      tags: { action: 'sendEventNotification.preferenceFetch' },
+      extra: { eventId, type },
+    })
+  }
 
   const prefMap = new Map(
     (prefs ?? []).map((p) => [p.email, { token: p.token, unsubscribed: p.unsubscribed }])
@@ -126,6 +145,26 @@ export async function sendEventNotification(
     const pref = prefMap.get(to)
     if (pref?.unsubscribed) {
       debugLog('sendEventNotification', 'SKIP unsubscribed:', to)
+      continue
+    }
+
+    // No preference row found — this only happens if the upsert above failed
+    // or the fetch failed. We refuse to send without a token-based unsubscribe
+    // link (no List-Unsubscribe compliance) and record a failed notification
+    // so the failure is visible in notification_log and in Sentry.
+    if (!pref) {
+      debugLog('sendEventNotification', 'SKIP no preference row:', to)
+      const reason = upsertFailedEmails.has(to)
+        ? 'Preference row upsert failed — unsubscribe link unavailable.'
+        : 'Preference row missing after upsert — unsubscribe link unavailable.'
+      await supabase.from('notification_log').insert({
+        event_id: eventId,
+        type,
+        recipient_email: to,
+        status: 'failed',
+        error: reason,
+        sent_at: null,
+      })
       continue
     }
 

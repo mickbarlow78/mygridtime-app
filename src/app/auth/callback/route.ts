@@ -90,8 +90,12 @@ export async function GET(request: NextRequest) {
   // Determine the redirect destination.
   // If a return-path cookie was set (invite flow), honour it — the invite page
   // handles its own viewer routing after accept.
-  // For a plain login with no return path, check the user's highest org role:
-  // viewer-only users cannot access /admin and are sent to the public landing.
+  // For a plain login with no return path, branch on membership state:
+  //   - elevated role in any org → /admin
+  //   - viewer-only memberships   → /my (consumer dashboard)
+  //   - zero memberships           → /admin/orgs/new (first-run onboarding,
+  //                                  permitted by the admin layout when the
+  //                                  user has no orgs at all)
   let destination = safeNext ?? '/admin'
 
   if (!safeNext) {
@@ -107,8 +111,15 @@ export async function GET(request: NextRequest) {
         ['owner', 'admin', 'editor'].includes(r)
       )
       if (!hasElevatedRole) {
-        // Viewer-only (or no org yet) — send to the public landing page.
-        destination = '/'
+        if (roles.length === 0) {
+          // No orgs at all — drop into the first-run onboarding page so the
+          // user can create their first organisation immediately.
+          destination = '/admin/orgs/new'
+        } else {
+          // Viewer-only membership(s) — send to the consumer dashboard, which
+          // is where their read-only timetable access lives.
+          destination = '/my'
+        }
       }
     }
   }

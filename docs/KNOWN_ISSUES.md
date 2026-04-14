@@ -158,6 +158,65 @@ Remaining gap: no admin UI to view failed notifications or manually retry them.
 
 ---
 
+## MGT-016: New users with no orgs landed on an unhelpful page
+
+**Description**: `/auth/callback` mapped any user without an elevated role to `/` (public landing). Two distinct populations were conflated: users with viewer-only memberships, and users with **zero** memberships. A brand-new signed-in user with no orgs was dropped onto the public marketing page with no path forward — they could not reach `/admin/orgs/new` because the admin layout showed "Access denied" for anyone without an active org.
+
+**Impact**: First-run dead end. New sign-ups had no visible next step without manual admin intervention.
+
+**Status**: Resolved — `/auth/callback` now distinguishes the two cases: zero memberships → `/admin/orgs/new`; viewer-only memberships → `/my` (consumer dashboard). The admin layout reads an `x-pathname` header (set in `middleware.ts`) and permits `/admin/orgs/new` through the guard when the user has zero memberships, so the onboarding page is actually reachable. When a zero-membership user lands on `/admin`, the access-denied state is replaced with a "Welcome to MyGridTime — create your first organisation" CTA that links straight to the form.
+
+---
+
+## MGT-017: Invite acceptance redirect had no manual fallback
+
+**Description**: `AcceptInviteForm` called `router.push()` inside a `setTimeout` after a successful `acceptInvite()`. If the client-side navigation did not land cleanly (blocked navigation, slow route transition, transient client error), the user was stranded on the success screen with no way to continue — no visible link, only the auto-redirect that had already fired once.
+
+**Impact**: Low-probability but high-friction dead end immediately after a successful account action.
+
+**Status**: Resolved — the success state now renders a manual "Continue to admin" / "Continue to your timetables" link alongside the redirecting message. Auto-redirect behaviour is unchanged (same 1.5s `setTimeout`); the link is additive. The destination is stored in component state so the manual link always points to the same target as the auto-redirect (`/my` for viewers, `/admin` for elevated roles).
+
+---
+
+## MGT-018: getDatesInRange silently truncated ranges over 14 days
+
+**Description**: `getDatesInRange()` in `src/lib/utils/slug.ts` hard-capped its loop at 14 iterations. Any caller that passed a longer range (createEvent, createEventFromTemplate, duplicateEvent) silently got a truncated list and built an event with fewer days than the user-supplied range — no error, no warning. The unit test at `slug.test.ts` even documented the cap as intended behaviour.
+
+**Impact**: User picks a 20-day range → event is created with 14 days of content and 6 missing dates, with no feedback. Data loss masquerading as success.
+
+**Status**: Resolved —
+- Exported `MAX_EVENT_DAYS = 14` and a new `countDaysInRange()` helper from `slug.ts`.
+- `getDatesInRange()` no longer caps at 14; it now has a 366-day safety bound purely to defend against pathological inputs, and its contract explicitly requires callers to pre-validate.
+- `createEvent()` (events/actions.ts), `createEventFromTemplate()` (templates/actions.ts), and `duplicateEvent()` (events/actions.ts) all now call `countDaysInRange()` up front and return `{ success: false, error: "Events are limited to 14 days…" }` if the range is too long, or `"End date must be on or after the start date."` if reversed. The error bubbles through `handleSubmit` in the new-event form and the duplicate modal and is rendered inline on the existing error banners — no UI changes needed.
+- The 14-day product limit itself is unchanged (per DEC-016).
+- `slug.test.ts` updated: the "caps at 14 days" test is replaced with assertions that `getDatesInRange` now returns the full range, plus new coverage for `countDaysInRange` and `MAX_EVENT_DAYS`.
+
+---
+
+## MGT-019: Day-label edit errors swallowed by TimetableBuilder
+
+**Description**: `handleSaveLabel()` in `src/components/admin/TimetableBuilder.tsx` awaited `updateDayLabel()` without inspecting its result, then unconditionally updated local state and exited edit mode. A server-side failure (RLS denial, network blip, validation error) produced an optimistic local update that did not match the database, and the tab returned to its normal "saved" appearance.
+
+**Impact**: Silent desync between UI and DB on any failed label save. User believed the rename landed; on refresh it reverted.
+
+**Status**: Resolved — `handleSaveLabel()` now inspects `result.success`. On failure it shows the returned error inline in a red banner under the tab row, keeps the tab in edit mode so the draft is preserved, and offers a Cancel action that clears the draft and the error. On success it behaves exactly as before. A concurrent-save guard (`savingLabel` flag) prevents blur + Enter from double-firing the action. Esc still exits edit mode and clears the error.
+
+---
+
+## MGT-020: Notification preference upsert failures were swallowed
+
+**Description**: `sendEventNotification()` in `src/lib/resend/notifications.ts` looped over recipients and called `admin.from('notification_preferences').upsert(...)` without checking the result. A failed upsert (RLS issue, PG error, network fault) meant no preference row was created, the subsequent pref fetch returned no row for that recipient, `pref?.token` was undefined, and the email was sent **without** an unsubscribe link. The List-Unsubscribe header was also omitted for that recipient. The failure was entirely invisible to Sentry and to `notification_log`.
+
+**Impact**: Potentially non-compliant sends (no working unsubscribe link) with zero visibility. Debugging required direct DB comparison of `notification_preferences` against `notification_emails`.
+
+**Status**: Resolved —
+- Every preference-row upsert now captures `{ error }`. Failures are reported to Sentry with `tags: { action: 'sendEventNotification.preferenceUpsert' }` and the failing email is tracked in a local `upsertFailedEmails` set.
+- The follow-up preference fetch now also captures and reports its own error to Sentry (`action: 'sendEventNotification.preferenceFetch'`).
+- If a recipient has no preference row in `prefMap` at send time (because the upsert failed or the row was never readable), the helper **refuses to send** to that recipient. It writes a `notification_log` row with `status: 'failed'` and a reason string — either "Preference row upsert failed — unsubscribe link unavailable." or "Preference row missing after upsert — unsubscribe link unavailable." — and moves on to the next recipient.
+- The rest of the send flow is unaffected: recipients whose preference rows succeeded still receive their emails with working unsubscribe links.
+
+---
+
 ## MGT-015: acceptInvite() pending-state update not error-checked
 
 **Description**: `acceptInvite()` in `src/app/admin/orgs/actions.ts` had two branches that updated `org_invites.accepted_at`: the "already-a-member" path and the "membership insert succeeded" path. Both fired the update without capturing `{ error }`. If the update failed for any reason (network blip, RLS/permission regression, row missing), the function returned `{ success: true }` and the invite row was left with `accepted_at = null`, so it would still show as "pending" forever.

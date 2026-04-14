@@ -18,7 +18,20 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next()
   }
 
-  let supabaseResponse = NextResponse.next({ request })
+  // Forward the current pathname as a header so Server Components (e.g. the
+  // admin layout) can branch on the route — Next.js does not expose the
+  // pathname to Server Components directly.
+  //
+  // NOTE: `request.headers` is immutable in Next.js middleware. Build a fresh
+  // Headers copy, mutate that, and hand it back via NextResponse.next({
+  // request: { headers: requestHeaders } }) so the forwarded request carries
+  // x-pathname downstream.
+  const requestHeaders = new Headers(request.headers)
+  requestHeaders.set('x-pathname', request.nextUrl.pathname)
+
+  let supabaseResponse = NextResponse.next({
+    request: { headers: requestHeaders },
+  })
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -30,11 +43,15 @@ export async function middleware(request: NextRequest) {
         },
         setAll(cookiesToSet: Array<{ name: string; value: string; options: CookieOptions }>) {
           // Write updated cookies back onto both the request and the response.
-          // Both mutations are required by @supabase/ssr.
+          // Both mutations are required by @supabase/ssr. The x-pathname
+          // header is preserved on the rebuilt response because we keep
+          // passing the same requestHeaders copy.
           cookiesToSet.forEach(({ name, value }) =>
             request.cookies.set(name, value)
           )
-          supabaseResponse = NextResponse.next({ request })
+          supabaseResponse = NextResponse.next({
+            request: { headers: requestHeaders },
+          })
           cookiesToSet.forEach(({ name, value, options }) =>
             supabaseResponse.cookies.set(name, value, options)
           )
