@@ -6,6 +6,7 @@ import { redirect } from 'next/navigation'
 import type { Json } from '@/lib/types/database'
 import { getActiveOrg } from '@/lib/utils/active-org'
 import { writeAuditLog } from '@/lib/audit'
+import * as Sentry from '@sentry/nextjs'
 
 // ---------------------------------------------------------------------------
 // Helpers (mirrored from events/actions — not exported there)
@@ -238,6 +239,8 @@ export async function createEventFromTemplate(
   // Map template days to new dates by index
   // If template has more days than date range, extra template days are dropped
   // If date range has more dates than template days, extra dates get empty days
+  let failureReason: string | null = null
+
   for (let i = 0; i < newDates.length; i++) {
     const tplDay = i < templateDays.length ? templateDays[i] : null
 
@@ -252,11 +255,14 @@ export async function createEventFromTemplate(
       .select('id')
       .single()
 
-    if (dayErr || !newDay) continue
+    if (dayErr || !newDay) {
+      failureReason = `day insert failed: ${dayErr?.message ?? 'unknown error'}`
+      break
+    }
 
     // Insert entries from template day
     if (tplDay && tplDay.entries.length > 0) {
-      await supabase.from('timetable_entries').insert(
+      const { error: entriesErr } = await supabase.from('timetable_entries').insert(
         tplDay.entries.map((e) => ({
           event_day_id: newDay.id,
           title: e.title,
@@ -268,7 +274,23 @@ export async function createEventFromTemplate(
           is_break: e.is_break,
         }))
       )
+      if (entriesErr) {
+        failureReason = `entry insert failed: ${entriesErr.message}`
+        break
+      }
     }
+  }
+
+  if (failureReason) {
+    // Roll back the partially-created event so the user doesn't end up
+    // with a silently-incomplete event. Cascade deletes remove any
+    // already-inserted days and entries.
+    await supabase.from('events').delete().eq('id', event.id)
+    Sentry.captureException(
+      new Error(`createEventFromTemplate rollback: ${failureReason}`),
+      { tags: { action: 'createEventFromTemplate' }, extra: { templateId } }
+    )
+    return { success: false, error: `Failed to create event from template: ${failureReason}` }
   }
 
   await writeAuditLog(supabase, user.id, event.id, 'event.created_from_template', {

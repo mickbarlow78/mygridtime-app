@@ -156,6 +156,23 @@
 
 ---
 
+## DEC-015: Partial-failure handling in multi-row mutations
+
+**Decision**: Server actions that insert multiple child rows handle partial failures in two different ways, depending on whether a clean rollback is possible:
+
+- `duplicateEvent()` and `createEventFromTemplate()` — on any failed day or entry insert, delete the newly-created parent event (`supabase.from('events').delete()`), which cascades to clean up any already-inserted children. Return `{ success: false, error }`.
+- `saveDayEntries()` — collect insert failures, skip audit logging and notifications, return `{ success: false, error }`. Deletes and updates already applied earlier in the same call are left in place; the caller is expected to retry.
+
+`writeAuditLog()` never affects the result — it is fully contained (try/catch + Sentry) so that audit side-effects can never flip a primary mutation's success value.
+
+**Reason**: Silent partial success is worse than a loud partial-state error. For `duplicateEvent()` / `createEventFromTemplate()` the parent event is brand-new, so cascading delete gives a clean rollback. For `saveDayEntries()` the event already exists and has pre-existing state being edited in place — there is no safe rollback without a true DB transaction, so the best we can do is refuse to report success, skip the "everything saved" side-effects (audit + notifications), and surface a retry message. Supabase client calls are not transactional across statements, so a full atomic solution would require a Postgres function — deferred as out of scope for bug-pass 1.
+
+**Date**: 2026-04-14
+
+**Status**: Active
+
+---
+
 ## DEC-014: Audit log uses load-all with client-side filtering
 
 **Decision**: The audit log UI loads all entries (up to 2000) on panel open, then performs all filtering (action type, search, date range) and CSV export client-side. No server-side search or date filtering. The `loadAllAuditLog()` server action replaces cursor-based pagination for the primary flow.

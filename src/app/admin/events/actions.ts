@@ -3,12 +3,39 @@
 import { createClient } from '@/lib/supabase/server'
 import { slugify, getDatesInRange } from '@/lib/utils/slug'
 import { redirect } from 'next/navigation'
+import { revalidatePath } from 'next/cache'
 import type { EventStatus, Json } from '@/lib/types/database'
 import { sendEventNotification } from '@/lib/resend/notifications'
 import { debugLog } from '@/lib/debug'
 import { getActiveOrg } from '@/lib/utils/active-org'
 import { writeAuditLog } from '@/lib/audit'
 import * as Sentry from '@sentry/nextjs'
+
+// ---------------------------------------------------------------------------
+// Revalidation helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Revalidates admin-side caches for an event: the event list and, when an
+ * eventId is supplied, the specific event editor page. Kept small so
+ * callers can choose how broadly to invalidate.
+ */
+function revalidateAdminEventPaths(eventId?: string): void {
+  revalidatePath('/admin/events')
+  if (eventId) revalidatePath(`/admin/events/${eventId}`)
+}
+
+/**
+ * Revalidates consumer/public caches affected by published-event changes:
+ * the dynamic public timetable route, the `/my` consumer dashboard, the
+ * landing page (lists published events), and the sitemap.
+ */
+function revalidatePublicEventPaths(): void {
+  revalidatePath('/[slug]', 'page')
+  revalidatePath('/[slug]/print', 'page')
+  revalidatePath('/my')
+  revalidatePath('/')
+}
 
 // ---------------------------------------------------------------------------
 // Internal helpers
@@ -120,6 +147,8 @@ export async function createEvent(input: CreateEventInput): Promise<ActionResult
     slug,
   })
 
+  revalidateAdminEventPaths()
+
   return { success: true, data: { id: event.id } }
 }
 
@@ -210,6 +239,11 @@ export async function updateEventMetadata(
     await writeAuditLog(supabase, user.id, eventId, 'event.updated')
   }
 
+  revalidateAdminEventPaths(eventId)
+  // Public timetable page reads event metadata (title, venue, dates) so it
+  // must also be invalidated.
+  revalidatePublicEventPaths()
+
   return { success: true, data: undefined }
 }
 
@@ -298,6 +332,9 @@ export async function publishEvent(eventId: string, notify: boolean = false): Pr
     await sendEventNotification(supabase, eventId, 'event.published')
   }
 
+  revalidateAdminEventPaths(eventId)
+  revalidatePublicEventPaths()
+
   return { success: true, data: undefined }
 }
 
@@ -313,6 +350,10 @@ export async function unpublishEvent(eventId: string): Promise<ActionResult> {
   if (error) return { success: false, error: error.message }
 
   await writeAuditLog(supabase, user.id, eventId, 'event.unpublished')
+
+  revalidateAdminEventPaths(eventId)
+  revalidatePublicEventPaths()
+
   return { success: true, data: undefined }
 }
 
@@ -328,6 +369,10 @@ export async function archiveEvent(eventId: string): Promise<ActionResult> {
   if (error) return { success: false, error: error.message }
 
   await writeAuditLog(supabase, user.id, eventId, 'event.archived')
+
+  revalidateAdminEventPaths(eventId)
+  revalidatePublicEventPaths()
+
   return { success: true, data: undefined }
 }
 
@@ -390,6 +435,8 @@ export async function duplicateEvent(
     const newStart = new Date(input.start_date + 'T00:00:00Z')
     const offsetMs = newStart.getTime() - sourceStart.getTime()
 
+    let failureReason: string | null = null
+
     for (const sourceDay of sourceDays) {
       const originalDate = new Date(sourceDay.date + 'T00:00:00Z')
       const newDate = new Date(originalDate.getTime() + offsetMs)
@@ -406,7 +453,10 @@ export async function duplicateEvent(
         .select('id')
         .single()
 
-      if (dayErr || !newDay) continue
+      if (dayErr || !newDay) {
+        failureReason = `day insert failed: ${dayErr?.message ?? 'unknown error'}`
+        break
+      }
 
       // Deep copy entries for this day
       const entries = (sourceDay as typeof sourceDay & { timetable_entries: unknown[] }).timetable_entries
@@ -420,7 +470,7 @@ export async function duplicateEvent(
           sort_order: number
           is_break: boolean
         }
-        await supabase.from('timetable_entries').insert(
+        const { error: entriesErr } = await supabase.from('timetable_entries').insert(
           (entries as EntryRow[]).map((e) => ({
             event_day_id: newDay.id,
             title: e.title,
@@ -432,7 +482,23 @@ export async function duplicateEvent(
             is_break: e.is_break,
           }))
         )
+        if (entriesErr) {
+          failureReason = `entry insert failed: ${entriesErr.message}`
+          break
+        }
       }
+    }
+
+    if (failureReason) {
+      // Roll back the partially-created duplicate so the user doesn't end
+      // up with a silently-incomplete event. Cascade deletes remove any
+      // already-inserted days and entries.
+      await supabase.from('events').delete().eq('id', newEvent.id)
+      Sentry.captureException(
+        new Error(`duplicateEvent rollback: ${failureReason}`),
+        { tags: { action: 'duplicateEvent' }, extra: { sourceEventId } }
+      )
+      return { success: false, error: `Failed to duplicate event: ${failureReason}` }
     }
   }
 
@@ -440,6 +506,8 @@ export async function duplicateEvent(
     source_event_id: sourceEventId,
     title: input.title,
   })
+
+  revalidateAdminEventPaths()
 
   return { success: true, data: { id: newEvent.id } }
 }
@@ -478,6 +546,9 @@ export async function addEventDay(
     .single()
 
   if (error || !data) return { success: false, error: error?.message ?? 'Failed to add day' }
+
+  revalidateAdminEventPaths(eventId)
+
   return { success: true, data: { id: data.id } }
 }
 
@@ -490,6 +561,12 @@ export async function removeEventDay(dayId: string): Promise<ActionResult> {
 
   const { error } = await supabase.from('event_days').delete().eq('id', dayId)
   if (error) return { success: false, error: error.message }
+
+  // dayId alone does not identify the parent event, so revalidate the
+  // admin event editor dynamic route and the public timetable route.
+  revalidatePath('/admin/events/[id]', 'page')
+  revalidatePath('/[slug]', 'page')
+
   return { success: true, data: undefined }
 }
 
@@ -503,6 +580,10 @@ export async function updateDayLabel(dayId: string, label: string): Promise<Acti
     .eq('id', dayId)
 
   if (error) return { success: false, error: error.message }
+
+  revalidatePath('/admin/events/[id]', 'page')
+  revalidatePath('/[slug]', 'page')
+
   return { success: true, data: undefined }
 }
 
@@ -598,6 +679,8 @@ export async function saveDayEntries(
     })
   }
 
+  const insertFailures: Array<{ title: string; error: string }> = []
+
   for (const e of toInsert) {
     const { data, error: insErr } = await supabase
       .from('timetable_entries')
@@ -614,8 +697,26 @@ export async function saveDayEntries(
       .select('id')
       .single()
 
-    if (!insErr && data) {
-      savedIds[entries.indexOf(e)] = data.id
+    if (insErr || !data) {
+      insertFailures.push({ title: e.title, error: insErr?.message ?? 'unknown error' })
+      continue
+    }
+    savedIds[entries.indexOf(e)] = data.id
+  }
+
+  // If any new-entry inserts failed, stop here. Do NOT run audit logging
+  // or notifications — the caller must see this as a failure so they can
+  // retry. DB state may be partially mutated (deletes and updates already
+  // applied), which is unavoidable without a transaction, but reporting
+  // success would be worse.
+  if (insertFailures.length > 0) {
+    Sentry.captureException(
+      new Error(`saveDayEntries: ${insertFailures.length} insert failure(s)`),
+      { tags: { action: 'saveDayEntries' }, extra: { eventId, insertFailures } }
+    )
+    return {
+      success: false,
+      error: `Failed to save ${insertFailures.length} new entr${insertFailures.length === 1 ? 'y' : 'ies'}. Please retry — some changes may not have been persisted.`,
     }
   }
 
@@ -728,6 +829,9 @@ export async function saveDayEntries(
       await sendEventNotification(supabase, eventId, 'timetable.updated')
     }
   }
+
+  revalidateAdminEventPaths(eventId)
+  revalidatePublicEventPaths()
 
   return { success: true, data: { savedIds } }
 }
