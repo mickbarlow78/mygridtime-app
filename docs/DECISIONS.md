@@ -209,6 +209,18 @@
 
 ---
 
+## DEC-019: Public organisation pages live at `/o/{slug}`, not at `/{slug}`
+
+**Decision**: The public organisation index page is served at `/o/{slug}` (e.g. `/o/acme`). Per-event public URLs remain at `/{event-slug}` (no prefix) and are unchanged. The org page resolves the `organisations` row via the admin Supabase client (RLS unchanged), lists only published + non-deleted events for that org, `notFound()`s on resolve failure, and degrades to an empty-state render on event-list failure (with Sentry capture). The sitemap includes `/o/{slug}` entries only for orgs with at least one published event.
+
+**Reason**: Event slugs and organisation slugs share a namespace at the top level. Putting org pages at `/{org-slug}` would collide with the existing per-event URLs — and those per-event URLs are already externally published, printed on collateral, and linked from email notifications, so renaming or reserving them is not an option. Prefixing org pages with `/o/` keeps the event URL space intact, reads naturally in copy ("your organisation's public page is at `/o/acme`"), and avoids introducing any routing-disambiguation logic at the top of the tree. The admin-client resolve path mirrors what the existing public landing and per-event pages already do for `organisations` reads, so Pass B ships without widening anon RLS.
+
+**Date**: 2026-04-16
+
+**Status**: Active
+
+---
+
 ## DEC-018: Phase A platform access uses a compatibility shortcut (effective owner), not a new role tier
 
 **Decision**: Platform staff (`users.platform_role IN ('staff','support')`) reach any org as an effective `'owner'` for permission evaluation, via two coordinated changes:
