@@ -45,7 +45,10 @@ export default function NewOrgPage() {
       setSubmitting(false)
       return
     }
-    router.push('/admin')
+    // First-run onboarding: route new owners to settings so they can set up
+    // branding before creating events. Subsequent creates keep the existing
+    // /admin destination.
+    router.push(result.data.isFirstOrg ? '/admin/orgs/settings' : '/admin')
   }
 
   return (

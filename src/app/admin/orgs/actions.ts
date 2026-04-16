@@ -41,7 +41,7 @@ async function requireUser() {
 export async function createOrganisation(input: {
   name: string
   slug: string
-}): Promise<ActionResult<{ id: string }>> {
+}): Promise<ActionResult<{ id: string; isFirstOrg: boolean }>> {
   try {
     const { supabase, user } = await requireUser()
 
@@ -56,6 +56,23 @@ export async function createOrganisation(input: {
     if (!name) return { success: false, error: 'Organisation name is required.' }
     if (!slug) return { success: false, error: 'Slug is required.' }
     if (slug.length < 2) return { success: false, error: 'Slug must be at least 2 characters.' }
+
+    // Detect whether this will be the user's first organisation BEFORE the
+    // new membership row is inserted. Uses the authenticated client — the
+    // user can always see their own org_members rows under RLS. A failure
+    // here must not block creation; default to false (subsequent-org
+    // behaviour) so we never route a returning user to the first-run path.
+    let isFirstOrg = false
+    const { count: priorMembershipCount, error: priorCountError } = await supabase
+      .from('org_members')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', user.id)
+
+    if (priorCountError) {
+      Sentry.captureException(priorCountError, { tags: { action: 'createOrganisation.priorCount' } })
+    } else {
+      isFirstOrg = (priorMembershipCount ?? 0) === 0
+    }
 
     const admin = createAdminClient()
 
@@ -105,7 +122,7 @@ export async function createOrganisation(input: {
       Sentry.captureException(postCommitErr, { tags: { action: 'createOrganisation.postCommit' } })
     }
 
-    return { success: true, data: { id: org.id } }
+    return { success: true, data: { id: org.id, isFirstOrg } }
   } catch (err) {
     // Catch any unexpected exception so the server action never crashes the page
     Sentry.captureException(err, { tags: { action: 'createOrganisation' } })
