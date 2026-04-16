@@ -33,8 +33,12 @@ type Invite = {
   created_at: string
 }
 
-const ROLES = ['owner', 'admin', 'editor', 'viewer'] as const
-const INVITE_ROLES = ['admin', 'editor', 'viewer'] as const
+// Product-visible roles reduced to owner + admin. Legacy editor/viewer roles
+// remain supported in the database but are no longer selectable from the UI —
+// existing legacy rows are surfaced via a disabled option so the row still
+// renders its current role correctly.
+const SELECTABLE_ROLES = ['owner', 'admin'] as const
+const LEGACY_ROLES = ['editor', 'viewer'] as const
 
 export function MemberManager({ orgId, initialMembers, initialInvites }: MemberManagerProps) {
   // Initialise from server-fetched props so the list is visible immediately
@@ -53,12 +57,13 @@ export function MemberManager({ orgId, initialMembers, initialInvites }: MemberM
     memberId: string
     email: string
     currentRole: string
-    newRole: 'owner' | 'admin' | 'editor' | 'viewer'
+    newRole: 'owner' | 'admin'
   } | null>(null)
 
   // Invite form state
+  // New invites may only create admin users. Legacy roles (editor/viewer) are
+  // no longer sendable from the UI, so the role is fixed at the call site.
   const [inviteEmail, setInviteEmail] = useState('')
-  const [inviteRole, setInviteRole] = useState<'admin' | 'editor' | 'viewer'>('editor')
 
   // Skip the first-mount effect — data is fresh from the server.
   // Re-fetch only when orgId changes (org-switching).
@@ -100,11 +105,14 @@ export function MemberManager({ orgId, initialMembers, initialInvites }: MemberM
     const member = members.find((m) => m.id === memberId)
     if (!member) return
     if (member.role === newRole) return
+    // Only owner/admin are UI-selectable. Legacy roles appear as disabled
+    // options purely to render the current legacy role on pre-existing rows.
+    if (newRole !== 'owner' && newRole !== 'admin') return
     setRoleChangeTarget({
       memberId,
       email: member.email,
       currentRole: member.role,
-      newRole: newRole as 'owner' | 'admin' | 'editor' | 'viewer',
+      newRole,
     })
   }
 
@@ -164,7 +172,7 @@ export function MemberManager({ orgId, initialMembers, initialInvites }: MemberM
     clearMessages()
     if (!inviteEmail.trim()) { setError('Email is required.'); return }
     startTransition(async () => {
-      const result = await inviteMember({ orgId, email: inviteEmail, role: inviteRole })
+      const result = await inviteMember({ orgId, email: inviteEmail, role: 'admin' })
       if (!result.success) {
         setError(result.error)
       } else {
@@ -224,9 +232,14 @@ export function MemberManager({ orgId, initialMembers, initialInvites }: MemberM
                   aria-label={`Role for ${member.email}`}
                   className="text-xs bg-gray-50 border border-gray-200 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-gray-400 disabled:opacity-50"
                 >
-                  {ROLES.map((r) => (
+                  {SELECTABLE_ROLES.map((r) => (
                     <option key={r} value={r}>{r}</option>
                   ))}
+                  {LEGACY_ROLES.includes(member.role as (typeof LEGACY_ROLES)[number]) && (
+                    <option key={member.role} value={member.role} disabled>
+                      {member.role} (legacy)
+                    </option>
+                  )}
                 </select>
                 <button
                   onClick={() => handleRemove(member.id, member.email)}
@@ -297,19 +310,13 @@ export function MemberManager({ orgId, initialMembers, initialInvites }: MemberM
               />
             </div>
             <div>
-              <label htmlFor="invite-role" className={LABEL_COMPACT}>
-                Role
-              </label>
-              <select
-                id="invite-role"
-                value={inviteRole}
-                onChange={(e) => setInviteRole(e.target.value as 'admin' | 'editor' | 'viewer')}
-                className="text-sm bg-gray-50 border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent w-full sm:w-auto"
+              <span className={LABEL_COMPACT}>Role</span>
+              <p
+                className="text-sm bg-gray-50 border border-gray-300 rounded-md px-3 py-2 text-gray-900 w-full sm:w-auto"
+                aria-label="Invite role"
               >
-                {INVITE_ROLES.map((r) => (
-                  <option key={r} value={r}>{r}</option>
-                ))}
-              </select>
+                admin
+              </p>
             </div>
             <button
               type="submit"

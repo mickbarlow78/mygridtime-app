@@ -209,6 +209,18 @@
 
 ---
 
+## DEC-020: Product-visible member roles reduced to owner + admin (UI-only)
+
+**Decision**: The `MemberManager` UI surfaces only two product-visible roles: `owner` and `admin`. Legacy `editor` and `viewer` roles remain fully supported in the database, in RLS policies, in the `updateMemberRole()` / `inviteMember()` / `acceptInvite()` server actions, and in `get_user_org_role()` — they are only hidden from the UI as newly-assignable options. Pre-existing member rows on a legacy role continue to render their current role via a disabled `<option>` so the row remains visible and accurate. New invites are always sent with `role: 'admin'` — the invite form no longer includes a role selector. The member role dropdown on a row that is already on a legacy role does not allow re-selecting `editor` or `viewer` (disabled options); upgrading a legacy member to `admin` or `owner` remains possible, and the legacy role can remain in place indefinitely.
+
+**Reason**: The full four-role matrix (owner / admin / editor / viewer) was a source of confusion for customers during onboarding — the semantic gap between `editor` and `admin` was narrow, and `viewer` was rarely used in practice. Narrowing the visible set to `owner + admin` reduces decision cost at invite time without any backend refactor, RLS rewrite, or data migration — the full matrix stays in the database and the server actions still accept all four strings, so existing customer orgs are untouched and any future re-expansion is free. Shipping as a UI-only pass keeps the change fully reversible and contained to `MemberManager`.
+
+**Date**: 2026-04-16
+
+**Status**: Active
+
+---
+
 ## DEC-019: Public organisation pages live at `/o/{slug}`, not at `/{slug}`
 
 **Decision**: The public organisation index page is served at `/o/{slug}` (e.g. `/o/acme`). Per-event public URLs remain at `/{event-slug}` (no prefix) and are unchanged. The org page resolves the `organisations` row via the admin Supabase client (RLS unchanged), lists only published + non-deleted events for that org, `notFound()`s on resolve failure, and degrades to an empty-state render on event-list failure (with Sentry capture). The sitemap includes `/o/{slug}` entries only for orgs with at least one published event.

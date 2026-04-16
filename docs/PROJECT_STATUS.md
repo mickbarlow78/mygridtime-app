@@ -29,7 +29,7 @@
 
 - **Auth**: magic link login, OAuth callback, session management
 - **Organisations**: create, switch, branding (logo, colour, header text)
-- **Members**: invite (token-based), accept, role management (owner/admin/editor/viewer)
+- **Members**: invite (token-based, new invites fixed to `admin` role in the UI), accept, role management. Product-visible roles in `MemberManager` are reduced to `owner` + `admin`; legacy `editor` / `viewer` rows remain visible via a disabled `(legacy)` option and are not newly assignable. DB schema, RLS, `updateMemberRole()` server action, and `acceptInvite()` still accept all four role strings for backward compatibility (MGT-043).
 - **Events**: full CRUD — create, edit, publish, unpublish, archive, duplicate
 - **Timetable builder**: day management, entry CRUD, drag-drop reorder
 - **Public view**: read-only timetable at `/{slug}`, print-friendly layout
@@ -81,6 +81,10 @@
 ## In Progress
 
 (none)
+
+## Recent Changes
+
+- **Role-simplification pass (UI-only, 2026-04-16)**: `MemberManager` (`src/components/admin/MemberManager.tsx`) now exposes only `owner` and `admin` as selectable member roles. Legacy `editor` / `viewer` member rows continue to render their current role via a disabled `<option value={role} disabled>{role} (legacy)</option>` so pre-existing memberships remain visible and unaltered, but those legacy roles cannot be newly assigned from the UI. The invite form no longer contains a role selector — new invites are sent with `role: 'admin'` at the `inviteMember()` call site and the role field renders as a static `admin` label. No changes to server actions (`updateMemberRole()`, `inviteMember()`, `acceptInvite()` still accept all four role strings), no DB migration, no RLS change, no `requireOwnerOrAdmin()` change. Templates test fixture (`src/lib/resend/templates.test.ts`) updated: invite-email `role` fixture changed from `'editor'` to `'admin'` to reflect the new UI-driven invite role and the corresponding assertion string. Full suite (62 tests) passes, `tsc --noEmit` clean, `next build` succeeds (MGT-043 resolved).
 
 ## Not Started
 
