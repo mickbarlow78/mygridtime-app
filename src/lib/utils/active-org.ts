@@ -1,6 +1,6 @@
 import { cookies } from 'next/headers'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import type { Database, OrgMemberRole } from '@/lib/types/database'
+import type { Database, OrgMemberRole, PlatformRole } from '@/lib/types/database'
 
 const ORG_COOKIE = 'mgt-org-id'
 
@@ -36,21 +36,45 @@ export function setActiveOrgId(orgId: string): void {
 // Org resolution helpers
 // ---------------------------------------------------------------------------
 
+/**
+ * `via` records HOW the caller reached the active org.
+ *
+ *   - 'membership' — the caller has a real org_members row (the normal case).
+ *   - 'platform'   — the caller is platform staff reaching the org via the
+ *                    Phase A compatibility shortcut (treated as effective
+ *                    org owner for permission evaluation). They are NOT a
+ *                    customer org owner in any business sense; callers
+ *                    must not present platform-reached access as genuine
+ *                    ownership in UI copy or audit reporting.
+ *
+ * `platform_role` is set only when `via === 'platform'`.
+ */
 export interface ActiveOrg {
   org_id: string
   role: OrgMemberRole
+  via: 'platform' | 'membership'
+  platform_role?: PlatformRole | null
 }
 
 /**
  * Resolves the user's active organisation.
  *
- * 1. Reads the mgt-org-id cookie.
- * 2. If set, verifies the user is a member of that org with an allowed role.
- * 3. If the cookie is missing, invalid, or the user is no longer a member,
- *    falls back to their first org membership (by created_at).
- * 4. Silently sets the cookie to the resolved org.
+ * Flow:
+ * 1. Check whether the user is platform staff (users.platform_role).
+ *    - If yes, the platform branch runs:
+ *      a. Prefer the cookie-selected org if it exists (no membership check).
+ *      b. Otherwise, fall back to any real membership they may hold.
+ *      c. Otherwise, fall back to the oldest organisation in the system.
+ *      Platform staff always receive role 'owner' with via: 'platform' —
+ *      a Phase A compatibility shortcut. See PROJECT_STATUS.md / DECISIONS.md.
+ * 2. Otherwise the membership branch runs:
+ *    a. Verify the cookie-selected org is one of the user's memberships
+ *       (with an allowed role).
+ *    b. Fall back to the first qualifying membership by created_at.
+ * 3. Cookie is silently updated to the resolved org in all success paths.
  *
- * Returns null if the user has no qualifying membership in any org.
+ * Returns null if the user is neither platform staff (with any reachable org)
+ * nor a member with an allowed role.
  */
 export async function getActiveOrg(
   supabase: SupabaseClient<Database>,
@@ -58,6 +82,80 @@ export async function getActiveOrg(
 ): Promise<ActiveOrg | null> {
   const cookieOrgId = getActiveOrgId()
 
+  // ── Platform branch ────────────────────────────────────────────────────
+  const { data: userRow } = await supabase
+    .from('users')
+    .select('platform_role')
+    .eq('id', userId)
+    .maybeSingle()
+
+  const platformRole = (userRow?.platform_role ?? null) as PlatformRole | null
+  const isPlatformStaff = platformRole !== null
+
+  if (isPlatformStaff) {
+    // 1. Prefer the cookie-selected org if it exists at all.
+    if (cookieOrgId) {
+      const { data: cookieOrg } = await supabase
+        .from('organisations')
+        .select('id')
+        .eq('id', cookieOrgId)
+        .maybeSingle()
+
+      if (cookieOrg) {
+        return {
+          org_id: cookieOrg.id,
+          role: 'owner',
+          via: 'platform',
+          platform_role: platformRole,
+        }
+      }
+    }
+
+    // 2. Fall back to a real membership if the platform user happens to be
+    //    an actual org member too. Preserve role 'owner' + via 'platform'
+    //    to avoid ambiguity downstream — the platform route is the stronger
+    //    claim and is what we want audit_context to record.
+    const { data: memberFallback } = await supabase
+      .from('org_members')
+      .select('org_id')
+      .eq('user_id', userId)
+      .in('role', ALLOWED_ROLES)
+      .limit(1)
+      .maybeSingle()
+
+    if (memberFallback) {
+      setActiveOrgId(memberFallback.org_id)
+      return {
+        org_id: memberFallback.org_id,
+        role: 'owner',
+        via: 'platform',
+        platform_role: platformRole,
+      }
+    }
+
+    // 3. Last-resort fallback: oldest organisation in the system. Platform
+    //    staff are cross-org and do not require org membership.
+    const { data: anyOrg } = await supabase
+      .from('organisations')
+      .select('id')
+      .order('created_at', { ascending: true })
+      .limit(1)
+      .maybeSingle()
+
+    if (anyOrg) {
+      setActiveOrgId(anyOrg.id)
+      return {
+        org_id: anyOrg.id,
+        role: 'owner',
+        via: 'platform',
+        platform_role: platformRole,
+      }
+    }
+
+    return null
+  }
+
+  // ── Membership branch ──────────────────────────────────────────────────
   // If cookie is set, verify membership
   if (cookieOrgId) {
     const { data: match } = await supabase
@@ -69,7 +167,7 @@ export async function getActiveOrg(
       .maybeSingle()
 
     if (match) {
-      return { org_id: match.org_id, role: match.role }
+      return { org_id: match.org_id, role: match.role, via: 'membership' }
     }
   }
 
@@ -87,7 +185,7 @@ export async function getActiveOrg(
   // Set cookie to the fallback org so subsequent requests skip the fallback
   setActiveOrgId(fallback.org_id)
 
-  return { org_id: fallback.org_id, role: fallback.role }
+  return { org_id: fallback.org_id, role: fallback.role, via: 'membership' }
 }
 
 export interface UserOrg {

@@ -179,6 +179,7 @@ export default async function EventEditorPage({ params }: PageProps) {
     event_id: string | null
     action: string
     detail: unknown
+    actor_context: unknown
     created_at: string
     users: { email: string } | null
   }
@@ -191,6 +192,7 @@ export default async function EventEditorPage({ params }: PageProps) {
       event_id: raw.event_id,
       action: raw.action,
       detail: raw.detail as import('@/lib/types/database').Json | null,
+      actor_context: raw.actor_context as import('@/lib/types/database').Json | null,
       created_at: raw.created_at,
       user_email: raw.users?.email ?? null,
     }

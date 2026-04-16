@@ -8,7 +8,7 @@ import type { EventStatus, Json } from '@/lib/types/database'
 import { sendEventNotification } from '@/lib/resend/notifications'
 import { debugLog } from '@/lib/debug'
 import { getActiveOrg } from '@/lib/utils/active-org'
-import { writeAuditLog } from '@/lib/audit'
+import { writeAuditLog, makeActorContext } from '@/lib/audit'
 import * as Sentry from '@sentry/nextjs'
 
 // ---------------------------------------------------------------------------
@@ -175,7 +175,7 @@ export async function createEvent(input: CreateEventInput): Promise<ActionResult
   await writeAuditLog(supabase, user.id, event.id, 'event.created', {
     title: input.title,
     slug,
-  })
+  }, makeActorContext(membership))
 
   revalidateAdminEventPaths()
 
@@ -268,11 +268,23 @@ export async function updateEventMetadata(
         changes[key] = { from: oldVal, to: newVal }
       }
     }
-    await writeAuditLog(supabase, user.id, eventId, 'event.updated',
-      Object.keys(changes).length > 0 ? { changes } : undefined
+    await writeAuditLog(
+      supabase,
+      user.id,
+      eventId,
+      'event.updated',
+      Object.keys(changes).length > 0 ? { changes } : undefined,
+      makeActorContext(membership),
     )
   } else {
-    await writeAuditLog(supabase, user.id, eventId, 'event.updated')
+    await writeAuditLog(
+      supabase,
+      user.id,
+      eventId,
+      'event.updated',
+      undefined,
+      makeActorContext(membership),
+    )
   }
 
   revalidateAdminEventPaths(eventId)
@@ -360,13 +372,25 @@ export async function publishEvent(eventId: string, notify: boolean = false): Pr
       published_by: user.id,
     })
 
-    await writeAuditLog(supabase, user.id, eventId, 'event.published', {
-      version: nextVersion,
-    })
+    await writeAuditLog(
+      supabase,
+      user.id,
+      eventId,
+      'event.published',
+      { version: nextVersion },
+      makeActorContext(membership),
+    )
   } catch (err) {
     // Snapshot failure should not block the publish
     Sentry.captureException(err, { tags: { action: 'publishEvent.snapshot' } })
-    await writeAuditLog(supabase, user.id, eventId, 'event.published')
+    await writeAuditLog(
+      supabase,
+      user.id,
+      eventId,
+      'event.published',
+      undefined,
+      makeActorContext(membership),
+    )
   }
 
   // Send publish notification only when the caller explicitly opted in
@@ -397,7 +421,14 @@ export async function unpublishEvent(eventId: string): Promise<ActionResult> {
     return { success: false, error: 'Could not unpublish this event. Please retry.' }
   }
 
-  await writeAuditLog(supabase, user.id, eventId, 'event.unpublished')
+  await writeAuditLog(
+    supabase,
+    user.id,
+    eventId,
+    'event.unpublished',
+    undefined,
+    makeActorContext(membership),
+  )
 
   revalidateAdminEventPaths(eventId)
   revalidatePublicEventPaths()
@@ -422,7 +453,14 @@ export async function archiveEvent(eventId: string): Promise<ActionResult> {
     return { success: false, error: 'Could not archive this event. Please retry.' }
   }
 
-  await writeAuditLog(supabase, user.id, eventId, 'event.archived')
+  await writeAuditLog(
+    supabase,
+    user.id,
+    eventId,
+    'event.archived',
+    undefined,
+    makeActorContext(membership),
+  )
 
   revalidateAdminEventPaths(eventId)
   revalidatePublicEventPaths()
@@ -591,10 +629,17 @@ export async function duplicateEvent(
     }
   }
 
-  await writeAuditLog(supabase, user.id, newEvent.id, 'event.duplicated', {
-    source_event_id: sourceEventId,
-    title: input.title,
-  })
+  await writeAuditLog(
+    supabase,
+    user.id,
+    newEvent.id,
+    'event.duplicated',
+    {
+      source_event_id: sourceEventId,
+      title: input.title,
+    },
+    makeActorContext(membership),
+  )
 
   revalidateAdminEventPaths()
 
@@ -951,7 +996,14 @@ export async function saveDayEntries(
   const hasSubstantiveChanges = Object.keys(detail).length > 0
 
   if (hasSubstantiveChanges) {
-    await writeAuditLog(supabase, user.id, eventId, 'timetable.updated', detail)
+    await writeAuditLog(
+      supabase,
+      user.id,
+      eventId,
+      'timetable.updated',
+      detail,
+      makeActorContext(membership),
+    )
   }
 
   debugLog('saveDayEntries', 'hasSubstantiveChanges:', hasSubstantiveChanges, '| notify:', notify)
@@ -1088,6 +1140,7 @@ export interface AuditLogEntry {
   event_id: string | null
   action: string
   detail: Json | null
+  actor_context: Json | null
   created_at: string
   user_email: string | null
 }
@@ -1124,6 +1177,7 @@ export async function loadAllAuditLog(
     event_id: string | null
     action: string
     detail: unknown
+    actor_context: unknown
     created_at: string
     users: { email: string } | null
   }
@@ -1136,6 +1190,7 @@ export async function loadAllAuditLog(
       event_id: raw.event_id,
       action: raw.action,
       detail: raw.detail as Json | null,
+      actor_context: raw.actor_context as Json | null,
       created_at: raw.created_at,
       user_email: raw.users?.email ?? null,
     }
@@ -1180,6 +1235,7 @@ export async function loadMoreAuditLog(
     event_id: string | null
     action: string
     detail: unknown
+    actor_context: unknown
     created_at: string
     users: { email: string } | null
   }
@@ -1192,6 +1248,7 @@ export async function loadMoreAuditLog(
       event_id: raw.event_id,
       action: raw.action,
       detail: raw.detail as Json | null,
+      actor_context: raw.actor_context as Json | null,
       created_at: raw.created_at,
       user_email: raw.users?.email ?? null,
     }

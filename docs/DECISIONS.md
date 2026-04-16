@@ -206,3 +206,20 @@
 **Date**: 2026-04-14
 
 **Status**: Active
+
+---
+
+## DEC-018: Phase A platform access uses a compatibility shortcut (effective owner), not a new role tier
+
+**Decision**: Platform staff (`users.platform_role IN ('staff','support')`) reach any org as an effective `'owner'` for permission evaluation, via two coordinated changes:
+
+1. The existing `get_user_org_role(p_org_id)` RLS helper short-circuits to `'owner'` when the new `is_platform_staff()` helper returns true. All existing RLS policies that go through `get_user_org_role()` inherit platform access automatically with no policy-text changes.
+2. The five SELECT policies that bypass `get_user_org_role()` with direct `org_id IN (SELECT … FROM org_members …)` subqueries (`orgs_select_members`, `org_members_select`, `events_select_members`, `event_days_select_members`, `entries_select_members`) are extended with `OR is_platform_staff()`.
+
+The `ActiveOrg` type and the new `audit_log.actor_context` column preserve a `via: 'platform' | 'membership'` discriminator (plus `platform_role` when `via === 'platform'`) so platform-reached access is never presented as genuine customer ownership in UI copy, audit reporting, or downstream tooling. Editors retain publish capability. Org creation remains open to any authenticated user. Platform staff are cross-org and do not require org membership — `getActiveOrg()` falls back through cookie → membership → oldest organisation.
+
+**Reason**: A full platform-admin role tier (distinct policies, distinct UI surfaces, distinct tooling) is out of scope for Phase A. The shortcut lets platform staff act on customer orgs for support and recovery work immediately, without rewriting every RLS policy or introducing a second access-control pathway in application code. The `via` discriminator keeps the semantic distinction honest: platform staff are *not* customer org owners, and the audit trail records the real provenance so reviewers can tell the two cases apart. Phase B can replace the shortcut with a dedicated platform-admin UI and narrower per-action capabilities without changing the underlying audit data model.
+
+**Date**: 2026-04-16
+
+**Status**: Active

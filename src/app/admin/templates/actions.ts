@@ -6,7 +6,7 @@ import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
 import type { Json } from '@/lib/types/database'
 import { getActiveOrg } from '@/lib/utils/active-org'
-import { writeAuditLog } from '@/lib/audit'
+import { writeAuditLog, makeActorContext } from '@/lib/audit'
 import * as Sentry from '@sentry/nextjs'
 
 // ---------------------------------------------------------------------------
@@ -160,10 +160,17 @@ export async function saveAsTemplate(
     return { success: false, error: 'Could not save this template. Please retry.' }
   }
 
-  await writeAuditLog(supabase, user.id, eventId, 'template.created', {
-    template_id: template.id,
-    template_name: templateName.trim(),
-  })
+  await writeAuditLog(
+    supabase,
+    user.id,
+    eventId,
+    'template.created',
+    {
+      template_id: template.id,
+      template_name: templateName.trim(),
+    },
+    makeActorContext(membership),
+  )
 
   revalidateTemplatePaths()
 
@@ -353,10 +360,17 @@ export async function createEventFromTemplate(
     return { success: false, error: 'Could not create this event from template. Please retry.' }
   }
 
-  await writeAuditLog(supabase, user.id, event.id, 'event.created_from_template', {
-    template_id: templateId,
-    template_name: template.name,
-  })
+  await writeAuditLog(
+    supabase,
+    user.id,
+    event.id,
+    'event.created_from_template',
+    {
+      template_id: templateId,
+      template_name: template.name,
+    },
+    makeActorContext(membership),
+  )
 
   revalidateTemplatePaths()
   revalidatePath('/admin/events')

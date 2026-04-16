@@ -42,62 +42,75 @@ export async function createOrganisation(input: {
   name: string
   slug: string
 }): Promise<ActionResult<{ id: string }>> {
-  const { supabase, user } = await requireUser()
+  try {
+    const { supabase, user } = await requireUser()
 
-  const name = input.name.trim()
-  const slug = input.slug
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9-]/g, '')
-    .replace(/-{2,}/g, '-')
-    .replace(/^-+|-+$/g, '')
+    const name = input.name.trim()
+    const slug = input.slug
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9-]/g, '')
+      .replace(/-{2,}/g, '-')
+      .replace(/^-+|-+$/g, '')
 
-  if (!name) return { success: false, error: 'Organisation name is required.' }
-  if (!slug) return { success: false, error: 'Slug is required.' }
-  if (slug.length < 2) return { success: false, error: 'Slug must be at least 2 characters.' }
+    if (!name) return { success: false, error: 'Organisation name is required.' }
+    if (!slug) return { success: false, error: 'Slug is required.' }
+    if (slug.length < 2) return { success: false, error: 'Slug must be at least 2 characters.' }
 
-  const admin = createAdminClient()
+    const admin = createAdminClient()
 
-  // Check slug uniqueness via admin client
-  const { data: existing } = await admin
-    .from('organisations')
-    .select('id')
-    .eq('slug', slug)
-    .maybeSingle()
+    // Check slug uniqueness via admin client
+    const { data: existing } = await admin
+      .from('organisations')
+      .select('id')
+      .eq('slug', slug)
+      .maybeSingle()
 
-  if (existing) return { success: false, error: 'That slug is already taken.' }
+    if (existing) return { success: false, error: 'That slug is already taken.' }
 
-  // Insert organisation via admin client (bypasses RLS)
-  const { data: org, error: orgError } = await admin
-    .from('organisations')
-    .insert({ name, slug })
-    .select('id')
-    .single()
+    // Insert organisation via admin client (bypasses RLS)
+    const { data: org, error: orgError } = await admin
+      .from('organisations')
+      .insert({ name, slug })
+      .select('id')
+      .single()
 
-  if (orgError || !org) {
-    if (orgError) {
-      Sentry.captureException(orgError, { tags: { action: 'createOrganisation.insertOrg' } })
+    if (orgError || !org) {
+      if (orgError) {
+        Sentry.captureException(orgError, { tags: { action: 'createOrganisation.insertOrg' } })
+      }
+      return { success: false, error: 'Could not create the organisation. Please retry.' }
     }
+
+    // Insert owner membership via admin client (bypasses RLS)
+    const { error: memberError } = await admin
+      .from('org_members')
+      .insert({ org_id: org.id, user_id: user.id, role: 'owner' })
+
+    if (memberError) {
+      // Clean up the org if membership insert fails
+      await admin.from('organisations').delete().eq('id', org.id)
+      Sentry.captureException(memberError, { tags: { action: 'createOrganisation.insertMember' } })
+      return { success: false, error: 'Could not create the organisation. Please retry.' }
+    }
+
+    // Post-commit side effects: the DB write has already succeeded, so a
+    // failure here must not flip the user-facing result to an error. Any
+    // exception (cookie write, cache revalidation) is captured to Sentry
+    // and swallowed so the caller still sees { success: true }.
+    try {
+      setActiveOrgId(org.id)
+      revalidatePath('/admin')
+    } catch (postCommitErr) {
+      Sentry.captureException(postCommitErr, { tags: { action: 'createOrganisation.postCommit' } })
+    }
+
+    return { success: true, data: { id: org.id } }
+  } catch (err) {
+    // Catch any unexpected exception so the server action never crashes the page
+    Sentry.captureException(err, { tags: { action: 'createOrganisation' } })
     return { success: false, error: 'Could not create the organisation. Please retry.' }
   }
-
-  // Insert owner membership via admin client (bypasses RLS)
-  const { error: memberError } = await admin
-    .from('org_members')
-    .insert({ org_id: org.id, user_id: user.id, role: 'owner' })
-
-  if (memberError) {
-    // Clean up the org if membership insert fails
-    await admin.from('organisations').delete().eq('id', org.id)
-    Sentry.captureException(memberError, { tags: { action: 'createOrganisation.insertMember' } })
-    return { success: false, error: 'Could not create the organisation. Please retry.' }
-  }
-
-  // Set active org cookie to the new org
-  setActiveOrgId(org.id)
-  revalidatePath('/admin')
-
-  return { success: true, data: { id: org.id } }
 }
 
 /**

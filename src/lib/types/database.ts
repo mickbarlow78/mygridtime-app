@@ -56,18 +56,21 @@ export type Database = {
           id: string
           email: string
           display_name: string | null
+          platform_role: 'staff' | 'support' | null
           created_at: string
         }
         Insert: {
           id: string
           email: string
           display_name?: string | null
+          platform_role?: 'staff' | 'support' | null
           created_at?: string
         }
         Update: {
           id?: string
           email?: string
           display_name?: string | null
+          platform_role?: 'staff' | 'support' | null
           created_at?: string
         }
         Relationships: []
@@ -273,6 +276,7 @@ export type Database = {
           event_id: string | null
           action: string
           detail: Json | null
+          actor_context: Json | null
           created_at: string
         }
         Insert: {
@@ -281,6 +285,7 @@ export type Database = {
           event_id?: string | null
           action: string
           detail?: Json | null
+          actor_context?: Json | null
           created_at?: string
         }
         Update: {
@@ -289,6 +294,7 @@ export type Database = {
           event_id?: string | null
           action?: string
           detail?: Json | null
+          actor_context?: Json | null
           created_at?: string
         }
         Relationships: []
@@ -501,6 +507,10 @@ export type Database = {
         Args: { p_org_id: string }
         Returns: string | null
       }
+      is_platform_staff: {
+        Args: Record<string, never>
+        Returns: boolean
+      }
     }
 
     Enums: {
@@ -533,3 +543,18 @@ export type OrgBranding = {
 export type EventStatus         = Event['status']
 export type OrgMemberRole       = OrgMember['role']
 export type NotificationStatus  = NotificationLog['status']
+export type PlatformRole        = NonNullable<AppUser['platform_role']>
+
+/**
+ * Phase A actor_context shape for audit_log.actor_context.
+ *
+ * `via: 'platform'` means the action was taken by a platform staff user
+ * accessing a customer org through the Phase A compatibility shortcut
+ * (treated as effective org owner for permission evaluation) — they are
+ * NOT a customer org owner in any business sense. `via: 'membership'`
+ * is the default for actions taken by actual org members.
+ */
+export interface ActorContext {
+  via: 'platform' | 'membership'
+  platform_role?: PlatformRole | null
+}
