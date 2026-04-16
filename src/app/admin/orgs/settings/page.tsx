@@ -7,7 +7,7 @@ import { OrgNameForm } from './OrgNameForm'
 import { BrandingForm } from '@/components/admin/BrandingForm'
 import { MemberManager } from '@/components/admin/MemberManager'
 import type { OrgBranding } from '@/lib/types/database'
-import { CONTAINER_FORM, BREADCRUMB, BREADCRUMB_LINK, BREADCRUMB_SEP, BREADCRUMB_CURRENT, H1, SUBTITLE, H2, CARD, CARD_PADDING_COMPACT, HELP_TEXT } from '@/lib/styles'
+import { CONTAINER_FORM, BREADCRUMB, BREADCRUMB_LINK, BREADCRUMB_SEP, BREADCRUMB_CURRENT, H1, SUBTITLE, H2, CARD, CARD_PADDING_COMPACT, HELP_TEXT, ERROR_BANNER } from '@/lib/styles'
 
 /**
  * Org settings page — server component.
@@ -45,6 +45,12 @@ export default async function OrgSettingsPage() {
   ])
   const initialMembers = membersResult.success ? membersResult.data : []
   const initialInvites = invitesResult.success ? invitesResult.data : []
+  const membersError = membersResult.success ? null : membersResult.error
+  const invitesError = invitesResult.success ? null : invitesResult.error
+  const loadError =
+    membersError && invitesError
+      ? `${membersError} · ${invitesError}`
+      : (membersError ?? invitesError)
 
   return (
     <div className={`${CONTAINER_FORM} space-y-8`}>
@@ -95,6 +101,11 @@ export default async function OrgSettingsPage() {
       {/* Members + Invites */}
       <section>
         <h2 className={`${H2} mb-3`}>Members &amp; invites</h2>
+        {loadError && (
+          <div className={`${ERROR_BANNER} mb-3`} role="alert">
+            {loadError}
+          </div>
+        )}
         <MemberManager
           orgId={org.id}
           initialMembers={initialMembers}

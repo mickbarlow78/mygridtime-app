@@ -3,10 +3,26 @@
 import { createClient } from '@/lib/supabase/server'
 import { slugify, getDatesInRange, countDaysInRange, MAX_EVENT_DAYS } from '@/lib/utils/slug'
 import { redirect } from 'next/navigation'
+import { revalidatePath } from 'next/cache'
 import type { Json } from '@/lib/types/database'
 import { getActiveOrg } from '@/lib/utils/active-org'
 import { writeAuditLog } from '@/lib/audit'
 import * as Sentry from '@sentry/nextjs'
+
+// ---------------------------------------------------------------------------
+// Revalidation helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Invalidates Next.js fetch caches for any route that lists templates.
+ * The dedicated `/admin/templates` page is the obvious one; the new-event
+ * page also reads `listTemplates()` to populate `TemplatePicker`, so its
+ * cache must be cleared too.
+ */
+function revalidateTemplatePaths(): void {
+  revalidatePath('/admin/templates')
+  revalidatePath('/admin/events/new')
+}
 
 // ---------------------------------------------------------------------------
 // Helpers (mirrored from events/actions — not exported there)
@@ -136,12 +152,20 @@ export async function saveAsTemplate(
     .select('id')
     .single()
 
-  if (error || !template) return { success: false, error: error?.message ?? 'Failed to save template.' }
+  if (error || !template) {
+    Sentry.captureException(
+      error ?? new Error('saveAsTemplate: no row returned'),
+      { tags: { action: 'saveAsTemplate.insert' } }
+    )
+    return { success: false, error: 'Could not save this template. Please retry.' }
+  }
 
   await writeAuditLog(supabase, user.id, eventId, 'template.created', {
     template_id: template.id,
     template_name: templateName.trim(),
   })
+
+  revalidateTemplatePaths()
 
   return { success: true, data: { id: template.id } }
 }
@@ -156,7 +180,10 @@ export async function listTemplates(): Promise<ActionResult<TemplateSummary[]>> 
     .eq('org_id', membership.org_id)
     .order('created_at', { ascending: false })
 
-  if (error) return { success: false, error: error.message }
+  if (error) {
+    Sentry.captureException(error, { tags: { action: 'listTemplates.select' } })
+    return { success: false, error: 'Could not load templates. Please retry.' }
+  }
 
   const templates: TemplateSummary[] = (data ?? []).map((t) => ({
     id: t.id,
@@ -177,7 +204,13 @@ export async function deleteTemplate(templateId: string): Promise<ActionResult> 
     .delete()
     .eq('id', templateId)
 
-  if (error) return { success: false, error: error.message }
+  if (error) {
+    Sentry.captureException(error, { tags: { action: 'deleteTemplate.delete' } })
+    return { success: false, error: 'Could not delete this template. Please retry.' }
+  }
+
+  revalidateTemplatePaths()
+
   return { success: true, data: undefined }
 }
 
@@ -244,7 +277,13 @@ export async function createEventFromTemplate(
     .select('id')
     .single()
 
-  if (eventErr || !event) return { success: false, error: eventErr?.message ?? 'Failed to create event.' }
+  if (eventErr || !event) {
+    Sentry.captureException(
+      eventErr ?? new Error('createEventFromTemplate: no row returned'),
+      { tags: { action: 'createEventFromTemplate.insertEvent' } }
+    )
+    return { success: false, error: 'Could not create this event from template. Please retry.' }
+  }
 
   // Generate dates for the new event
   const newDates = getDatesInRange(input.start_date, input.end_date)
@@ -252,7 +291,7 @@ export async function createEventFromTemplate(
   // Map template days to new dates by index
   // If template has more days than date range, extra template days are dropped
   // If date range has more dates than template days, extra dates get empty days
-  let failureReason: string | null = null
+  let failureReason: 'day' | 'entry' | null = null
 
   for (let i = 0; i < newDates.length; i++) {
     const tplDay = i < templateDays.length ? templateDays[i] : null
@@ -269,7 +308,14 @@ export async function createEventFromTemplate(
       .single()
 
     if (dayErr || !newDay) {
-      failureReason = `day insert failed: ${dayErr?.message ?? 'unknown error'}`
+      Sentry.captureException(
+        dayErr ?? new Error('createEventFromTemplate: day insert returned no row'),
+        {
+          tags: { action: 'createEventFromTemplate.insertDay' },
+          extra: { templateId, dayIndex: i },
+        }
+      )
+      failureReason = 'day'
       break
     }
 
@@ -288,7 +334,11 @@ export async function createEventFromTemplate(
         }))
       )
       if (entriesErr) {
-        failureReason = `entry insert failed: ${entriesErr.message}`
+        Sentry.captureException(entriesErr, {
+          tags: { action: 'createEventFromTemplate.insertEntries' },
+          extra: { templateId, dayIndex: i },
+        })
+        failureReason = 'entry'
         break
       }
     }
@@ -297,19 +347,19 @@ export async function createEventFromTemplate(
   if (failureReason) {
     // Roll back the partially-created event so the user doesn't end up
     // with a silently-incomplete event. Cascade deletes remove any
-    // already-inserted days and entries.
+    // already-inserted days and entries. The underlying error was already
+    // captured to Sentry at the point of failure with a distinct sub-tag.
     await supabase.from('events').delete().eq('id', event.id)
-    Sentry.captureException(
-      new Error(`createEventFromTemplate rollback: ${failureReason}`),
-      { tags: { action: 'createEventFromTemplate' }, extra: { templateId } }
-    )
-    return { success: false, error: `Failed to create event from template: ${failureReason}` }
+    return { success: false, error: 'Could not create this event from template. Please retry.' }
   }
 
   await writeAuditLog(supabase, user.id, event.id, 'event.created_from_template', {
     template_id: templateId,
     template_name: template.name,
   })
+
+  revalidateTemplatePaths()
+  revalidatePath('/admin/events')
 
   return { success: true, data: { id: event.id } }
 }

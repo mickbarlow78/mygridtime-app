@@ -8,7 +8,7 @@ import { AuditLogView } from './AuditLogView'
 import { EventActionsBar } from './EventActionsBar'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { ReviewModal, type ReviewCard, type ChangeCard } from '@/components/ui/ReviewModal'
-import { cn, CARD, CARD_PADDING, H2, HELP_TEXT, INPUT, LABEL_COMPACT, BTN_PRIMARY, SUCCESS_BANNER } from '@/lib/styles'
+import { cn, CARD, CARD_PADDING, H2, HELP_TEXT, INPUT, LABEL_COMPACT, BTN_PRIMARY, SUCCESS_BANNER, ERROR_BANNER } from '@/lib/styles'
 import {
   updateEventMetadata,
   publishEvent,
@@ -37,7 +37,9 @@ interface EventEditorProps {
   entries: TimetableEntry[]
   auditLog: AuditEntry[]
   auditHasMore: boolean
+  auditLoadError?: string | null
   versions: VersionSummary[]
+  versionsLoadError?: string | null
   unsubscribedEmails?: string[]
 }
 
@@ -342,7 +344,7 @@ type MetaFieldState = 'unchanged' | 'pending' | 'rejected'
 // Component
 // ---------------------------------------------------------------------------
 
-export function EventEditor({ event, days: initialDays, entries: initialEntries, auditLog, auditHasMore, versions, unsubscribedEmails = [] }: EventEditorProps) {
+export function EventEditor({ event, days: initialDays, entries: initialEntries, auditLog, auditHasMore, auditLoadError = null, versions, versionsLoadError = null, unsubscribedEmails = [] }: EventEditorProps) {
   debugLog('EventEditor', 'loaded')
   const router = useRouter()
   const [, startTransition] = useTransition()
@@ -1258,12 +1260,15 @@ export function EventEditor({ event, days: initialDays, entries: initialEntries,
 
       {/* ── Version history ──────────────────────────────────────────────────── */}
       <div id="event-history">
+        {versionsLoadError && (
+          <div className={ERROR_BANNER} role="alert">{versionsLoadError}</div>
+        )}
         <VersionHistory versions={versions} />
       </div>
 
       {/* ── Audit log ─────────────────────────────────────────────────────────── */}
       <div id="event-audit">
-        <AuditLogView entries={auditLog} eventId={event.id} initialHasMore={auditHasMore} />
+        <AuditLogView entries={auditLog} eventId={event.id} initialHasMore={auditHasMore} initialLoadError={auditLoadError} />
       </div>
 
       {/* ── Review modal ──────────────────────────────────────────────────────── */}

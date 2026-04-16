@@ -1,10 +1,11 @@
 import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
+import * as Sentry from '@sentry/nextjs'
 import { StatusBadge } from '@/components/ui/StatusBadge'
 import { formatDate } from '@/lib/utils/slug'
 import type { EventStatus } from '@/lib/types/database'
 import { getActiveOrg } from '@/lib/utils/active-org'
-import { cn, H1, SUBTITLE, BTN_PRIMARY, TAB_BAR, TAB_ACTIVE, TAB_INACTIVE, LIST_CARD } from '@/lib/styles'
+import { cn, H1, SUBTITLE, BTN_PRIMARY, TAB_BAR, TAB_ACTIVE, TAB_INACTIVE, LIST_CARD, ERROR_BANNER } from '@/lib/styles'
 
 // Next.js: re-render this page on every request (never cache stale event data)
 export const dynamic = 'force-dynamic'
@@ -45,7 +46,15 @@ export default async function AdminDashboardPage({ searchParams }: PageProps) {
     eventsQuery = eventsQuery.eq('status', activeFilter as EventStatus)
   }
 
-  const { data: events } = await eventsQuery
+  const { data: events, error: eventsError } = await eventsQuery
+
+  if (eventsError) {
+    Sentry.captureException(eventsError, {
+      tags: { action: 'adminDashboard.listEvents' },
+    })
+  }
+
+  const loadError = eventsError ? 'Could not load events. Please retry.' : null
 
   return (
     <div className="space-y-6">
@@ -64,6 +73,10 @@ export default async function AdminDashboardPage({ searchParams }: PageProps) {
           + Create event
         </Link>
       </div>
+
+      {loadError && (
+        <div className={ERROR_BANNER} role="alert">{loadError}</div>
+      )}
 
       {/* Status filter tabs */}
       <div className={TAB_BAR}>

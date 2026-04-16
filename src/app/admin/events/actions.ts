@@ -135,8 +135,20 @@ export async function createEvent(input: CreateEventInput): Promise<ActionResult
     .select('id')
     .single()
 
-  if (eventError || !event) {
-    return { success: false, error: eventError?.message ?? 'Failed to create event' }
+  const genericCreateError = 'Could not create this event. Please retry.'
+  if (eventError) {
+    Sentry.captureException(
+      new Error(`createEvent.insertEvent failed: ${eventError.message}`),
+      { tags: { action: 'createEvent.insertEvent' } }
+    )
+    return { success: false, error: genericCreateError }
+  }
+  if (!event) {
+    Sentry.captureException(
+      new Error('createEvent.insertEvent returned no row'),
+      { tags: { action: 'createEvent.insertEventNoData' } }
+    )
+    return { success: false, error: genericCreateError }
   }
 
   // Auto-create event days for the date range
@@ -152,7 +164,11 @@ export async function createEvent(input: CreateEventInput): Promise<ActionResult
     if (daysError) {
       // Clean up the event if day creation fails
       await supabase.from('events').delete().eq('id', event.id)
-      return { success: false, error: daysError.message }
+      Sentry.captureException(
+        new Error(`createEvent.insertDays failed: ${daysError.message}`),
+        { tags: { action: 'createEvent.insertDays' } }
+      )
+      return { success: false, error: genericCreateError }
     }
   }
 
@@ -226,7 +242,13 @@ export async function updateEventMetadata(
     })
     .eq('id', eventId)
 
-  if (error) return { success: false, error: error.message }
+  if (error) {
+    Sentry.captureException(
+      new Error(`updateEventMetadata.update failed: ${error.message}`),
+      { tags: { action: 'updateEventMetadata.update' } }
+    )
+    return { success: false, error: 'Could not save this event. Please retry.' }
+  }
 
   // Build a diff of changed fields only
   if (current) {
@@ -272,7 +294,13 @@ export async function publishEvent(eventId: string, notify: boolean = false): Pr
     .update({ status: 'published', published_at: new Date().toISOString() })
     .eq('id', eventId)
 
-  if (error) return { success: false, error: error.message }
+  if (error) {
+    Sentry.captureException(
+      new Error(`publishEvent.update failed: ${error.message}`),
+      { tags: { action: 'publishEvent.update' } }
+    )
+    return { success: false, error: 'Could not publish this event. Please retry.' }
+  }
 
   // ── Create timetable snapshot ─────────────────────────────────
   try {
@@ -361,7 +389,13 @@ export async function unpublishEvent(eventId: string): Promise<ActionResult> {
     .update({ status: 'draft' })
     .eq('id', eventId)
 
-  if (error) return { success: false, error: error.message }
+  if (error) {
+    Sentry.captureException(
+      new Error(`unpublishEvent.update failed: ${error.message}`),
+      { tags: { action: 'unpublishEvent.update' } }
+    )
+    return { success: false, error: 'Could not unpublish this event. Please retry.' }
+  }
 
   await writeAuditLog(supabase, user.id, eventId, 'event.unpublished')
 
@@ -380,7 +414,13 @@ export async function archiveEvent(eventId: string): Promise<ActionResult> {
     .update({ status: 'archived' })
     .eq('id', eventId)
 
-  if (error) return { success: false, error: error.message }
+  if (error) {
+    Sentry.captureException(
+      new Error(`archiveEvent.update failed: ${error.message}`),
+      { tags: { action: 'archiveEvent.update' } }
+    )
+    return { success: false, error: 'Could not archive this event. Please retry.' }
+  }
 
   await writeAuditLog(supabase, user.id, eventId, 'event.archived')
 
@@ -449,7 +489,21 @@ export async function duplicateEvent(
     .select('id')
     .single()
 
-  if (newErr || !newEvent) return { success: false, error: newErr?.message ?? 'Failed to duplicate event' }
+  const genericDuplicateError = 'Could not duplicate this event. Please retry.'
+  if (newErr) {
+    Sentry.captureException(
+      new Error(`duplicateEvent.insertEvent failed: ${newErr.message}`),
+      { tags: { action: 'duplicateEvent.insertEvent' }, extra: { sourceEventId } }
+    )
+    return { success: false, error: genericDuplicateError }
+  }
+  if (!newEvent) {
+    Sentry.captureException(
+      new Error('duplicateEvent.insertEvent returned no row'),
+      { tags: { action: 'duplicateEvent.insertEventNoData' }, extra: { sourceEventId } }
+    )
+    return { success: false, error: genericDuplicateError }
+  }
 
   // Fetch source days
   const { data: sourceDays } = await supabase
@@ -483,7 +537,11 @@ export async function duplicateEvent(
         .single()
 
       if (dayErr || !newDay) {
-        failureReason = `day insert failed: ${dayErr?.message ?? 'unknown error'}`
+        Sentry.captureException(
+          new Error(`duplicateEvent.insertDay failed: ${dayErr?.message ?? 'no row'}`),
+          { tags: { action: 'duplicateEvent.insertDay' }, extra: { sourceEventId } }
+        )
+        failureReason = 'day'
         break
       }
 
@@ -512,7 +570,11 @@ export async function duplicateEvent(
           }))
         )
         if (entriesErr) {
-          failureReason = `entry insert failed: ${entriesErr.message}`
+          Sentry.captureException(
+            new Error(`duplicateEvent.insertEntries failed: ${entriesErr.message}`),
+            { tags: { action: 'duplicateEvent.insertEntries' }, extra: { sourceEventId } }
+          )
+          failureReason = 'entry'
           break
         }
       }
@@ -521,13 +583,11 @@ export async function duplicateEvent(
     if (failureReason) {
       // Roll back the partially-created duplicate so the user doesn't end
       // up with a silently-incomplete event. Cascade deletes remove any
-      // already-inserted days and entries.
+      // already-inserted days and entries. The underlying Supabase error
+      // was already captured to Sentry above with a sub-tag
+      // (`duplicateEvent.insertDay` or `duplicateEvent.insertEntries`).
       await supabase.from('events').delete().eq('id', newEvent.id)
-      Sentry.captureException(
-        new Error(`duplicateEvent rollback: ${failureReason}`),
-        { tags: { action: 'duplicateEvent' }, extra: { sourceEventId } }
-      )
-      return { success: false, error: `Failed to duplicate event: ${failureReason}` }
+      return { success: false, error: genericDuplicateError }
     }
   }
 
@@ -574,9 +634,24 @@ export async function addEventDay(
     .select('id')
     .single()
 
-  if (error || !data) return { success: false, error: error?.message ?? 'Failed to add day' }
+  const genericAddError = 'Could not add this day. Please retry.'
+  if (error) {
+    Sentry.captureException(
+      new Error(`addEventDay.insert failed: ${error.message}`),
+      { tags: { action: 'addEventDay.insert' } }
+    )
+    return { success: false, error: genericAddError }
+  }
+  if (!data) {
+    Sentry.captureException(
+      new Error('addEventDay.insert returned no row'),
+      { tags: { action: 'addEventDay.insertNoData' } }
+    )
+    return { success: false, error: genericAddError }
+  }
 
   revalidateAdminEventPaths(eventId)
+  revalidatePublicEventPaths()
 
   return { success: true, data: { id: data.id } }
 }
@@ -585,11 +660,33 @@ export async function removeEventDay(dayId: string): Promise<ActionResult> {
   const { supabase, membership } = await requireEditor()
   if (!membership) return { success: false, error: 'You do not have permission to perform this action.' }
 
-  // Cascade: delete entries first (RLS may require explicit delete)
-  await supabase.from('timetable_entries').delete().eq('event_day_id', dayId)
+  const genericError = 'Could not remove this day. Please retry.'
+
+  // Cascade: delete entries first (RLS may require explicit delete).
+  // If this fails we must NOT proceed to the day delete — otherwise we
+  // either leak a raw FK-violation error to the UI or orphan rows via
+  // cascade. Capture the failure to Sentry and return a clean message.
+  const { error: entriesError } = await supabase
+    .from('timetable_entries')
+    .delete()
+    .eq('event_day_id', dayId)
+
+  if (entriesError) {
+    Sentry.captureException(
+      new Error(`removeEventDay.deleteEntries failed: ${entriesError.message}`),
+      { tags: { action: 'removeEventDay.deleteEntries' } }
+    )
+    return { success: false, error: genericError }
+  }
 
   const { error } = await supabase.from('event_days').delete().eq('id', dayId)
-  if (error) return { success: false, error: error.message }
+  if (error) {
+    Sentry.captureException(
+      new Error(`removeEventDay.deleteDay failed: ${error.message}`),
+      { tags: { action: 'removeEventDay.deleteDay' } }
+    )
+    return { success: false, error: genericError }
+  }
 
   // dayId alone does not identify the parent event, so revalidate the
   // admin event editor dynamic route and the public timetable route.
@@ -608,7 +705,13 @@ export async function updateDayLabel(dayId: string, label: string): Promise<Acti
     .update({ label: label.trim() || null })
     .eq('id', dayId)
 
-  if (error) return { success: false, error: error.message }
+  if (error) {
+    Sentry.captureException(
+      new Error(`updateDayLabel.update failed: ${error.message}`),
+      { tags: { action: 'updateDayLabel.update' } }
+    )
+    return { success: false, error: 'Could not save this day label. Please retry.' }
+  }
 
   revalidatePath('/admin/events/[id]', 'page')
   revalidatePath('/[slug]', 'page')
@@ -679,7 +782,13 @@ export async function saveDayEntries(
       .from('timetable_entries')
       .delete()
       .in('id', deletedIds)
-    if (delError) return { success: false, error: delError.message }
+    if (delError) {
+      Sentry.captureException(
+        new Error(`saveDayEntries.delete failed: ${delError.message}`),
+        { tags: { action: 'saveDayEntries.delete' }, extra: { eventId } }
+      )
+      return { success: false, error: 'Could not save entries. Please retry.' }
+    }
   }
 
   if (entries.length === 0) return { success: true, data: { savedIds: [] } }
@@ -702,7 +811,13 @@ export async function saveDayEntries(
         is_break: e.is_break,
       }))
     )
-    if (updErr) return { success: false, error: updErr.message }
+    if (updErr) {
+      Sentry.captureException(
+        new Error(`saveDayEntries.update failed: ${updErr.message}`),
+        { tags: { action: 'saveDayEntries.update' }, extra: { eventId } }
+      )
+      return { success: false, error: 'Could not save entries. Please retry.' }
+    }
     toUpdate.forEach((e) => {
       savedIds[entries.indexOf(e)] = e.id
     })
@@ -888,7 +1003,10 @@ export async function getVersionHistory(
     .eq('event_id', eventId)
     .order('version', { ascending: false })
 
-  if (error) return { success: false, error: error.message }
+  if (error) {
+    Sentry.captureException(error, { tags: { action: 'getVersionHistory.select' } })
+    return { success: false, error: 'Could not load version history. Please retry.' }
+  }
 
   // Resolve publisher emails
   const publisherIds = Array.from(new Set((data ?? []).map((r) => r.published_by).filter(Boolean))) as string[]
@@ -944,7 +1062,11 @@ export async function getSnapshotData(
     .eq('id', snapshotId)
     .single()
 
-  if (error || !data) return { success: false, error: error?.message ?? 'Snapshot not found.' }
+  if (error) {
+    Sentry.captureException(error, { tags: { action: 'getSnapshotData.select' } })
+    return { success: false, error: 'Could not load this snapshot. Please retry.' }
+  }
+  if (!data) return { success: false, error: 'Snapshot not found.' }
 
   return {
     success: true,
@@ -991,7 +1113,10 @@ export async function loadAllAuditLog(
     .order('created_at', { ascending: false })
     .limit(CAP + 1)
 
-  if (error) return { success: false, error: error.message }
+  if (error) {
+    Sentry.captureException(error, { tags: { action: 'loadAllAuditLog.select' } })
+    return { success: false, error: 'Could not load audit log. Please retry.' }
+  }
 
   type AuditRowRaw = {
     id: string
@@ -1044,7 +1169,10 @@ export async function loadMoreAuditLog(
     .order('created_at', { ascending: false })
     .limit(fetchSize)
 
-  if (error) return { success: false, error: error.message }
+  if (error) {
+    Sentry.captureException(error, { tags: { action: 'loadMoreAuditLog.select' } })
+    return { success: false, error: 'Could not load more audit entries. Please retry.' }
+  }
 
   type AuditRowRaw = {
     id: string

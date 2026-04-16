@@ -23,7 +23,7 @@ Dependencies: None — these are independent and can be done in parallel.
 ## Must Have
 
 4. ~~**Notification confirmation UX on publish**~~ ✓ — opt-in checkbox added to publish dialog, consistent with save flow
-5. ~~**Basic smoke tests**~~ ✓ — Vitest configured with 51 smoke tests covering app-url, slug, time, resend client, email templates (including unsubscribe links), and env validation. Pure-function tests only, no jsdom or Supabase mocking.
+5. ~~**Basic smoke tests**~~ ✓ — Vitest configured with 57 smoke tests covering app-url, slug, time, resend client, email templates (including unsubscribe links), and env validation. Pure-function tests only, no jsdom or Supabase mocking.
 6. ~~**Review notification edge cases**~~ ✓ — Verified: debounce works as designed, failed sends do not block retry, explicit opt-in required for both publish and save, unpublish does not notify, rapid publish/unpublish/republish drops the second notification within the 10-minute window (acceptable by design per DEC-004)
 7. ~~**Environment hardening**~~ ✓ — `DEBUG_NOTIFICATIONS` is env-driven (defaults to `false`). Startup env validation via `src/lib/env.ts` validates required vars on server boot, fails fast in production.
 

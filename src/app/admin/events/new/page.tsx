@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { createEvent } from '../actions'
@@ -27,11 +27,14 @@ export default function NewEventPage() {
   const [templates, setTemplates] = useState<TemplateSummary[]>([])
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null)
   const [templatesLoaded, setTemplatesLoaded] = useState(false)
+  const [templatesError, setTemplatesError] = useState<string | null>(null)
 
   const searchParams = useSearchParams()
   const preselectedTemplate = searchParams.get('template')
 
-  useEffect(() => {
+  const loadTemplates = useCallback(() => {
+    setTemplatesError(null)
+    setTemplatesLoaded(false)
     listTemplates().then((result) => {
       if (result.success) {
         setTemplates(result.data)
@@ -40,10 +43,17 @@ export default function NewEventPage() {
           setMode('template')
           setSelectedTemplateId(preselectedTemplate)
         }
+      } else {
+        setTemplates([])
+        setTemplatesError(result.error ?? 'Could not load templates. Please retry.')
       }
       setTemplatesLoaded(true)
     })
   }, [preselectedTemplate])
+
+  useEffect(() => {
+    loadTemplates()
+  }, [loadTemplates])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -95,6 +105,29 @@ export default function NewEventPage() {
           Days will be automatically created from your date range. You can add or remove days in the editor.
         </p>
       </div>
+
+      {/* Templates load error banner */}
+      {templatesError && (
+        <div className={ERROR_BANNER}>
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p>{templatesError}</p>
+              {preselectedTemplate && (
+                <p className="mt-1 text-xs">
+                  The template you selected could not be loaded. Retry to use it, or cancel and try again.
+                </p>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={loadTemplates}
+              className="shrink-0 text-xs font-medium underline underline-offset-2 hover:no-underline"
+            >
+              Retry
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Mode toggle — only shown when templates exist */}
       {hasTemplates && (
@@ -244,7 +277,7 @@ export default function NewEventPage() {
         <div className="flex items-center gap-3 pt-1">
           <button
             type="submit"
-            disabled={submitting || (mode === 'template' && !selectedTemplateId)}
+            disabled={submitting || (mode === 'template' && !selectedTemplateId) || Boolean(preselectedTemplate && templatesError)}
             className={BTN_PRIMARY}
           >
             {submitting ? 'Creating…' : mode === 'template' ? 'Create from template' : 'Create event'}

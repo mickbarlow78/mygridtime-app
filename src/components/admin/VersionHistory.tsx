@@ -21,6 +21,8 @@ export function VersionHistory({ versions }: VersionHistoryProps) {
   } | null>(null)
   const [loading, setLoading] = useState(false)
   const [activeDayIndex, setActiveDayIndex] = useState(0)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [lastAttemptedSnapshotId, setLastAttemptedSnapshotId] = useState<string | null>(null)
 
   if (versions.length === 0) {
     return (
@@ -33,17 +35,35 @@ export function VersionHistory({ versions }: VersionHistoryProps) {
   }
 
   async function handleView(snapshotId: string) {
+    setLoadError(null)
+    setLastAttemptedSnapshotId(snapshotId)
     setLoading(true)
-    const result = await getSnapshotData(snapshotId)
-    if (result.success) {
-      setViewingSnapshot({
-        version: result.data.version,
-        published_at: result.data.published_at,
-        days: result.data.data,
-      })
-      setActiveDayIndex(0)
+    try {
+      const result = await getSnapshotData(snapshotId)
+      if (result.success) {
+        setViewingSnapshot({
+          version: result.data.version,
+          published_at: result.data.published_at,
+          days: result.data.data,
+        })
+        setActiveDayIndex(0)
+        setLastAttemptedSnapshotId(null)
+      } else {
+        setLoadError(result.error ?? 'Could not load this snapshot. Please retry.')
+      }
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
+  }
+
+  function handleRetry() {
+    if (!lastAttemptedSnapshotId) return
+    void handleView(lastAttemptedSnapshotId)
+  }
+
+  function handleDismissError() {
+    setLoadError(null)
+    setLastAttemptedSnapshotId(null)
   }
 
   function handleClose() {
@@ -73,6 +93,35 @@ export function VersionHistory({ versions }: VersionHistoryProps) {
 
       {expanded && (
         <div className="border-t border-gray-200">
+          {/* Inline error banner */}
+          {loadError && (
+            <div
+              role="alert"
+              aria-live="polite"
+              className="mx-4 mt-3 rounded border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <p className="flex-1">{loadError}</p>
+                <div className="flex shrink-0 gap-2">
+                  <button
+                    type="button"
+                    onClick={handleRetry}
+                    disabled={loading || !lastAttemptedSnapshotId}
+                    className="font-medium text-red-700 underline underline-offset-2 hover:text-red-900 disabled:opacity-50"
+                  >
+                    Retry
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleDismissError}
+                    className="font-medium text-red-700 underline underline-offset-2 hover:text-red-900"
+                  >
+                    Dismiss
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
           {/* Version list */}
           <div className="divide-y divide-gray-100">
             {versions.map((v) => (

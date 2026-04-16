@@ -8,6 +8,14 @@ interface AuditLogViewProps {
   entries: (AuditLog & { user_email?: string | null })[]
   eventId: string
   initialHasMore: boolean
+  /**
+   * If the server-side initial audit_log query failed, the page passes its
+   * user-facing error message here. Seeds `loadError` so the Retry banner
+   * renders on panel open, and flips `allLoaded` to false so the existing
+   * `useEffect` calls `loadAll()` on open — either clearing the banner on
+   * success or replacing it with the latest error.
+   */
+  initialLoadError?: string | null
 }
 
 // ── Labels ──────────────────────────────────────────────────────────────────
@@ -242,12 +250,16 @@ function TimetableDiff({ detail }: { detail: TimetableDetail }) {
 
 // ── Main component ───────────────────────────────────────────────────────────
 
-export function AuditLogView({ entries: initialEntries, eventId, initialHasMore }: AuditLogViewProps) {
+export function AuditLogView({ entries: initialEntries, eventId, initialHasMore, initialLoadError = null }: AuditLogViewProps) {
   const [open, setOpen] = useState(false)
   const [allEntries, setAllEntries] = useState(initialEntries)
   const [loadingAll, startLoadingAll] = useTransition()
-  const [allLoaded, setAllLoaded] = useState(!initialHasMore)
+  // On initial-load failure, `initialHasMore` collapses to false because the
+  // server fell back to []. Force `allLoaded` to false in that case so the
+  // panel-open effect fires `loadAll()` as a retry path.
+  const [allLoaded, setAllLoaded] = useState(!initialLoadError && !initialHasMore)
   const [capped, setCapped] = useState(false)
+  const [loadError, setLoadError] = useState<string | null>(initialLoadError ?? null)
 
   // Filter state
   const [actionFilter, setActionFilter] = useState('')
@@ -257,11 +269,16 @@ export function AuditLogView({ entries: initialEntries, eventId, initialHasMore 
 
   // Auto-load all entries when panel opens and there are more to load
   const loadAll = useCallback(() => {
+    setLoadError(null)
     startLoadingAll(async () => {
       const result = await loadAllAuditLog(eventId)
       if (result.success) {
         setAllEntries(result.data.entries)
         setCapped(result.data.capped)
+        setAllLoaded(true)
+      } else {
+        // Stop the retry loop — setting allLoaded prevents the effect from refiring.
+        setLoadError(result.error ?? 'Could not load audit log. Please retry.')
         setAllLoaded(true)
       }
     })
@@ -397,9 +414,26 @@ export function AuditLogView({ entries: initialEntries, eventId, initialHasMore 
           )}
 
           {/* Loading indicator while fetching all entries */}
-          {loadingAll && !allLoaded && (
+          {loadingAll && !loadError && (
             <div className="px-4 py-2 text-xs text-gray-400 border-b border-gray-100">
               Loading all entries...
+            </div>
+          )}
+
+          {/* Load error — inline red banner with retry */}
+          {loadError && (
+            <div className="px-4 py-2 text-xs text-red-600 bg-red-50 border-b border-gray-100 flex items-center justify-between gap-2">
+              <span>{loadError}</span>
+              <button
+                type="button"
+                onClick={() => {
+                  setLoadError(null)
+                  setAllLoaded(false)
+                }}
+                className="text-xs text-red-700 hover:text-red-900 underline shrink-0"
+              >
+                Retry
+              </button>
             </div>
           )}
 

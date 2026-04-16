@@ -74,7 +74,12 @@ export async function createOrganisation(input: {
     .select('id')
     .single()
 
-  if (orgError || !org) return { success: false, error: orgError?.message ?? 'Failed to create organisation.' }
+  if (orgError || !org) {
+    if (orgError) {
+      Sentry.captureException(orgError, { tags: { action: 'createOrganisation.insertOrg' } })
+    }
+    return { success: false, error: 'Could not create the organisation. Please retry.' }
+  }
 
   // Insert owner membership via admin client (bypasses RLS)
   const { error: memberError } = await admin
@@ -84,7 +89,8 @@ export async function createOrganisation(input: {
   if (memberError) {
     // Clean up the org if membership insert fails
     await admin.from('organisations').delete().eq('id', org.id)
-    return { success: false, error: memberError.message }
+    Sentry.captureException(memberError, { tags: { action: 'createOrganisation.insertMember' } })
+    return { success: false, error: 'Could not create the organisation. Please retry.' }
   }
 
   // Set active org cookie to the new org
@@ -153,7 +159,10 @@ export async function updateOrganisation(input: {
     .update({ name })
     .eq('id', input.orgId)
 
-  if (error) return { success: false, error: error.message }
+  if (error) {
+    Sentry.captureException(error, { tags: { action: 'updateOrganisation.update' } })
+    return { success: false, error: 'Could not update the organisation. Please retry.' }
+  }
 
   revalidatePath('/admin')
   return { success: true, data: undefined }
@@ -197,7 +206,10 @@ export async function updateOrgBranding(input: {
     .update({ branding: brandingValue })
     .eq('id', input.orgId)
 
-  if (error) return { success: false, error: error.message }
+  if (error) {
+    Sentry.captureException(error, { tags: { action: 'updateOrgBranding.update' } })
+    return { success: false, error: 'Could not save branding. Please retry.' }
+  }
 
   revalidatePath('/admin')
   return { success: true, data: undefined }
@@ -229,7 +241,10 @@ export async function listOrgMembers(orgId: string): Promise<ActionResult<Array<
     .eq('org_id', orgId)
     .order('created_at', { ascending: true })
 
-  if (error) return { success: false, error: error.message }
+  if (error) {
+    Sentry.captureException(error, { tags: { action: 'listOrgMembers.select' } })
+    return { success: false, error: 'Could not load members. Please retry.' }
+  }
 
   const members = (data ?? []).map((m) => ({
     id: m.id,
@@ -281,7 +296,10 @@ export async function updateMemberRole(input: {
     .update({ role: input.newRole })
     .eq('id', input.memberId)
 
-  if (error) return { success: false, error: error.message }
+  if (error) {
+    Sentry.captureException(error, { tags: { action: 'updateMemberRole.update' } })
+    return { success: false, error: "Could not update this member's role. Please retry." }
+  }
 
   revalidatePath('/admin')
   return { success: true, data: undefined }
@@ -325,7 +343,10 @@ export async function removeMember(input: {
     .delete()
     .eq('id', input.memberId)
 
-  if (error) return { success: false, error: error.message }
+  if (error) {
+    Sentry.captureException(error, { tags: { action: 'removeMember.delete' } })
+    return { success: false, error: 'Could not remove this member. Please retry.' }
+  }
 
   revalidatePath('/admin')
   return { success: true, data: undefined }
@@ -354,7 +375,10 @@ export async function listOrgInvites(orgId: string): Promise<ActionResult<Array<
     .is('accepted_at', null)
     .order('created_at', { ascending: false })
 
-  if (error) return { success: false, error: error.message }
+  if (error) {
+    Sentry.captureException(error, { tags: { action: 'listOrgInvites.select' } })
+    return { success: false, error: 'Could not load pending invites. Please retry.' }
+  }
   return { success: true, data: data ?? [] }
 }
 
@@ -412,7 +436,8 @@ export async function inviteMember(input: {
       if (insertError.code === '23505') {
         return { success: false, error: 'A pending invite already exists for this email.' }
       }
-      return { success: false, error: insertError.message }
+      Sentry.captureException(insertError, { tags: { action: 'inviteMember.insertInvite' } })
+      return { success: false, error: 'Could not create this invite. Please retry.' }
     }
 
     if (!invite) {
@@ -460,8 +485,7 @@ export async function inviteMember(input: {
   } catch (err) {
     // Catch any unexpected exception so the server action never crashes the page
     Sentry.captureException(err, { tags: { action: 'inviteMember' } })
-    const message = err instanceof Error ? err.message : 'An unexpected error occurred.'
-    return { success: false, error: message }
+    return { success: false, error: 'Could not send the invite. Please retry.' }
   }
 }
 
@@ -481,7 +505,10 @@ export async function revokeInvite(input: {
     .eq('id', input.inviteId)
     .eq('org_id', input.orgId)
 
-  if (error) return { success: false, error: error.message }
+  if (error) {
+    Sentry.captureException(error, { tags: { action: 'revokeInvite.delete' } })
+    return { success: false, error: 'Could not revoke this invite. Please retry.' }
+  }
 
   revalidatePath('/admin')
   return { success: true, data: undefined }
@@ -553,7 +580,10 @@ export async function acceptInvite(token: string): Promise<ActionResult<{ orgId:
       role: invite.role,
     })
 
-  if (memberError) return { success: false, error: memberError.message }
+  if (memberError) {
+    Sentry.captureException(memberError, { tags: { action: 'acceptInvite.insertMember' } })
+    return { success: false, error: 'Could not add you to the organisation. Please try again.' }
+  }
 
   // Mark invite as accepted. Error-check the update — if this fails, the
   // member row is already inserted so the user DOES have access, but the

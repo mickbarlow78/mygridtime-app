@@ -1,5 +1,45 @@
 # Known Issues
 
+## MGT-038: EventEditorPage silently swallowed timetable_snapshots initial-query failures (no rescue path)
+
+**Description**: After MGT-037 closed the audit_log initial-query silent-swallow on `src/app/admin/events/[id]/page.tsx`, the sibling `timetable_snapshots` query at lines 90–94 was explicitly deferred on the grounds that "MGT-032 rescues per-click views". Pass 20 exploration confirmed MGT-032 only rescues per-click `getSnapshotData()` calls inside `VersionHistory.handleView()` — with a failed initial-list load, `snapshotRows ?? []` collapses to `[]`, `versions` becomes `[]`, `<VersionHistory versions={[]} />` hits its early-return at `src/components/admin/VersionHistory.tsx:27-35` rendering `"No versions yet. A snapshot is saved each time you publish."`, and there are no row buttons rendered to click. The entire MGT-032 retry path is therefore unreachable. Users saw a fake-empty publish history with no retry affordance, and zero Sentry signal reached monitoring.
+
+**Impact**: Failed initial snapshot-list loads on `/admin/events/{id}` presented as a fake "no versions yet" state with no banner, no error message, and no client-side rescue. Medium-impact UX gap for audit-adjacent surfaces (version history is how admins recover previous timetables). Zero Sentry visibility for the underlying cause. The last documented same-shape silent-swallow on the event editor page after MGT-036 / MGT-037.
+
+**Status**: Resolved — `EventEditorPage` now additionally captures `snapshotsError` from the `timetable_snapshots` query, reports it to Sentry with `tags: { action: 'eventEditorPage.listSnapshots' }` (following the MGT-023 → MGT-037 sub-tag pattern), and computes a generic user-facing `versionsLoadError` string (`"Could not load version history. Please retry."`). A new optional `versionsLoadError` prop is threaded through `EventEditor`. `EventEditor` imports `ERROR_BANNER` from `@/lib/styles` (extending its existing import) and renders a section-scoped `ERROR_BANNER` (`role="alert"`) immediately above `<VersionHistory />` when the prop is set, so the user sees a clear signal that version history failed to load. No `VersionHistory` changes — its own `loadError` state (MGT-032) continues to rescue per-click view failures once the initial list recovers. Page reload is the retry path for the initial list, consistent with the MGT-033 / MGT-034 / MGT-035 server-component precedent. Mirrors the MGT-014 / MGT-019 / MGT-022 / MGT-030 / MGT-031 / MGT-032 / MGT-033 / MGT-034 / MGT-035 / MGT-036 / MGT-037 silent-swallow remediation chain and closes the last documented same-shape silent-swallow on the event editor page. Two siblings on the same page remain explicitly deferred: the `users` publisher-email query (LOW, purely cosmetic) and `orgs/actions.ts` zero `writeAuditLog()` coverage (observability gap, multi-action scope).
+
+---
+
+## MGT-037: EventEditorPage silently swallowed audit_log initial-query failures (no rescue path)
+
+**Description**: After MGT-036 closed the days / entries silent-swallow cluster on `src/app/admin/events/[id]/page.tsx`, the sibling `audit_log` initial query at lines 138–143 was explicitly deferred on the grounds that "MGT-030 rescues the failure on panel open". Pass 19 exploration invalidated that assumption. `AuditLogView` (`src/components/admin/AuditLogView.tsx:249`) seeds `allLoaded` from `!initialHasMore`. When the server-side audit_log query fails, `auditRows` falls back to `[]`, so `auditHasMore` (computed as `allAuditRows.length > auditPageSize`) becomes `false`, which flips `allLoaded` to `true` at mount. The `useEffect` at :276 (`open && !allLoaded && !loadingAll`) therefore never fires, `loadAllAuditLog()` is never invoked, and MGT-030's retry/banner logic never runs. The user opens the panel, sees "No audit entries yet." (indistinguishable from a genuinely empty log), and has no retry path. Additionally, the initial query had zero Sentry capture, so every transient PG error, RLS regression, or schema drift on the audit-log load went invisible to monitoring.
+
+**Impact**: Failed initial audit-log loads on `/admin/events/{id}` presented as a fake "empty audit trail" with no Retry banner, no error message, and no client-side rescue. High-impact UX gap for compliance-adjacent surfaces (change history is the core value of the audit log). Zero Sentry visibility for the underlying cause. The last documented HIGH-impact silent-swallow with no rescue path on the event editor page.
+
+**Status**: Resolved — `EventEditorPage` now additionally captures `auditError` from the audit_log query, reports it to Sentry with `tags: { action: 'eventEditorPage.listAudit' }` (following the MGT-023 → MGT-036 sub-tag pattern), and computes a generic user-facing `auditLoadError` string (`"Could not load audit log. Please retry."`). A new optional `auditLoadError` prop is threaded through `EventEditor` and passed to `AuditLogView` as `initialLoadError`. `AuditLogView` seeds its existing `loadError` state from `initialLoadError ?? null` (so the Retry banner at lines 413–427 renders immediately on panel open) and seeds `allLoaded` from `!initialLoadError && !initialHasMore` (so the existing `useEffect` naturally fires `loadAll()` on panel open as a retry path — either clearing the banner on success or replacing it with the latest hardened message on continued failure). No new dependencies, no new banner UI, no test-surface changes; the existing Retry button logic is reused verbatim. Three siblings on the same page remain — `timetable_snapshots` (MEDIUM, same shape, MGT-032 only rescues per-click views so the initial-list failure has no rescue; queued as MGT-038), `users` for publisher emails (LOW, purely cosmetic), and `orgs/actions.ts` zero `writeAuditLog()` coverage (observability gap, multi-action scope) — all explicitly deferred.
+
+---
+
+## MGT-036: EventEditorPage silently swallowed days / entries query failures
+
+**Description**: `EventEditorPage` (`src/app/admin/events/[id]/page.tsx`) is a pure server component that issues five distinct Supabase queries after the top-level event lookup: `event_days` (days list), `timetable_entries` (entries list), `timetable_snapshots` (version history), `users` (snapshot publisher emails), and `audit_log` (audit trail). All five previously destructured only `{ data }` and dropped the `error` field — on failure each fell back to an empty array with no Sentry capture and no UI signal. The two highest-impact queries were the days and entries loads: a silent failure on either left `EventEditor` hydrated with `dayList = []` / `entries = []`, so the timetable editor rendered as if the event had zero days or a wiped timetable. Since `createEvent()` always inserts at least one day, an "empty" event editor is a strong anomaly, not a legitimate state — yet users had no way to tell apart a transient PG error, RLS regression, or schema drift from a real data wipe. This was explicitly called out at the end of MGT-034 and MGT-035 as the last remaining HIGH-impact silent-swallow cluster in the admin surface, with five queries in one file and no top-level banner.
+
+**Impact**: Failed days or entries loads on `/admin/events/{id}` presented as an apparently empty or wiped event editor. Highest-anxiety UX of any remaining admin silent-swallow (loss-of-work signal with no retry affordance), zero Sentry visibility for the underlying cause.
+
+**Status**: Resolved — `EventEditorPage` now additionally captures `daysError` and `entriesError` from the two critical queries. Each failure is captured to Sentry with a distinct `action` sub-tag (`eventEditorPage.listDays`, `eventEditorPage.listEntries`) following the MGT-023 → MGT-029 sub-tag pattern. A combined `loadError` string is computed (`"Could not load this event. Please retry."` when both fail, single-line variants when only one fails) and rendered as an inline `ERROR_BANNER` (`role="alert"`) immediately below the breadcrumb and above `<EventEditor …/>`. `ERROR_BANNER` is added to the existing `@/lib/styles` import; `Sentry` is added as a new `@sentry/nextjs` namespace import. The existing `?? []` fallbacks for `days` / `entries` are unchanged — `EventEditor` still hydrates on the error path so the header, breadcrumb, event metadata, and action bar remain usable; a page reload re-executes the queries. No control-flow, rendering, or component-signature changes beyond the banner and Sentry captures; stays a pure server component. Mirrors the MGT-014 / MGT-019 / MGT-022 / MGT-030 / MGT-031 / MGT-032 / MGT-033 / MGT-034 / MGT-035 silent-swallow remediation chain and closes the last documented HIGH-impact silent-swallow in the admin surface. Three siblings on the same page — `timetable_snapshots` (MEDIUM, MGT-032 rescues per-view reads), `users` for publisher emails (LOW, purely cosmetic), and `audit_log` (MEDIUM, MGT-030 rescues on panel open) — are explicitly deferred to a future narrow pass; their rescue paths already mitigate user visibility, and touching them would broaden scope beyond the safest subset. `orgs/actions.ts` zero `writeAuditLog()` coverage remains an observability gap (not a user-facing bug) and is also deferred.
+
+---
+
+## MGT-035: OrgSettingsPage silently swallowed listOrgMembers / listOrgInvites failures
+
+**Description**: `OrgSettingsPage` (`src/app/admin/orgs/settings/page.tsx`) is a pure server component that calls the already-hardened `listOrgMembers()` and `listOrgInvites()` server actions (MGT-025: generic message + Sentry capture with `tags: { action: 'listOrgMembers.select' | 'listOrgInvites.select' }`) in parallel, then collapsed both results with `const initialMembers = membersResult.success ? membersResult.data : []` and the matching invites line. On any failure of either action, the `error` field was dropped entirely, `MemberManager` hydrated with empty arrays on first paint, and the L11 empty-state copy ("No members yet." / "No pending invites.") rendered as if the org were genuinely empty. `MemberManager`'s own first-mount `useEffect` refetch is guarded by `isMounted` (see `MemberManager.tsx:66-74`) so there was no client-side rescue. Most dangerously: an owner viewing their own settings page saw "no members" — impossible in a healthy state (every org always has at least the viewing owner), so a transient PG error, RLS regression, or schema drift looked like a catastrophic team-roster wipe with no retry path other than a full page reload. Called out at the end of MGT-034 as the next deferred sibling and ranked top priority for Pass 17.
+
+**Impact**: Failed members/invites loads on `/admin/orgs/settings` presented as a fake empty team roster. High-anxiety UX for owners (apparent lockout or team wipe), zero UI feedback, zero retry affordance. Raw Postgres dialect reachability was already closed by MGT-025, but the silent-empty-state remediation gap remained.
+
+**Status**: Resolved — `OrgSettingsPage` now additionally captures `membersError` and `invitesError` from the two hardened server actions and computes a combined `loadError` string (single-message fallthrough when only one fails, `·`-joined when both fail). `ERROR_BANNER` is added to the existing `@/lib/styles` import and a new inline `ERROR_BANNER` (`role="alert"`) renders inside the **Members & invites** section immediately above `<MemberManager …/>` whenever `loadError` is non-null. The banner is intentionally scoped to the affected section rather than the top of the page — the org name / slug / branding sections above it loaded successfully from the `organisations` table and remain fully functional. The existing `[]` fallbacks for `initialMembers` / `initialInvites` are unchanged; `MemberManager` continues to hydrate and its internal `loadData()` on mutation remains the live retry path once the transient failure clears. No Sentry capture at the page layer — `listOrgMembers.select` and `listOrgInvites.select` already capture at the server-action layer (MGT-025). No client-side refactor, no retry button, no redirect; a page reload re-executes the server actions, consistent with the MGT-033 precedent. Mirrors the MGT-014 / MGT-019 / MGT-022 / MGT-030 / MGT-031 / MGT-032 / MGT-033 / MGT-034 silent-swallow remediation chain and closes the last documented server-component silent-swallow in the admin surface. The `EventEditorPage` (`src/app/admin/events/[id]/page.tsx`) five-query silent-swallow cluster (days, entries, snapshots, publisher emails, audit rows) remains the last deferred candidate — HIGH impact but multi-query refactor scope, explicitly out of scope for Pass 17. `orgs/actions.ts` zero `writeAuditLog()` coverage remains an observability gap (not a user-facing bug) and is also deferred.
+
+---
+
 ## MGT-001: publishEvent() auto-sends notifications
 
 **Description**: `publishEvent()` in `src/app/admin/events/actions.ts` unconditionally calls `sendEventNotification()` on publish. There is no opt-in checkbox or confirmation — unlike the save flow, which correctly uses an opt-in checkbox in the review modal.
@@ -36,7 +76,7 @@
 
 **Impact**: Regressions can ship undetected. Refactoring is high-risk without automated coverage.
 
-**Status**: Resolved — Vitest configured with 51 smoke tests covering pure utility functions (app-url, slug, time, resend client, email templates including unsubscribe links, env validation). Run via `npm test`.
+**Status**: Resolved — Vitest configured with 57 smoke tests covering pure utility functions (app-url, slug, time, resend client, email templates including unsubscribe links, env validation). Run via `npm test`.
 
 ---
 
@@ -214,6 +254,188 @@ Remaining gap: no admin UI to view failed notifications or manually retry them.
 - The follow-up preference fetch now also captures and reports its own error to Sentry (`action: 'sendEventNotification.preferenceFetch'`).
 - If a recipient has no preference row in `prefMap` at send time (because the upsert failed or the row was never readable), the helper **refuses to send** to that recipient. It writes a `notification_log` row with `status: 'failed'` and a reason string — either "Preference row upsert failed — unsubscribe link unavailable." or "Preference row missing after upsert — unsubscribe link unavailable." — and moves on to the next recipient.
 - The rest of the send flow is unaffected: recipients whose preference rows succeeded still receive their emails with working unsubscribe links.
+
+---
+
+## MGT-021: Templates server actions did not revalidate cached routes
+
+**Description**: `saveAsTemplate()`, `deleteTemplate()`, and `createEventFromTemplate()` in `src/app/admin/templates/actions.ts` mutated the database but never called `revalidatePath()`. Same class of bug as MGT-009 (resolved for events) and never applied to templates. Result: after saving a template from the event editor, `/admin/templates` would still show the old list until a hard reload. Deleting a template from another tab left the row visible elsewhere. Creating an event from a template left the new event missing from `/admin/events` until a manual refresh.
+
+**Impact**: Stale cache on every template list. Confusing UX, especially across tabs and after the create-from-template flow.
+
+**Status**: Resolved — added a local `revalidateTemplatePaths()` helper that invalidates `/admin/templates` and `/admin/events/new` (which reads `listTemplates()` for `TemplatePicker`). All three template-mutating actions now call it on the success path. `createEventFromTemplate()` additionally revalidates `/admin/events`, mirroring how `createEvent()` handles its admin-side cache. Public dynamic routes are intentionally not revalidated — the new event is a draft.
+
+---
+
+## MGT-022: TemplateActions silently swallowed delete failures
+
+**Description**: `TemplateActions.handleDelete()` in `src/app/admin/templates/TemplateActions.tsx` awaited `deleteTemplate()` but ignored `result.success`. On failure the dialog closed and the deleting state cleared — the user saw nothing, the row stayed in local state by accident (the optimistic `filter` was guarded by `success`), and on the next refresh the row reappeared. Same silent-success pattern MGT-014 fixed in `MemberManager`.
+
+**Impact**: Failed template deletes presented as silent success. User believed the row was gone; it reappeared on refresh.
+
+**Status**: Resolved — added a `deleteError` state. On failure `handleDelete()` keeps the dialog open, surfaces the error inline (red text inside the `ConfirmDialog`), and does not mutate local template state. A `handleCancelDelete()` helper clears both the dialog and the error on cancel. No new dependencies; mirrors the MGT-014 pattern.
+
+---
+
+## MGT-023: removeEventDay() swallowed the entries-delete error
+
+**Description**: `removeEventDay()` in `src/app/admin/events/actions.ts` explicitly deleted child `timetable_entries` rows before deleting the parent `event_days` row ("RLS may require explicit delete"), but it never captured `{ error }` on that first delete. If the entries delete failed (RLS regression, network blip, transient PG error), execution fell through to the `event_days` delete — which would then either fail with a raw FK-violation `error.message` leaked straight to the UI, or succeed via cascade and orphan the data the explicit-delete branch was meant to clean up. Either branch was silent or confusing.
+
+**Impact**: Possible orphan rows or a raw Postgres error string surfaced to the user on day removal. No Sentry signal for the underlying RLS / transport failure.
+
+**Status**: Resolved — `removeEventDay()` now captures `{ error: entriesError }` on the `timetable_entries` delete and, on failure, reports to Sentry with `tags: { action: 'removeEventDay.deleteEntries' }` and returns a clean generic message (`"Could not remove this day. Please retry."`) **before** attempting the parent delete. The `event_days` delete failure path now uses the same generic message and reports to Sentry with `tags: { action: 'removeEventDay.deleteDay' }`. Success-path revalidation (`/admin/events/[id]`, `/[slug]`) is unchanged. `TimetableBuilder.handleRemoveDay()` already surfaces `result.error` through its existing inline error UI, so no caller changes were needed.
+
+---
+
+## MGT-024: addEventDay() and updateDayLabel() leaked raw Postgres errors
+
+**Description**: After Pass 5 hardened `removeEventDay()`, the two sibling day-level actions in `src/app/admin/events/actions.ts` were still pre-Pass-5. `addEventDay()` returned `error?.message ?? 'Failed to add day'` and `updateDayLabel()` returned `error.message` on failure. Both return values were rendered verbatim in `TimetableBuilder` — `handleAddDay()` piped it into the add-day dialog error state, and `handleSaveLabel()` interpolated it into the inline red banner under the day tabs. Any RLS denial, FK violation, check-constraint failure, or transient PG error surfaced raw Postgres dialect to the admin user, with no Sentry signal. Separately, `addEventDay()` only called `revalidateAdminEventPaths(eventId)` on the success path — it did not call `revalidatePublicEventPaths()`, so adding a day to an already-published event left `/{slug}`, `/{slug}/print`, `/my`, and `/` with a stale day count until another mutation or manual refresh.
+
+**Impact**: Raw Postgres errors visible to admins on add-day and day-label-save failures; no Sentry visibility for the underlying causes; stale public caches after adding a day to a published event.
+
+**Status**: Resolved —
+- `addEventDay()` now captures the Supabase insert error to Sentry with `tags: { action: 'addEventDay.insert' }` (and the no-row branch with `addEventDay.insertNoData`) and returns a single generic user-facing message (`"Could not add this day. Please retry."`). Success path now calls both `revalidateAdminEventPaths(eventId)` and `revalidatePublicEventPaths()` so the public timetable stays in sync after a day is added to a published event.
+- `updateDayLabel()` now captures the Supabase update error to Sentry with `tags: { action: 'updateDayLabel.update' }` and returns a generic user-facing message (`"Could not save this day label. Please retry."`). Success-path revalidation is unchanged.
+- Mirrors the MGT-023 pattern already applied to `removeEventDay()`; the three sibling day actions are now consistent. No client changes needed — `TimetableBuilder.handleAddDay()` and `handleSaveLabel()` already surface `result.error` through their existing inline error UIs.
+
+---
+
+## MGT-025: orgs/actions.ts leaked raw Postgres errors across the org admin surface
+
+**Description**: After Passes 5 and 6 brought `events/actions.ts` day-level actions up to a consistent "Sentry + generic message" error pattern, `src/app/admin/orgs/actions.ts` was still pre-hardening. Eleven failure paths across nine server actions returned raw Supabase `error.message` strings directly to the admin UI, with zero Sentry captures on any of them:
+
+- `createOrganisation()` — org insert and owner membership insert (post-rollback)
+- `updateOrganisation()` — org name update
+- `updateOrgBranding()` — branding update
+- `listOrgMembers()` — admin member list fetch
+- `updateMemberRole()` — role change
+- `removeMember()` — member delete
+- `listOrgInvites()` — pending invite fetch
+- `inviteMember()` — non-23505 invite insert errors and the outer catch block
+- `revokeInvite()` — invite delete
+- `acceptInvite()` — new-member insert path
+
+Any RLS regression, FK violation, or transient PG error on these paths surfaced raw Postgres dialect to the admin user with no monitoring signal. This was the last remaining systemic pre-hardening gap in the admin server-action layer.
+
+**Impact**: Raw Postgres errors visible to admins across the entire org management surface (create org, update org, branding, member roles, member removal, invite send/list/revoke, invite acceptance). No Sentry visibility for the underlying causes. Error wording varied wildly across failure modes, hurting both UX and debuggability.
+
+**Status**: Resolved — all eleven failure paths now follow the MGT-023/024 pattern. Each Supabase error is captured to Sentry with a distinct action tag (`createOrganisation.insertOrg`, `createOrganisation.insertMember`, `updateOrganisation.update`, `updateOrgBranding.update`, `listOrgMembers.select`, `updateMemberRole.update`, `removeMember.delete`, `listOrgInvites.select`, `inviteMember.insertInvite`, `revokeInvite.delete`, `acceptInvite.insertMember`) and returns a single clean generic user-facing message. The outer `inviteMember()` catch block no longer leaks `err.message`; its existing `Sentry.captureException` call with `action: 'inviteMember'` remains intact. No control-flow, revalidation, or signature changes. Client components (`MemberManager`, `OrgSettingsForm`, `BrandingEditor`, `InviteForm`, `AcceptInviteForm`) already surface `result.error` through existing inline UIs — no caller changes needed. A final `grep` across the file confirms zero `error.message` values reachable from any `return` statement.
+
+---
+
+## MGT-027: templates/actions.ts mutating actions leaked raw Postgres errors
+
+**Description**: After Pass 8 closed the event-lifecycle raw-error leaks in `events/actions.ts` (MGT-026), the companion admin file `src/app/admin/templates/actions.ts` was explicitly deferred. Six failure paths across three user-facing mutating server actions still returned raw Supabase `error.message` (or interpolated it into a string) with no Sentry capture at the point of failure:
+
+- `saveAsTemplate()` — template insert (`error?.message ?? 'Failed to save template.'`)
+- `deleteTemplate()` — template delete (`error.message`)
+- `createEventFromTemplate()` — event insert (`eventErr?.message ?? 'Failed to create event.'`)
+- `createEventFromTemplate()` — day insert inside the loop (embedded `dayErr?.message` into a `failureReason` string)
+- `createEventFromTemplate()` — entries insert inside the loop (embedded `entriesErr.message` into `failureReason`)
+- `createEventFromTemplate()` — rollback return (`Failed to create event from template: ${failureReason}`) leaked the embedded raw Postgres text verbatim; its single outer `Sentry.captureException` wrapped a synthetic `Error` built from the same raw message, losing the original stack trace and conflating day vs entry vs event failure modes under one tag.
+
+Any RLS regression, FK violation, or transient PG error on these paths surfaced raw Postgres dialect to admins on the template save / delete / create-from-template flows. This was the last remaining mutating surface in the admin server-action layer still diverging from the MGT-023/024/025/026 pattern.
+
+**Impact**: Raw Postgres errors visible to admins across the template management and create-from-template surfaces. No Sentry visibility for the underlying causes on template save / delete / create-from-template failures. The `createEventFromTemplate()` rollback emitted a single generic Sentry event that lost the original `dayErr` / `entriesErr` / `eventErr` stack and tags, hurting debuggability.
+
+**Status**: Resolved — all six failure paths now follow the MGT-023/024/025/026 pattern. Each Supabase error is captured to Sentry at the point of failure with a distinct `action` sub-tag (`saveAsTemplate.insert`, `deleteTemplate.delete`, `createEventFromTemplate.insertEvent`, `createEventFromTemplate.insertDay`, `createEventFromTemplate.insertEntries`) and returns a single clean generic user-facing message (`"Could not save this template. Please retry."`, `"Could not delete this template. Please retry."`, `"Could not create this event from template. Please retry."`). `createEventFromTemplate()`'s `failureReason` is now a `'day' | 'entry' | null` marker rather than a raw-error string; the loop-level Sentry captures include `extra: { templateId, dayIndex }` so per-day failures are still diagnosable. The cascade-delete rollback behaviour on partial failure is unchanged (still deletes the partially-created event via `events` cascade). The pre-existing synthetic outer capture at the rollback site was removed — the point-of-failure captures replace it with better stack traces. `listTemplates()` (read-only) still returns `error.message` at L183 and is deferred to a future read-only-helper pass, consistent with the deferred read-only helpers called out at the end of MGT-026. No control-flow, signature, or revalidation changes; existing client inline error UIs (`TemplateActions`, `TemplatePicker`, new-event form) render the new messages without caller changes.
+
+---
+
+## MGT-026: events/actions.ts event-lifecycle actions leaked raw Postgres errors
+
+**Description**: After Passes 5–7 brought the day-level actions in `events/actions.ts` (`addEventDay`, `removeEventDay`, `updateDayLabel`) and all of `orgs/actions.ts` up to a consistent "Sentry + generic message" error pattern, the **event-lifecycle** actions in `src/app/admin/events/actions.ts` were still pre-hardening. Ten failure paths across seven of the most-used admin actions returned raw Supabase `error.message` (or `err?.message`) strings directly to the admin UI with no Sentry capture:
+
+- `createEvent()` — event insert (`eventError`) and days insert (`daysError`) failure paths
+- `updateEventMetadata()` — event update
+- `publishEvent()` — status update
+- `unpublishEvent()` — status update
+- `archiveEvent()` — status update
+- `duplicateEvent()` — new-event insert (`newErr`), plus two `failureReason` strings that embedded raw `dayErr.message` / `entriesErr.message` inside the rollback return
+- `saveDayEntries()` — entries delete (`delError`) and entries update/upsert (`updErr`) failure paths (the insert-failure branch was already hardened in Pass 1)
+
+Any RLS regression, FK violation, or transient PG error on these paths surfaced raw Postgres dialect to admins on the highest-traffic flows (save, publish, unpublish, archive, duplicate) with no monitoring signal.
+
+**Impact**: Raw Postgres errors visible to admins across the core event-lifecycle surface. No Sentry visibility for the underlying causes on save/publish/unpublish/archive/duplicate failures. Error wording varied wildly across failure modes.
+
+**Status**: Resolved — all ten failure paths now follow the MGT-023/024/025 pattern. Each Supabase error is captured to Sentry with a distinct `action` tag (`createEvent.insertEvent`, `createEvent.insertEventNoData`, `createEvent.insertDays`, `updateEventMetadata.update`, `publishEvent.update`, `unpublishEvent.update`, `archiveEvent.update`, `duplicateEvent.insertEvent`, `duplicateEvent.insertEventNoData`, `duplicateEvent.insertDay`, `duplicateEvent.insertEntries`, `saveDayEntries.delete`, `saveDayEntries.update`) and returns a single clean generic user-facing message (`"Could not create this event. Please retry."`, `"Could not save this event. Please retry."`, `"Could not publish this event. Please retry."`, `"Could not unpublish this event. Please retry."`, `"Could not archive this event. Please retry."`, `"Could not duplicate this event. Please retry."`, `"Could not save entries. Please retry."`). `duplicateEvent()`'s `failureReason` no longer embeds raw Supabase messages — it is now a marker (`'day'` / `'entry'`) and the rollback return uses the generic message; the child errors are captured to Sentry with sub-tags at the point of failure. No control-flow, signature, or revalidation changes. Existing client components already render `result.error` through existing inline UIs — no caller changes needed. The three already-hardened day actions (`addEventDay`, `removeEventDay`, `updateDayLabel`) are untouched. Read-only helpers (`getVersionHistory`, `getSnapshotData`, `loadAllAuditLog`, `loadMoreAuditLog`) still leak raw errors and are deferred to a future pass.
+
+---
+
+## MGT-028: events/actions.ts read-only helpers leaked raw Postgres errors
+
+**Description**: After Passes 5–9 brought every mutating server action in `events/actions.ts`, `orgs/actions.ts`, and `templates/actions.ts` to a consistent "Sentry + generic message" pattern (MGT-023 → MGT-027), the four read-only helpers in `src/app/admin/events/actions.ts` were explicitly deferred and still returned raw Supabase `error.message` strings with no Sentry capture:
+
+- `getVersionHistory()` — snapshot list select
+- `getSnapshotData()` — single-snapshot select (combined `error || !data` branch leaked `error?.message`)
+- `loadAllAuditLog()` — full audit log fetch for a given event
+- `loadMoreAuditLog()` — cursor-paginated audit log fetch
+
+Both client call sites (`VersionHistory.handleView`, `AuditLogView.loadAll`) silently drop the error field, so any RLS regression, transient PG error, or schema drift on these read paths had zero monitoring signal — a stale or missing version history / audit panel would present as a silent "nothing loaded" with no clue to the cause.
+
+**Impact**: Raw Postgres dialect reachable from server-action return values on the read path (any future consumer that rendered `result.error` would leak it), plus zero Sentry visibility for underlying causes on version-history and audit-log read failures. Last documented raw-leak gap in `events/actions.ts`.
+
+**Status**: Resolved — all four read-only helpers now follow the MGT-023/024/025/026/027 pattern. Each Supabase error is captured to Sentry with a distinct `action` sub-tag (`getVersionHistory.select`, `getSnapshotData.select`, `loadAllAuditLog.select`, `loadMoreAuditLog.select`) and returns a single clean generic user-facing message (`"Could not load version history. Please retry."`, `"Could not load this snapshot. Please retry."`, `"Could not load audit log. Please retry."`, `"Could not load more audit entries. Please retry."`). `getSnapshotData()`'s combined `error || !data` branch was split so a genuine "snapshot not found" case still returns the existing `"Snapshot not found."` message without touching Sentry. No control-flow, signature, revalidation, or client changes. `listTemplates()` in `templates/actions.ts` is the last remaining read-only helper still returning `error.message` and is deferred to a future read-only-helper pass — its own scope is small and isolated to the templates surface.
+
+---
+
+## MGT-030: AuditLogView silently swallowed loadAllAuditLog failures and retried indefinitely
+
+**Description**: `AuditLogView.loadAll()` in `src/components/admin/AuditLogView.tsx` called the hardened `loadAllAuditLog()` server action but only branched on `result.success === true`. On failure, `setAllLoaded(true)` never fired, the `useTransition` flipped `loadingAll` back to `false`, and the adjacent `useEffect` immediately re-fired `loadAll()` because its guard (`open && !allLoaded && !loadingAll`) became true again. A persistent server-side failure (RLS regression, transient PG error, schema drift) therefore became an **infinite retry loop** that hammered Supabase, flooded Sentry (every failed call is already captured at the server-action layer per MGT-028), and presented no error UI — the "Loading all entries..." banner flickered forever and the user had no idea anything was wrong.
+
+**Impact**: Silent infinite retry on any `loadAllAuditLog()` failure. High server and monitoring cost, zero user feedback. Matches the silent-swallow class of bug fixed in MGT-014 / MGT-019 / MGT-022 but with the additional retry-loop hazard unique to the `useEffect`-driven auto-load.
+
+**Status**: Resolved — added a `loadError` state to `AuditLogView`. `loadAll()` now clears it at the start of each attempt and, on `result.success === false`, sets `loadError` to the generic message returned by the server action **and** sets `allLoaded = true` so the `useEffect` guard no longer retriggers the call. A new inline red banner beneath the filter bar shows the error with a "Retry" button that clears the error and resets `allLoaded` to `false` so the existing effect picks it up on the next render. The success path, filter pipeline, CSV export, cap warning, and 2000-row safety behaviour are unchanged. Mirrors the MGT-014 / MGT-019 / MGT-022 pattern (add state, surface error inline, preserve retry path) and additionally closes the retry-loop hazard.
+
+---
+
+## MGT-031: NewEventPage silently swallowed listTemplates() failures and dropped ?template= preselection
+
+**Description**: `NewEventPage` (`src/app/admin/events/new/page.tsx`) called the already-hardened `listTemplates()` server action (MGT-029: generic message + Sentry capture) inside a `useEffect`, but only branched on `result.success === true`. On failure the `templates` state stayed empty, `templatesLoaded` flipped to `true`, the "Use template" tab was hidden entirely (`hasTemplates` became `false`), and the user saw no error, no retry path, and no indication that anything had gone wrong. More dangerously, when a user arrived via `/admin/events/new?template={id}` (e.g. clicking "Use template" on `/admin/templates`), the preselection logic only ran inside the `if (result.success)` branch — so on failure the `mode` stayed `'blank'`, the `?template=` param was silently discarded, and submitting the form would create a **blank** event instead of the template-based event the user had explicitly asked for. This was the highest-impact remaining silent-swallow in the admin client layer: intent loss with no feedback.
+
+**Impact**: Failed template-list loads were invisible to the user. The "Use template" tab disappeared with no explanation. Users who had clicked "Use template" from `/admin/templates` could submit a blank event under the impression they were creating one from a template. Zero UI feedback, zero retry affordance.
+
+**Status**: Resolved — `NewEventPage` now extracts its template-loading logic into a `loadTemplates` `useCallback` and adds a `templatesError` state. On failure, `loadTemplates()` stores the generic error message returned by the server action, defensively resets `templates` to `[]`, and sets `templatesLoaded = true` so the effect cannot form a retry loop. A new inline red `ERROR_BANNER` renders above the mode toggle with a "Retry" button that re-invokes `loadTemplates()`. When `?template=` was present, the banner shows an additional line explaining that the preselected template could not be loaded. The "Create event" submit button's existing `disabled` expression now additionally checks `Boolean(preselectedTemplate && templatesError)` so the accidental-blank-event path is no longer reachable — a user with a preselection-request and a failed load must either successfully retry or cancel. Mirrors the MGT-014 / MGT-019 / MGT-022 / MGT-030 silent-swallow remediation pattern. Two sibling client-side silent-swallow candidates surfaced during Pass 13 exploration and are explicitly deferred: `VersionHistory.handleView()` in `src/components/admin/VersionHistory.tsx` drops `getSnapshotData()` errors (click-nothing feedback, medium impact) and `TemplatesPage` at `src/app/admin/templates/page.tsx` falls back to `[]` on server-component `listTemplates()` failure (cosmetic, requires server→client refactor).
+
+---
+
+## MGT-034: Admin dashboard silently swallowed event-query failures
+
+**Description**: `AdminDashboardPage` (`src/app/admin/page.tsx`) queried the `events` table via a direct Supabase select but collapsed the result with `const { data: events } = await eventsQuery` — `error` was dropped entirely. The empty-state branch at line 85 (`!events || events.length === 0`) then rendered "No events found." with a "Create your first event →" CTA, making a transient PG error, RLS regression, or schema drift **indistinguishable** from a genuinely empty org. This was the highest-blast-radius remaining silent-swallow in the admin layer: the dashboard is the first page every admin lands on after login, and the empty-state CTA nudges users toward **creating a duplicate event** under the belief their workspace is empty. No Sentry capture existed at the query site either, so the underlying failure had zero monitoring signal. Explicitly called out at the end of MGT-033 as the next-ranked visibility fix.
+
+**Impact**: Failed event-list loads presented as a fake "empty workspace" with a CTA to create an event. High risk of duplicate event creation on any transient Supabase failure. Zero UI feedback, zero Sentry visibility for the underlying cause.
+
+**Status**: Resolved — `AdminDashboardPage` now destructures `{ data: events, error: eventsError }` from the query. On failure the error is captured to Sentry with `tags: { action: 'adminDashboard.listEvents' }` (mirrors the sub-tag pattern from MGT-023 → MGT-029), and a `loadError` string (`"Could not load events. Please retry."`) is computed. A new inline `ERROR_BANNER` (`role="alert"`) renders immediately above the status filter tabs so it is visible regardless of the active filter. The existing empty-state branch is unchanged — a genuine `events.length === 0` still shows "No events found." with its existing CTAs; a failed load additionally surfaces the hardened generic message above the tabs. No control-flow, filter, or rendering changes beyond the banner and Sentry capture; stays a pure server component. Mirrors the MGT-014 / MGT-019 / MGT-022 / MGT-030 / MGT-031 / MGT-032 / MGT-033 silent-swallow remediation pattern and closes the highest-impact remaining visibility gap in the admin landing surface. Two sibling candidates remain explicitly deferred for a future narrow pass: `OrgSettingsPage` at `src/app/admin/orgs/settings/page.tsx` still falls back to `[]` on `listOrgMembers()` / `listOrgInvites()` failure (MEDIUM impact, pure server-component banner fix), and `EventEditorPage` at `src/app/admin/events/[id]/page.tsx` has five distinct silent Supabase queries (days, entries, snapshots, publisher emails, audit rows — HIGH impact but broadens scope beyond a single safest fix). `orgs/actions.ts` zero `writeAuditLog()` coverage remains an observability gap deferred beyond Pass 15.
+
+---
+
+## MGT-033: TemplatesPage silently swallowed listTemplates failures
+
+**Description**: `TemplatesPage` (`src/app/admin/templates/page.tsx`) is a Next.js server component that awaits the already-hardened `listTemplates()` server action (MGT-029: generic message + Sentry capture with `tags: { action: 'listTemplates.select' }`) but collapsed the result with `const templates = result.success ? result.data : []`. On failure, `result.error` was dropped entirely and the page rendered the "No templates yet." empty state — indistinguishable from a genuine zero-template org. Users had no way to tell that a transient PG error, RLS regression, or schema drift had just hidden every template in their org, and no retry affordance beyond a blind page reload. This was the last deferred silent-swallow candidate from Passes 13 and 14 — explicitly flagged at the end of MGT-031 and MGT-032 as the next scope-minimal visibility cleanup.
+
+**Impact**: A failed templates list load was invisible to the user. An org with real templates could appear empty, and the onboarding copy ("Open an event in the editor and use 'Save as template' to create one.") would confusingly suggest the user had never saved a template when in fact the load had failed. Zero UI feedback, zero retry affordance.
+
+**Status**: Resolved — `TemplatesPage` now captures both the list and the error string from the `listTemplates()` result (`const loadError = result.success ? null : result.error`) and renders an inline `ERROR_BANNER` (`role="alert"`) above the list / empty-state block when the load fails. The existing empty-state branch is untouched, so a genuine empty result still shows "No templates yet."; a failed load additionally surfaces the hardened generic message (`"Could not load templates. Please retry."`) above it, giving the user a clear signal that something went wrong. No retry button / client split needed — the component stays a pure server component and a reload re-executes the server action. Mirrors the MGT-014 / MGT-019 / MGT-022 / MGT-030 / MGT-031 / MGT-032 silent-swallow remediation pattern and closes the last documented silent-swallow in the admin surface. `orgs/actions.ts` zero `writeAuditLog()` coverage remains an observability gap (not a user-facing bug) and is explicitly deferred beyond Pass 15.
+
+---
+
+## MGT-032: VersionHistory silently swallowed getSnapshotData failures
+
+**Description**: `VersionHistory.handleView()` in `src/components/admin/VersionHistory.tsx` called the already-hardened `getSnapshotData()` server action (MGT-028: generic message + Sentry capture with `tags: { action: 'getSnapshotData.select' }`, plus a distinct `"Snapshot not found."` branch) but only branched on `result.success === true`. On failure, `result.error` was dropped entirely: `viewingSnapshot` stayed `null`, the modal never opened, and `setLoading(false)` ran — so the user clicked the "View" link on a version row, saw the button briefly grey out via the existing `disabled={loading}` guard, and then nothing happened. No modal, no error banner, no retry affordance, no indication the click had even registered. This included both the infrastructure-failure branch (`"Could not load this snapshot. Please retry."`) and the genuine `"Snapshot not found."` branch. Last high-impact remaining silent-swallow in the admin client layer after Passes 12 and 13, and explicitly flagged as the next-ranked deferred candidate in Pass 13's exploration notes.
+
+**Impact**: Failed snapshot loads presented as a dead click on the "View" action. Users had no way to distinguish "snapshot not found" from a transient infrastructure error, and no retry path short of closing and reopening the Version History panel or refreshing the entire event editor.
+
+**Status**: Resolved — `VersionHistory` now tracks a `loadError: string | null` state and a `lastAttemptedSnapshotId: string | null` state. `handleView()` clears `loadError` at the start of each attempt, records the snapshot id as the retry anchor, wraps the `await` in a `try…finally` that always releases the `loading` flag, populates `viewingSnapshot` and clears the retry anchor on success, and stores `result.error` (fallback `"Could not load this snapshot. Please retry."`) on failure without opening the modal. A new `handleRetry()` helper re-invokes `handleView(lastAttemptedSnapshotId)`; a new `handleDismissError()` helper clears both state fields. A new inline red error banner (`role="alert"` / `aria-live="polite"`) renders inside the expanded panel above the version list — not inside the modal, since the modal never opens on failure — with "Retry" (disabled while `loading` or when there is no retry anchor) and "Dismiss" buttons. Both `getSnapshotData.select` and `"Snapshot not found."` branches are now surfaced through the same banner, letting the user distinguish the two via the exact returned wording. Success path, collapsible header, version list rendering, per-row `disabled={loading}` guard, modal, day-tab state, `TimetableDay` render, and empty state are all unchanged. Mirrors the MGT-014 / MGT-019 / MGT-022 / MGT-030 / MGT-031 silent-swallow remediation pattern. Two sibling candidates remain explicitly deferred for Pass 15: `TemplatesPage` at `src/app/admin/templates/page.tsx` still falls back to `[]` on server-component `listTemplates()` failure (cosmetic, requires server→client refactor), and `orgs/actions.ts` still has zero `writeAuditLog()` coverage (observability gap, multi-action scope, not a bug per se).
+
+---
+
+## MGT-029: listTemplates() leaked raw Postgres errors
+
+**Description**: After Passes 9 and 10 brought every mutating server action and the four read-only helpers in `events/actions.ts` to a consistent "Sentry + generic message" pattern (MGT-027, MGT-028), `listTemplates()` in `src/app/admin/templates/actions.ts` was the **last remaining server action in the admin layer** returning a raw Supabase `error.message` to the UI with no Sentry capture. L183 contained `if (error) return { success: false, error: error.message }` — a direct raw-Postgres leak from the templates read path. The caller (`src/app/admin/templates/page.tsx`) silently dropped the `error` field and fell back to an empty list, so there was no visible UI regression today, but any future consumer rendering `result.error` would leak Postgres dialect and the failure had zero monitoring signal.
+
+**Impact**: Raw Postgres dialect reachable from the templates list read path's return value, plus zero Sentry visibility on template-list failures (e.g. RLS regression, transient PG error, schema drift). Last documented raw-leak gap in the admin server-action layer.
+
+**Status**: Resolved — `listTemplates()` now follows the MGT-028 pattern. The Supabase error is captured to Sentry with `tags: { action: 'listTemplates.select' }` and the function returns a single clean generic user-facing message (`"Could not load templates. Please retry."`). No control-flow, signature, revalidation, or client changes. A repo-wide `grep` for `error: error.message` across `src/` now returns zero results, confirming the admin server-action layer has no remaining raw-leak returns.
 
 ---
 

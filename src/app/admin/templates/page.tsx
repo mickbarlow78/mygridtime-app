@@ -2,13 +2,14 @@ import Link from 'next/link'
 import { listTemplates } from './actions'
 import { formatDate } from '@/lib/utils/slug'
 import { TemplateActions } from './TemplateActions'
-import { H1, SUBTITLE, BREADCRUMB, BREADCRUMB_LINK, BREADCRUMB_SEP, BREADCRUMB_CURRENT, LIST_CARD } from '@/lib/styles'
+import { H1, SUBTITLE, BREADCRUMB, BREADCRUMB_LINK, BREADCRUMB_SEP, BREADCRUMB_CURRENT, LIST_CARD, ERROR_BANNER } from '@/lib/styles'
 
 export const dynamic = 'force-dynamic'
 
 export default async function TemplatesPage() {
   const result = await listTemplates()
   const templates = result.success ? result.data : []
+  const loadError = result.success ? null : result.error
 
   return (
     <div className="space-y-6">
@@ -23,6 +24,10 @@ export default async function TemplatesPage() {
         <h1 className={H1}>Templates</h1>
         <p className={SUBTITLE}>Reusable event structures. Use a template when creating a new event.</p>
       </div>
+
+      {loadError && (
+        <div className={ERROR_BANNER} role="alert">{loadError}</div>
+      )}
 
       {templates.length === 0 ? (
         <div className="text-center py-16 text-gray-400">

@@ -16,18 +16,29 @@ export function TemplateActions({ templates: initial }: TemplateActionsProps) {
   const [templates, setTemplates] = useState(initial)
   const [deleteId, setDeleteId] = useState<string | null>(null)
   const [deleting, setDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
 
   const templateToDelete = deleteId ? templates.find((t) => t.id === deleteId) : null
 
   async function handleDelete() {
     if (!deleteId) return
     setDeleting(true)
+    setDeleteError(null)
     const result = await deleteTemplate(deleteId)
+    setDeleting(false)
     if (result.success) {
       setTemplates((prev) => prev.filter((t) => t.id !== deleteId))
+      setDeleteId(null)
+    } else {
+      // Keep the dialog open so the user sees the failure inline; do not
+      // mutate local template state — the row is still in the DB.
+      setDeleteError(result.error)
     }
-    setDeleting(false)
+  }
+
+  function handleCancelDelete() {
     setDeleteId(null)
+    setDeleteError(null)
   }
 
   if (templates.length === 0) {
@@ -84,8 +95,12 @@ export function TemplateActions({ templates: initial }: TemplateActionsProps) {
         confirmDestructive
         confirmDisabled={deleting}
         onConfirm={handleDelete}
-        onCancel={() => setDeleteId(null)}
-      />
+        onCancel={handleCancelDelete}
+      >
+        {deleteError && (
+          <p className="text-sm text-red-600">{deleteError}</p>
+        )}
+      </ConfirmDialog>
     </>
   )
 }
