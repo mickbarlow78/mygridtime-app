@@ -8,6 +8,8 @@ import { listTemplates, createEventFromTemplate } from '@/app/admin/templates/ac
 import type { TemplateSummary } from '@/app/admin/templates/actions'
 import { TemplatePicker } from '@/components/admin/TemplatePicker'
 import { cn, CONTAINER_FORM, BREADCRUMB, BREADCRUMB_LINK, BREADCRUMB_SEP, BREADCRUMB_CURRENT, H1, SUBTITLE, CARD, CARD_PADDING, CARD_PADDING_COMPACT, LABEL, INPUT, HELP_TEXT, BTN_PRIMARY, BTN_GHOST, ERROR_BANNER, TAB_BAR, TAB_ACTIVE, TAB_INACTIVE } from '@/lib/styles'
+import { FIELD_LIMITS } from '@/lib/constants/field-limits'
+import { CharCounter } from '@/components/ui/CharCounter'
 
 export default function NewEventPage() {
   const router = useRouter()
@@ -164,9 +166,12 @@ export default function NewEventPage() {
       <form onSubmit={handleSubmit} className={`${CARD} ${CARD_PADDING} space-y-4`}>
         {/* Title */}
         <div>
-          <label htmlFor="title" className={LABEL}>
-            Title <span className="text-red-500">*</span>
-          </label>
+          <div className="flex items-center justify-between">
+            <label htmlFor="title" className={LABEL}>
+              Title <span className="text-red-500">*</span>
+            </label>
+            <CharCounter used={title.length} max={FIELD_LIMITS.event.title} />
+          </div>
           <input
             id="title"
             type="text"
@@ -175,21 +180,26 @@ export default function NewEventPage() {
             placeholder="e.g. Round 3 — Whilton Mill"
             required
             autoFocus
+            maxLength={FIELD_LIMITS.event.title}
             className={INPUT}
           />
         </div>
 
         {/* Venue */}
         <div>
-          <label htmlFor="venue" className={LABEL}>
-            Venue
-          </label>
+          <div className="flex items-center justify-between">
+            <label htmlFor="venue" className={LABEL}>
+              Venue
+            </label>
+            <CharCounter used={venue.length} max={FIELD_LIMITS.event.venue} />
+          </div>
           <input
             id="venue"
             type="text"
             value={venue}
             onChange={(e) => setVenue(e.target.value)}
             placeholder="e.g. Whilton Mill Karting"
+            maxLength={FIELD_LIMITS.event.venue}
             className={INPUT}
           />
         </div>
@@ -252,16 +262,20 @@ export default function NewEventPage() {
 
         {/* Notes */}
         <div>
-          <label htmlFor="notes" className={LABEL}>
-            Notes{' '}
-            <span className="text-xs text-gray-400 font-normal">(internal, not shown publicly)</span>
-          </label>
+          <div className="flex items-center justify-between">
+            <label htmlFor="notes" className={LABEL}>
+              Notes{' '}
+              <span className="text-xs text-gray-400 font-normal">(internal, not shown publicly)</span>
+            </label>
+            <CharCounter used={notes.length} max={FIELD_LIMITS.event.notes} />
+          </div>
           <textarea
             id="notes"
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             rows={3}
             placeholder="Any internal notes about this event…"
+            maxLength={FIELD_LIMITS.event.notes}
             className={`${INPUT} resize-none`}
           />
         </div>

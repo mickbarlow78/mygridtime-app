@@ -24,6 +24,8 @@ import type { Event, EventDay, TimetableEntry, AuditLog } from '@/lib/types/data
 import type { VersionSummary } from '@/app/admin/events/actions'
 import { VersionHistory } from './VersionHistory'
 import { saveAsTemplate } from '@/app/admin/templates/actions'
+import { FIELD_LIMITS } from '@/lib/constants/field-limits'
+import { CharCounter } from '@/components/ui/CharCounter'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -499,24 +501,27 @@ export function EventEditor({ event, days: initialDays, entries: initialEntries,
     setRejectedMetaFields((prev) => { const s = new Set(prev); s.delete(field); return s })
   }
 
-  // Label row for a meta field: label + optional revert button
-  function MetaFieldLabel({ label, field, current }: { label: string; field: string; current: string }) {
+  // Label row for a meta field: label + optional counter + optional revert button
+  function MetaFieldLabel({ label, field, current, max }: { label: string; field: string; current: string; max?: number }) {
     const state = metaFieldState(field, current)
     return (
-      <div className="flex items-center justify-between mb-1">
+      <div className="flex items-center justify-between mb-1 gap-2">
         <label className="block text-xs font-medium text-gray-600">{label}</label>
-        {state !== 'unchanged' && (
-          <button
-            type="button"
-            onClick={() => handleRevertMetaField(field)}
-            className={cn(
-              'text-xs underline underline-offset-2',
-              state === 'rejected' ? 'text-red-500 hover:text-red-700' : 'text-amber-600 hover:text-amber-800',
-            )}
-          >
-            ↩ revert
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          {max !== undefined && <CharCounter used={current.length} max={max} />}
+          {state !== 'unchanged' && (
+            <button
+              type="button"
+              onClick={() => handleRevertMetaField(field)}
+              className={cn(
+                'text-xs underline underline-offset-2',
+                state === 'rejected' ? 'text-red-500 hover:text-red-700' : 'text-amber-600 hover:text-amber-800',
+              )}
+            >
+              ↩ revert
+            </button>
+          )}
+        </div>
       </div>
     )
   }
@@ -1101,16 +1106,16 @@ export function EventEditor({ event, days: initialDays, entries: initialEntries,
         <form onSubmit={handleSaveMetadata} className={`${CARD_PADDING} grid grid-cols-1 md:grid-cols-12 gap-3`}>
           {/* Title */}
           <div className="md:col-span-7">
-            <MetaFieldLabel label="Title *" field="title" current={title} />
+            <MetaFieldLabel label="Title *" field="title" current={title} max={FIELD_LIMITS.event.title} />
             <input type="text" value={title} onChange={(e) => { setTitle(e.target.value); setRejectedMetaFields((p) => { const s = new Set(p); s.delete('title'); return s }) }}
-              required className={metaInputClass('title', title)} />
+              required maxLength={FIELD_LIMITS.event.title} className={metaInputClass('title', title)} />
           </div>
 
           {/* Venue */}
           <div className="md:col-span-5">
-            <MetaFieldLabel label="Venue" field="venue" current={venue} />
+            <MetaFieldLabel label="Venue" field="venue" current={venue} max={FIELD_LIMITS.event.venue} />
             <input type="text" value={venue} onChange={(e) => { setVenue(e.target.value); setRejectedMetaFields((p) => { const s = new Set(p); s.delete('venue'); return s }) }}
-              placeholder="e.g. Whilton Mill Karting" className={metaInputClass('venue', venue)} />
+              placeholder="e.g. Whilton Mill Karting" maxLength={FIELD_LIMITS.event.venue} className={metaInputClass('venue', venue)} />
           </div>
 
           {/* Dates + timezone */}
@@ -1145,8 +1150,9 @@ export function EventEditor({ event, days: initialDays, entries: initialEntries,
 
           {/* Notes */}
           <div className="md:col-span-12">
-            <MetaFieldLabel label="Notes" field="notes" current={notes} />
+            <MetaFieldLabel label="Notes" field="notes" current={notes} max={FIELD_LIMITS.event.notes} />
             <textarea value={notes} rows={1} placeholder="Organiser notes…"
+              maxLength={FIELD_LIMITS.event.notes}
               onChange={(e) => { setNotes(e.target.value); setRejectedMetaFields((p) => { const s = new Set(p); s.delete('notes'); return s }) }}
               className={metaInputClass('notes', notes) + ' resize-y'} />
             <p className={HELP_TEXT}>Internal — not shown publicly</p>
@@ -1154,14 +1160,18 @@ export function EventEditor({ event, days: initialDays, entries: initialEntries,
 
           {/* Notification emails */}
           <div className="md:col-span-12">
-            <label className={LABEL_COMPACT}>
-              Notification emails
-            </label>
+            <div className="flex items-center justify-between">
+              <label className={LABEL_COMPACT}>
+                Notification emails
+              </label>
+              <CharCounter used={notificationEmails.length} max={FIELD_LIMITS.event.notificationEmails} />
+            </div>
             <input
               type="text"
               value={notificationEmails}
               onChange={(e) => setNotificationEmails(e.target.value)}
               placeholder="e.g. alice@example.com, bob@example.com"
+              maxLength={FIELD_LIMITS.event.notificationEmails}
               className={INPUT}
             />
             <p className={HELP_TEXT}>
@@ -1387,8 +1397,12 @@ export function EventEditor({ event, days: initialDays, entries: initialEntries,
       >
         <div className="space-y-2">
           <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">New title *</label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-xs font-medium text-gray-600">New title *</label>
+              <CharCounter used={dupTitle.length} max={FIELD_LIMITS.event.title} />
+            </div>
             <input type="text" value={dupTitle} onChange={(e) => setDupTitle(e.target.value)}
+              maxLength={FIELD_LIMITS.event.title}
               className="w-full text-sm px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-gray-400" />
           </div>
           <div className="grid grid-cols-2 gap-2">
@@ -1430,8 +1444,12 @@ export function EventEditor({ event, days: initialDays, entries: initialEntries,
       >
         <div className="space-y-2">
           <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Template name *</label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-xs font-medium text-gray-600">Template name *</label>
+              <CharCounter used={templateName.length} max={FIELD_LIMITS.event.templateName} />
+            </div>
             <input type="text" value={templateName} onChange={(e) => setTemplateName(e.target.value)}
+              maxLength={FIELD_LIMITS.event.templateName}
               className="w-full text-sm px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-gray-400" />
           </div>
           {dialogError && <p className="text-sm text-red-600">{dialogError}</p>}

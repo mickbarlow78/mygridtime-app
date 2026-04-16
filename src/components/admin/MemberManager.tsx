@@ -11,6 +11,8 @@ import {
 } from '@/app/admin/orgs/actions'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { H2, LIST_CARD, LIST_ROW, CARD, CARD_PADDING_COMPACT, LABEL_COMPACT, INPUT, BTN_PRIMARY, ERROR_BANNER, SUCCESS_BANNER } from '@/lib/styles'
+import { FIELD_LIMITS } from '@/lib/constants/field-limits'
+import { CharCounter } from '@/components/ui/CharCounter'
 
 interface MemberManagerProps {
   orgId: string
@@ -296,9 +298,12 @@ export function MemberManager({ orgId, initialMembers, initialInvites }: MemberM
         <form onSubmit={handleInvite} className={`${CARD} ${CARD_PADDING_COMPACT}`}>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
             <div className="flex-1">
-              <label htmlFor="invite-email" className={LABEL_COMPACT}>
-                Email address
-              </label>
+              <div className="flex items-center justify-between">
+                <label htmlFor="invite-email" className={LABEL_COMPACT}>
+                  Email address
+                </label>
+                <CharCounter used={inviteEmail.length} max={FIELD_LIMITS.org.inviteEmail} />
+              </div>
               <input
                 id="invite-email"
                 type="email"
@@ -306,6 +311,7 @@ export function MemberManager({ orgId, initialMembers, initialInvites }: MemberM
                 onChange={(e) => setInviteEmail(e.target.value)}
                 placeholder="user@example.com"
                 required
+                maxLength={FIELD_LIMITS.org.inviteEmail}
                 className={INPUT}
               />
             </div>

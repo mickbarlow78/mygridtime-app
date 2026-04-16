@@ -1,14 +1,24 @@
 /**
- * Public event timetable page — /[slug]
+ * Public top-level slug page — /[slug]
  *
- * Access rules (enforced here AND in Supabase RLS):
+ * Resolution order:
+ *   1. Try to resolve as a published event → render event timetable.
+ *   2. Otherwise try to resolve as an organisation → render public org page.
+ *   3. Otherwise notFound().
+ *
+ * Per Pass C1, organisation public pages live at `/{orgSlug}` and share the
+ * top-level namespace with per-event public pages (`/{eventSlug}`). Reserved
+ * top-level slugs (`/admin`, `/api`, `/o`, …) are blocked at organisation
+ * creation (`isReservedSlug`); event slug uniqueness vs org slugs is enforced
+ * at org creation but is NOT yet enforced at event creation in Pass C1.
+ *
+ * Event access rules (enforced here AND in Supabase RLS):
  *   - Only published events are accessible.
- *   - Draft events → 404.
- *   - Archived events → 404.
- *   - Unknown slugs → 404.
+ *   - Draft events → fall through to org / 404.
+ *   - Archived events → fall through to org / 404.
  *   - No authentication required.
  *
- * Day selection:
+ * Day selection (event branch only):
  *   - Passed via ?day=YYYY-MM-DD search param (ISO date string).
  *   - If the event is running today, today's date is pre-selected.
  *   - Falls back to the first day if the param is absent or invalid.
@@ -19,12 +29,16 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
+import * as Sentry from '@sentry/nextjs'
 import { signOut } from '@/app/admin/actions'
 import type { Metadata } from 'next'
 import { TimetableDay } from '@/components/public/TimetableDay'
 import type { PublicEntry } from '@/components/public/TimetableDay'
+import { PublicOrgView } from '@/components/public/PublicOrgView'
+import type { PublicOrgEvent } from '@/components/public/PublicOrgView'
 import { formatDate } from '@/lib/utils/slug'
 import { resolveEffectiveBranding } from '@/lib/utils/branding'
+import { resolvePublicOrgBySlug } from '@/lib/utils/public-org'
 import type { Json } from '@/lib/types/database'
 import { cn, PAGE_BG, HEADER, HEADER_INNER, CONTAINER_FULL, H1_PUBLIC, AUTH_EMAIL, AUTH_LINK } from '@/lib/styles'
 
@@ -50,17 +64,29 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     .is('deleted_at', null)
     .maybeSingle()
 
-  if (!event) return { title: 'Event not found' }
+  if (event) {
+    const dateStr =
+      event.start_date === event.end_date
+        ? formatDate(event.start_date)
+        : `${formatDate(event.start_date)} – ${formatDate(event.end_date)}`
 
-  const dateStr =
-    event.start_date === event.end_date
-      ? formatDate(event.start_date)
-      : `${formatDate(event.start_date)} – ${formatDate(event.end_date)}`
-
-  return {
-    title: event.title,
-    description: [event.venue, dateStr].filter(Boolean).join(' · '),
+    return {
+      title: event.title,
+      description: [event.venue, dateStr].filter(Boolean).join(' · '),
+    }
   }
+
+  // Fall through to organisation metadata if the slug matches an org.
+  const org = await resolvePublicOrgBySlug(params.slug)
+  if (org) {
+    const displayName = org.branding?.headerText ?? org.name
+    return {
+      title: displayName,
+      description: `Published timetables from ${displayName}.`,
+    }
+  }
+
+  return { title: 'Page not found' }
 }
 
 // ---------------------------------------------------------------------------
@@ -84,7 +110,32 @@ export default async function PublicTimetablePage({ params, searchParams }: Page
     .is('deleted_at', null)
     .maybeSingle()
 
-  if (!event) notFound()
+  // Slug did not match a published event — try to resolve as an organisation.
+  if (!event) {
+    const org = await resolvePublicOrgBySlug(params.slug)
+    if (!org) notFound()
+
+    // Published, non-deleted events scoped to this org. Anon RLS on `events`
+    // already enforces the same filter at the DB level — the explicit clauses
+    // are defence in depth and also keep the result shape clear.
+    const { data: orgEvents, error: orgEventsError } = await supabase
+      .from('events')
+      .select('id, title, venue, start_date, end_date, slug')
+      .eq('org_id', org.id)
+      .eq('status', 'published')
+      .is('deleted_at', null)
+      .order('start_date', { ascending: true })
+
+    if (orgEventsError) {
+      Sentry.captureException(orgEventsError, {
+        tags: { action: 'publicOrgPage.listEvents' },
+      })
+    }
+
+    const eventList: PublicOrgEvent[] = orgEventsError ? [] : ((orgEvents ?? []) as PublicOrgEvent[])
+
+    return <PublicOrgView org={org} events={eventList} user={user} />
+  }
 
   // Fetch org branding via admin client (anon users cannot read organisations).
   // Wrapped in try/catch so a missing service-role key degrades gracefully.

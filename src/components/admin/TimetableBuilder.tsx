@@ -9,6 +9,8 @@ import type { DayClipboard } from './EventEditor'
 import type { EventDay } from '@/lib/types/database'
 import { formatDate } from '@/lib/utils/slug'
 import { cn, TAB_ACTIVE, TAB_INACTIVE, BTN_PRIMARY, BTN_SECONDARY_SM, LABEL_COMPACT, SUCCESS_BANNER } from '@/lib/styles'
+import { FIELD_LIMITS } from '@/lib/constants/field-limits'
+import { CharCounter } from '@/components/ui/CharCounter'
 
 interface TimetableBuilderProps {
   eventId: string
@@ -172,18 +174,22 @@ export function TimetableBuilder({
               title="Double-click to rename"
             >
               {editingLabelDayId === day.id ? (
-                <input
-                  autoFocus
-                  value={labelDraft}
-                  onChange={(e) => setLabelDraft(e.target.value)}
-                  onBlur={() => handleSaveLabel(day.id)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') handleSaveLabel(day.id)
-                    if (e.key === 'Escape') { setEditingLabelDayId(null); setLabelError(null) }
-                  }}
-                  onClick={(e) => e.stopPropagation()}
-                  className="w-28 text-sm border border-gray-300 rounded px-1 py-0 focus:outline-none"
-                />
+                <span className="inline-flex items-center gap-1">
+                  <input
+                    autoFocus
+                    value={labelDraft}
+                    onChange={(e) => setLabelDraft(e.target.value)}
+                    onBlur={() => handleSaveLabel(day.id)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleSaveLabel(day.id)
+                      if (e.key === 'Escape') { setEditingLabelDayId(null); setLabelError(null) }
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                    maxLength={FIELD_LIMITS.event.dayLabel}
+                    className="w-28 text-sm border border-gray-300 rounded px-1 py-0 focus:outline-none"
+                  />
+                  <CharCounter used={labelDraft.length} max={FIELD_LIMITS.event.dayLabel} />
+                </span>
               ) : (
                 <>
                   {dayLabel(day)}
@@ -325,14 +331,18 @@ export function TimetableBuilder({
             />
           </div>
           <div>
-            <label className={LABEL_COMPACT}>
-              Label <span className="text-gray-400 font-normal">(optional — overrides date display)</span>
-            </label>
+            <div className="flex items-center justify-between">
+              <label className={LABEL_COMPACT}>
+                Label <span className="text-gray-400 font-normal">(optional — overrides date display)</span>
+              </label>
+              <CharCounter used={newDayLabel.length} max={FIELD_LIMITS.event.dayLabel} />
+            </div>
             <input
               type="text"
               value={newDayLabel}
               onChange={(e) => setNewDayLabel(e.target.value)}
               placeholder="e.g. Practice Day"
+              maxLength={FIELD_LIMITS.event.dayLabel}
               className="w-full text-sm px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-gray-400"
             />
           </div>

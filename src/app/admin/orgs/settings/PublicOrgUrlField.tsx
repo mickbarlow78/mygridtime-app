@@ -8,7 +8,7 @@ interface PublicOrgUrlFieldProps {
 }
 
 /**
- * Read-only display of the public organisation URL (`/o/{slug}`) with a Copy
+ * Read-only display of the public organisation URL (`/{slug}`) with a Copy
  * button. Mirrors the per-event "Public URL" affordance in `EventEditor` so
  * the clipboard interaction stays consistent across surfaces.
  */

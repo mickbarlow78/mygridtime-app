@@ -4,6 +4,8 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { updateOrganisation } from '@/app/admin/orgs/actions'
 import { CARD, CARD_PADDING_COMPACT, INPUT, BTN_PRIMARY, ERROR_BANNER, SUCCESS_BANNER } from '@/lib/styles'
+import { FIELD_LIMITS } from '@/lib/constants/field-limits'
+import { CharCounter } from '@/components/ui/CharCounter'
 
 interface OrgNameFormProps {
   orgId: string
@@ -40,11 +42,15 @@ export function OrgNameForm({ orgId, currentName }: OrgNameFormProps) {
     <form onSubmit={handleSubmit} className={`${CARD} ${CARD_PADDING_COMPACT}`}>
       <div className="flex items-end gap-3">
         <div className="flex-1">
+          <div className="flex items-center justify-end mb-1">
+            <CharCounter used={name.length} max={FIELD_LIMITS.org.name} />
+          </div>
           <input
             type="text"
             value={name}
             onChange={(e) => { setName(e.target.value); setSuccess(false) }}
             required
+            maxLength={FIELD_LIMITS.org.name}
             className={INPUT}
           />
         </div>

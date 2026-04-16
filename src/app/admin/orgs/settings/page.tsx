@@ -83,11 +83,12 @@ export default async function OrgSettingsPage() {
           <div>
             <p className="text-sm font-mono text-gray-600">{org.slug}</p>
             <p className={HELP_TEXT}>
-              The slug cannot be changed after creation. It forms part of the public
-              organisation URL below and is shared with all of this org&rsquo;s event URLs.
+              The slug cannot be changed after creation. It forms the public
+              organisation URL below and shares the top-level URL space with
+              individual event slugs.
             </p>
           </div>
-          <PublicOrgUrlField publicUrl={`${getServerAppUrl()}/o/${org.slug}`} />
+          <PublicOrgUrlField publicUrl={`${getServerAppUrl()}/${org.slug}`} />
         </div>
       </section>
 

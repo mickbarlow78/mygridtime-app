@@ -9,6 +9,7 @@ import { getResendClient, getFromAddress } from '@/lib/resend/client'
 import { getServerAppUrl } from '@/lib/utils/app-url'
 import { orgInviteSubject, orgInviteHtml, orgInviteText } from '@/lib/resend/templates'
 import type { OrgBranding } from '@/lib/types/database'
+import { isReservedSlug } from '@/lib/constants/reserved-slugs'
 import * as Sentry from '@sentry/nextjs'
 
 // ---------------------------------------------------------------------------
@@ -57,6 +58,14 @@ export async function createOrganisation(input: {
     if (!slug) return { success: false, error: 'Slug is required.' }
     if (slug.length < 2) return { success: false, error: 'Slug must be at least 2 characters.' }
 
+    // Reject slugs that collide with a reserved top-level path (e.g. /admin,
+    // /api, /privacy, /o, …). The public org page lives at `/{orgSlug}` and
+    // shares the top-level namespace with both the per-event public page
+    // (`/{eventSlug}`) and a fixed list of static / framework paths.
+    if (isReservedSlug(slug)) {
+      return { success: false, error: 'That slug is reserved. Please choose a different one.' }
+    }
+
     // Detect whether this will be the user's first organisation BEFORE the
     // new membership row is inserted. Uses the authenticated client — the
     // user can always see their own org_members rows under RLS. A failure
@@ -76,14 +85,27 @@ export async function createOrganisation(input: {
 
     const admin = createAdminClient()
 
-    // Check slug uniqueness via admin client
-    const { data: existing } = await admin
+    // Check slug uniqueness across organisations via admin client
+    const { data: existingOrg } = await admin
       .from('organisations')
       .select('id')
       .eq('slug', slug)
       .maybeSingle()
 
-    if (existing) return { success: false, error: 'That slug is already taken.' }
+    if (existingOrg) return { success: false, error: 'That slug is already taken.' }
+
+    // Public organisation pages and per-event public pages share the
+    // top-level route namespace (`/{slug}`), so a new org slug must not
+    // collide with any existing event slug. Soft-deleted events are
+    // included — their slug rows remain in the table and could be
+    // recovered, so the namespace must remain reserved.
+    const { data: existingEvent } = await admin
+      .from('events')
+      .select('id')
+      .eq('slug', slug)
+      .maybeSingle()
+
+    if (existingEvent) return { success: false, error: 'That slug is already taken.' }
 
     // Insert organisation via admin client (bypasses RLS)
     const { data: org, error: orgError } = await admin

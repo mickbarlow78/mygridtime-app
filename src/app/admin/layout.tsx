@@ -94,6 +94,15 @@ export default async function AdminLayout({
             )}
           </div>
           <div className="flex items-center gap-4">
+            {authorized && (
+              <Link
+                href="/admin"
+                className={HEADER_NAV_LINK}
+                title="Events dashboard"
+              >
+                Events
+              </Link>
+            )}
             {authorized && activeOrg && ['owner', 'admin'].includes(activeOrg.role) && (
               <Link
                 href="/admin/orgs/settings"

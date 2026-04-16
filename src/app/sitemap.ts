@@ -30,9 +30,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       priority: 0.8,
     }))
 
-    // Include /o/{slug} only for orgs with at least one published event.
+    // Include /{orgSlug} only for orgs with at least one published event.
     // Anon RLS does not grant SELECT on `organisations`, so this lookup
     // must go through the admin client (same pattern as the public pages).
+    // Per Pass C1 the public organisation page lives at `/{orgSlug}`, so
+    // the sitemap emits the bare slug here — the legacy `/o/{slug}` route
+    // 308-redirects to the same location and is intentionally NOT listed.
     let orgRoutes: MetadataRoute.Sitemap = []
     const distinctOrgIds = Array.from(new Set(eventList.map((e) => e.org_id)))
     if (distinctOrgIds.length > 0) {
@@ -43,7 +46,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
           .select('slug')
           .in('id', distinctOrgIds)
         orgRoutes = (orgs ?? []).map((org) => ({
-          url: `${baseUrl}/o/${org.slug}`,
+          url: `${baseUrl}/${org.slug}`,
           lastModified: new Date(),
           changeFrequency: 'weekly' as const,
           priority: 0.6,

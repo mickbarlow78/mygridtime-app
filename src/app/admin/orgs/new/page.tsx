@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createOrganisation } from '../actions'
 import { CONTAINER_NARROW, BREADCRUMB, BREADCRUMB_LINK, BREADCRUMB_SEP, BREADCRUMB_CURRENT, H1, SUBTITLE, CARD, CARD_PADDING, LABEL, INPUT, HELP_TEXT, BTN_PRIMARY, BTN_GHOST, ERROR_BANNER } from '@/lib/styles'
+import { FIELD_LIMITS } from '@/lib/constants/field-limits'
+import { CharCounter } from '@/components/ui/CharCounter'
 
 export default function NewOrgPage() {
   const router = useRouter()
@@ -70,9 +72,12 @@ export default function NewOrgPage() {
       <form onSubmit={handleSubmit} className={`${CARD} ${CARD_PADDING} space-y-4`}>
         {/* Name */}
         <div>
-          <label htmlFor="org-name" className={LABEL}>
-            Name <span className="text-red-500">*</span>
-          </label>
+          <div className="flex items-center justify-between">
+            <label htmlFor="org-name" className={LABEL}>
+              Name <span className="text-red-500">*</span>
+            </label>
+            <CharCounter used={name.length} max={FIELD_LIMITS.org.name} />
+          </div>
           <input
             id="org-name"
             type="text"
@@ -81,15 +86,19 @@ export default function NewOrgPage() {
             placeholder="e.g. MSUK Karting"
             required
             autoFocus
+            maxLength={FIELD_LIMITS.org.name}
             className={INPUT}
           />
         </div>
 
         {/* Slug */}
         <div>
-          <label htmlFor="org-slug" className={LABEL}>
-            Slug <span className="text-red-500">*</span>
-          </label>
+          <div className="flex items-center justify-between">
+            <label htmlFor="org-slug" className={LABEL}>
+              Slug <span className="text-red-500">*</span>
+            </label>
+            <CharCounter used={slug.length} max={FIELD_LIMITS.org.slug} />
+          </div>
           <input
             id="org-slug"
             type="text"
@@ -97,6 +106,7 @@ export default function NewOrgPage() {
             onChange={(e) => { setSlug(e.target.value); setSlugTouched(true) }}
             placeholder="e.g. msuk-karting"
             required
+            maxLength={FIELD_LIMITS.org.slug}
             className={`${INPUT} font-mono`}
           />
           <p className={HELP_TEXT}>

@@ -3,6 +3,8 @@
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { cn } from '@/lib/styles'
+import { FIELD_LIMITS } from '@/lib/constants/field-limits'
+import { CharCounter } from '@/components/ui/CharCounter'
 
 export type EntryDraft = {
   /** Stable local key for DnD and React reconciliation; never sent to the server. */
@@ -84,21 +86,30 @@ interface FieldWrapperProps {
   savedDisplay?: string
   onRevertField?: (field: string) => void
   children: React.ReactNode
+  /** Current character count, for the visible counter. */
+  used?: number
+  /** Maximum allowed length. Omit for non-text fields. */
+  max?: number
 }
 
-function FieldWrapper({ colSpan, field, changeInfo, savedDisplay, onRevertField, children }: FieldWrapperProps) {
+function FieldWrapper({ colSpan, field, changeInfo, savedDisplay, onRevertField, children, used, max }: FieldWrapperProps) {
   const isChanged = changeInfo?.rowKind === 'edited' && changeInfo.changedFields.has(field)
   const canRevert = isChanged && !!onRevertField
 
   return (
-    <div className={`${colSpan} flex items-center gap-0.5 group/field`}>
-      <div className="flex-1 min-w-0">{children}</div>
+    <div className={`${colSpan} flex items-start gap-0.5 group/field`}>
+      <div className="flex-1 min-w-0 flex flex-col gap-0.5">
+        {children}
+        {max !== undefined && (
+          <CharCounter used={used ?? 0} max={max} className="self-end pr-0.5" />
+        )}
+      </div>
       {canRevert && (
         <button
           type="button"
           onClick={() => onRevertField!(field)}
           title={savedDisplay ? `Revert to: ${savedDisplay}` : 'Revert to saved value'}
-          className="shrink-0 text-[10px] leading-none px-0.5 text-amber-500 hover:text-amber-700 opacity-0 group-hover/field:opacity-100 transition-opacity"
+          className="shrink-0 text-[10px] leading-none px-0.5 mt-2 text-amber-500 hover:text-amber-700 opacity-0 group-hover/field:opacity-100 transition-opacity"
         >
           ↩
         </button>
@@ -245,12 +256,15 @@ export function EntryRow({
           changeInfo={changeInfo}
           savedDisplay={fmtSaved('title')}
           onRevertField={onRevertField}
+          used={entry.title.length}
+          max={FIELD_LIMITS.entry.title}
         >
           <input
             type="text"
             value={entry.title}
             onChange={(e) => upd({ title: e.target.value })}
             placeholder="Title *"
+            maxLength={FIELD_LIMITS.entry.title}
             className={fieldClass(baseInput, 'title', changeInfo, errFields)}
           />
         </FieldWrapper>
@@ -294,12 +308,15 @@ export function EntryRow({
           changeInfo={changeInfo}
           savedDisplay={fmtSaved('category')}
           onRevertField={onRevertField}
+          used={entry.category.length}
+          max={FIELD_LIMITS.entry.category}
         >
           <input
             type="text"
             value={entry.category}
             onChange={(e) => upd({ category: e.target.value })}
             placeholder="Category"
+            maxLength={FIELD_LIMITS.entry.category}
             className={fieldClass(baseInput, 'category', changeInfo, errFields)}
           />
         </FieldWrapper>
@@ -311,12 +328,15 @@ export function EntryRow({
           changeInfo={changeInfo}
           savedDisplay={fmtSaved('notes')}
           onRevertField={onRevertField}
+          used={entry.notes.length}
+          max={FIELD_LIMITS.entry.notes}
         >
           <input
             type="text"
             value={entry.notes}
             onChange={(e) => upd({ notes: e.target.value })}
             placeholder="Notes"
+            maxLength={FIELD_LIMITS.entry.notes}
             className={fieldClass(baseInput, 'notes', changeInfo, errFields)}
           />
         </FieldWrapper>

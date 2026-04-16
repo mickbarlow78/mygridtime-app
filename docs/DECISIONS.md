@@ -209,6 +209,18 @@
 
 ---
 
+## DEC-021: Character limits enforced at the input layer only (no DB / no server validation in this pass)
+
+**Decision**: Admin event and org editing forms now apply per-field maximum character lengths at the input layer via native `maxLength` plus a visible `used/max` counter (`CharCounter`). Limits are centralised in `src/lib/constants/field-limits.ts` and composed inline at each call site. No database `CHECK` constraints are added, no Supabase migration is required, and the server actions (`createEvent`, `updateEventMetadata`, `saveDayEntries`, `createOrganisation`, `updateOrganisation`, `updateOrgBranding`, `inviteMember`, `addEventDay`, `updateDayLabel`, `saveAsTemplate`, `duplicateEvent`) are not extended with length validation — existing validation (required fields, date ordering, hex format, email type) is preserved verbatim. The counter uses a subtle three-state colour (gray → amber at ≥90% → red at cap) so layout stays visually quiet while still signalling proximity to the limit.
+
+**Reason**: The goal of this pass is to prevent pathological input (pasted documents, accidental keyholds, buffer-style abuse) and give users a visible budget, not to impose product policy or change persisted data shape. Enforcing only at the input layer keeps the change fully reversible, contained to client components, and avoids the risk surface of a schema migration or a rewrite of every server-action validation block. Since `maxLength` is a hard browser constraint and every text field in scope is authored through these components, the input-layer enforcement is sufficient in practice for the MVP surface. Server-side and DB-level enforcement are deferred to a future pass when product-policy limits (rather than safety limits) are agreed; if such a pass lands, the constants file is the single source of truth to copy from.
+
+**Date**: 2026-04-16
+
+**Status**: Active
+
+---
+
 ## DEC-020: Product-visible member roles reduced to owner + admin (UI-only)
 
 **Decision**: The `MemberManager` UI surfaces only two product-visible roles: `owner` and `admin`. Legacy `editor` and `viewer` roles remain fully supported in the database, in RLS policies, in the `updateMemberRole()` / `inviteMember()` / `acceptInvite()` server actions, and in `get_user_org_role()` — they are only hidden from the UI as newly-assignable options. Pre-existing member rows on a legacy role continue to render their current role via a disabled `<option>` so the row remains visible and accurate. New invites are always sent with `role: 'admin'` — the invite form no longer includes a role selector. The member role dropdown on a row that is already on a legacy role does not allow re-selecting `editor` or `viewer` (disabled options); upgrading a legacy member to `admin` or `owner` remains possible, and the legacy role can remain in place indefinitely.
@@ -221,7 +233,19 @@
 
 ---
 
-## DEC-019: Public organisation pages live at `/o/{slug}`, not at `/{slug}`
+## DEC-022: Public organisation pages live at `/{orgSlug}` (top-level), with reserved-slug + cross-table collision validation
+
+**Decision**: The public organisation page is served at `/{orgSlug}` at the top level of the public URL tree. Per-event public URLs remain at `/{eventSlug}` (no prefix) and are unchanged. Both URL shapes share the top-level route namespace. Resolution at `/[slug]` is ordered: try published-event lookup first, fall through to organisation lookup, otherwise `notFound()`. The legacy `/o/{orgSlug}` route is preserved as a 308 permanent redirect to `/{orgSlug}` so previously shared URLs continue to resolve. Organisation creation enforces three slug-collision checks: (1) the slug is not on the reserved-slug list (`src/lib/constants/reserved-slugs.ts` — covers all top-level static + framework segments, including `o` so the legacy redirect cannot be shadowed), (2) the slug is not already taken by another organisation, (3) the slug is not already taken by any event (soft-deleted events included). Event-creation slug-uniqueness checks against organisations are explicitly out of scope for Pass C1 (deferred to Pass C2 alongside the broader event URL changes). No DB migration, no RLS change, and no widening of anon access on `organisations` — the org-resolver continues to use the admin Supabase client, matching the existing pattern for the public landing and per-event pages.
+
+**Reason**: A top-level public organisation URL (`mygridtime.com/acme`) is the natural canonical shape: shorter, easier to share verbally, matches conventional SaaS patterns, and mirrors the per-event URL shape. The `/o/` prefix introduced in DEC-019 was a defensive choice to avoid event-slug collisions; with a reserved-slug list and a cross-table uniqueness check at organisation creation, the same safety can be enforced without the prefix. Soft-deleted events are intentionally included in the cross-table check because their slug rows remain in the table and could be recovered, so the namespace must remain reserved. The legacy `/o/{slug}` route is kept as a permanent redirect (rather than deleted) because per-event URLs were already externally published and any external links to `/o/{slug}` from the Pass-B window must continue to resolve. Pass C1 deliberately defers the symmetrical event-creation check (and the broader nested event URL design) to Pass C2 to keep the change surface tight.
+
+**Date**: 2026-04-16
+
+**Status**: Active — Pass C1 (supersedes DEC-019)
+
+---
+
+## DEC-019: Public organisation pages live at `/o/{slug}`, not at `/{slug}` (superseded by DEC-022)
 
 **Decision**: The public organisation index page is served at `/o/{slug}` (e.g. `/o/acme`). Per-event public URLs remain at `/{event-slug}` (no prefix) and are unchanged. The org page resolves the `organisations` row via the admin Supabase client (RLS unchanged), lists only published + non-deleted events for that org, `notFound()`s on resolve failure, and degrades to an empty-state render on event-list failure (with Sentry capture). The sitemap includes `/o/{slug}` entries only for orgs with at least one published event.
 
@@ -229,7 +253,7 @@
 
 **Date**: 2026-04-16
 
-**Status**: Active
+**Status**: Superseded by DEC-022 (2026-04-16) — the public organisation page now lives at `/{orgSlug}` with reserved-slug and cross-table collision validation. The `/o/{orgSlug}` route is preserved as a 308 redirect.
 
 ---
 
