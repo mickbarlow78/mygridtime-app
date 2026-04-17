@@ -5,6 +5,7 @@ import { debugLog } from '@/lib/debug'
 import { useRouter } from 'next/navigation'
 import { TimetableBuilder } from './TimetableBuilder'
 import { AuditLogView } from './AuditLogView'
+import { NotificationLogView } from './NotificationLogView'
 import { EventActionsBar } from './EventActionsBar'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { ReviewModal, type ReviewCard, type ChangeCard } from '@/components/ui/ReviewModal'
@@ -21,7 +22,7 @@ import {
 } from '@/app/admin/events/actions'
 import type { EntryDraft, EntryValidationError, EntryChangeInfo } from './EntryRow'
 import type { Event, EventDay, TimetableEntry, AuditLog } from '@/lib/types/database'
-import type { VersionSummary } from '@/app/admin/events/actions'
+import type { VersionSummary, NotificationLogEntry } from '@/app/admin/events/actions'
 import { VersionHistory } from './VersionHistory'
 import { saveAsTemplate } from '@/app/admin/templates/actions'
 import { FIELD_LIMITS } from '@/lib/constants/field-limits'
@@ -40,6 +41,9 @@ interface EventEditorProps {
   auditLog: AuditEntry[]
   auditHasMore: boolean
   auditLoadError?: string | null
+  notificationLog: NotificationLogEntry[]
+  notificationHasMore: boolean
+  notificationLoadError?: string | null
   versions: VersionSummary[]
   versionsLoadError?: string | null
   unsubscribedEmails?: string[]
@@ -346,7 +350,7 @@ type MetaFieldState = 'unchanged' | 'pending' | 'rejected'
 // Component
 // ---------------------------------------------------------------------------
 
-export function EventEditor({ event, days: initialDays, entries: initialEntries, auditLog, auditHasMore, auditLoadError = null, versions, versionsLoadError = null, unsubscribedEmails = [] }: EventEditorProps) {
+export function EventEditor({ event, days: initialDays, entries: initialEntries, auditLog, auditHasMore, auditLoadError = null, notificationLog, notificationHasMore, notificationLoadError = null, versions, versionsLoadError = null, unsubscribedEmails = [] }: EventEditorProps) {
   debugLog('EventEditor', 'loaded')
   const router = useRouter()
   const [, startTransition] = useTransition()
@@ -420,6 +424,8 @@ export function EventEditor({ event, days: initialDays, entries: initialEntries,
   const [notifyOnPublish, setNotifyOnPublish] = useState(false)
   const [publishUrlCopied, setPublishUrlCopied] = useState(false)
   const [clipboard, setClipboard] = useState<DayClipboard | null>(null)
+  const [auditRefreshSignal, setAuditRefreshSignal] = useState(0)
+  const [notificationRefreshSignal, setNotificationRefreshSignal] = useState(0)
 
   // ── Public URL (read-only, derived from event slug) ──────────────────────
   const publicUrl = (() => {
@@ -755,6 +761,7 @@ export function EventEditor({ event, days: initialDays, entries: initialEntries,
     setSavedNotificationEmails(notificationEmails)
     setMetaSuccess(true)
     setTimeout(() => setMetaSuccess(false), 3000)
+    setAuditRefreshSignal((n) => n + 1)
     // Refresh server data so audit log updates without a manual reload
     startTransition(() => router.refresh())
     return true
@@ -861,6 +868,11 @@ export function EventEditor({ event, days: initialDays, entries: initialEntries,
     // highlighted in the editor until the user accepts or reverts them.
     setTimetableSuccess(true)
     setTimeout(() => setTimetableSuccess(false), 3000)
+    setAuditRefreshSignal((n) => n + 1)
+    // Only the timetable save path can trigger a notification_log write (via the
+    // Save-and-notify footer action). Metadata save does not — DEC-002 — so the
+    // metadata refresh site intentionally does not bump this signal.
+    setNotificationRefreshSignal((n) => n + 1)
     // Refresh server data so audit log updates without a manual reload
     startTransition(() => router.refresh())
     return true
@@ -1076,6 +1088,7 @@ export function EventEditor({ event, days: initialDays, entries: initialEntries,
         <a href="#timetable-section"  className="hover:text-gray-900 transition-colors">Timetable</a>
         <a href="#event-history"      className="hover:text-gray-900 transition-colors">History</a>
         <a href="#event-audit"        className="hover:text-gray-900 transition-colors">Audit</a>
+        <a href="#event-notifications" className="hover:text-gray-900 transition-colors">Notifications</a>
       </nav>
 
       {/* ── Lifecycle actions ───────────────────────────────────────────────── */}
@@ -1277,7 +1290,18 @@ export function EventEditor({ event, days: initialDays, entries: initialEntries,
 
       {/* ── Audit log ─────────────────────────────────────────────────────────── */}
       <div id="event-audit">
-        <AuditLogView entries={auditLog} eventId={event.id} initialHasMore={auditHasMore} initialLoadError={auditLoadError} />
+        <AuditLogView entries={auditLog} eventId={event.id} initialHasMore={auditHasMore} initialLoadError={auditLoadError} refreshSignal={auditRefreshSignal} />
+      </div>
+
+      {/* ── Notification history ──────────────────────────────────────────────── */}
+      <div id="event-notifications">
+        <NotificationLogView
+          entries={notificationLog}
+          eventId={event.id}
+          initialHasMore={notificationHasMore}
+          initialLoadError={notificationLoadError}
+          refreshSignal={notificationRefreshSignal}
+        />
       </div>
 
       {/* ── Review modal ──────────────────────────────────────────────────────── */}

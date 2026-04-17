@@ -1259,3 +1259,51 @@ export async function loadMoreAuditLog(
 
   return { success: true, data: { entries, hasMore } }
 }
+
+// ---------------------------------------------------------------------------
+// Notification Log (read-only)
+// ---------------------------------------------------------------------------
+
+export interface NotificationLogEntry {
+  id: string
+  event_id: string | null
+  type: string
+  recipient_email: string
+  status: 'queued' | 'sent' | 'failed'
+  error: string | null
+  sent_at: string | null
+  created_at: string
+}
+
+/**
+ * Loads all notification log entries for an event (no pagination).
+ * Mirrors loadAllAuditLog() — used by NotificationLogView to surface
+ * previously-invisible notification_log rows to admins.
+ * Safety cap: 2000 rows to prevent runaway queries.
+ */
+export async function loadAllNotificationLog(
+  eventId: string
+): Promise<ActionResult<{ entries: NotificationLogEntry[]; capped: boolean }>> {
+  const { supabase, membership } = await requireEditor()
+  if (!membership) return { success: false, error: 'No permission.' }
+
+  const CAP = 2000
+
+  const { data, error } = await supabase
+    .from('notification_log')
+    .select('id, event_id, type, recipient_email, status, error, sent_at, created_at')
+    .eq('event_id', eventId)
+    .order('created_at', { ascending: false })
+    .limit(CAP + 1)
+
+  if (error) {
+    Sentry.captureException(error, { tags: { action: 'loadAllNotificationLog.select' } })
+    return { success: false, error: 'Could not load notification history. Please retry.' }
+  }
+
+  const rows = (data ?? []) as NotificationLogEntry[]
+  const capped = rows.length > CAP
+  const entries = capped ? rows.slice(0, CAP) : rows
+
+  return { success: true, data: { entries, capped } }
+}

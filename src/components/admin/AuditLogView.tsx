@@ -16,6 +16,12 @@ interface AuditLogViewProps {
    * success or replacing it with the latest error.
    */
   initialLoadError?: string | null
+  /**
+   * Increments to force a reload of all audit entries. Parent bumps this
+   * after a successful save so newly written rows appear without requiring
+   * the panel to be closed and re-opened.
+   */
+  refreshSignal?: number
 }
 
 // ── Labels ──────────────────────────────────────────────────────────────────
@@ -250,7 +256,7 @@ function TimetableDiff({ detail }: { detail: TimetableDetail }) {
 
 // ── Main component ───────────────────────────────────────────────────────────
 
-export function AuditLogView({ entries: initialEntries, eventId, initialHasMore, initialLoadError = null }: AuditLogViewProps) {
+export function AuditLogView({ entries: initialEntries, eventId, initialHasMore, initialLoadError = null, refreshSignal = 0 }: AuditLogViewProps) {
   const [open, setOpen] = useState(false)
   const [allEntries, setAllEntries] = useState(initialEntries)
   const [loadingAll, startLoadingAll] = useTransition()
@@ -289,6 +295,15 @@ export function AuditLogView({ entries: initialEntries, eventId, initialHasMore,
       loadAll()
     }
   }, [open, allLoaded, loadingAll, loadAll])
+
+  // Parent-driven refresh: when refreshSignal changes, flip allLoaded so the
+  // panel-open effect re-runs loadAll(). Guarded so it only fires after the
+  // parent has actually incremented the signal at least once.
+  useEffect(() => {
+    if (refreshSignal > 0) {
+      setAllLoaded(false)
+    }
+  }, [refreshSignal])
 
   // Combined client-side filter pipeline
   const filteredEntries = useMemo(() => {

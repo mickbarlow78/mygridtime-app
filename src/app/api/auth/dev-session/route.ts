@@ -6,8 +6,9 @@ import { createAdminClient } from '@/lib/supabase/admin'
  * Dev-only auto-login route.
  *
  * Creates a real Supabase session for DEV_ADMIN_EMAIL without sending an email.
- * Uses the admin client to generate a magic-link token, then exchanges it
- * server-side via verifyOtp to produce real session cookies.
+ * Sets a one-shot random password on the admin user via the service-role
+ * client, then signs in with that password through an @supabase/ssr client so
+ * the cookie adapter writes real sb-* session cookies onto the redirect.
  *
  * Hard-gated on NODE_ENV === 'development' — returns 404 in all other environments.
  * See DEC-010.
@@ -26,24 +27,39 @@ export async function GET(request: NextRequest) {
     )
   }
 
-  // ── Generate magic-link token via admin client (no email sent) ─────────
+  // ── Mint a session for DEV_ADMIN_EMAIL ─────────────────────────────────
+  // Strategy: set a one-shot random password on the admin user via the
+  // service-role client, then sign in with password. Admin-minted magic-link
+  // hashes cannot be redeemed through @supabase/ssr (which forces PKCE flow),
+  // so password sign-in is the reliable server-side path in dev.
   const admin = createAdminClient()
 
-  const { data: linkData, error: linkError } =
-    await admin.auth.admin.generateLink({ type: 'magiclink', email })
+  const { data: lookup, error: lookupError } = await admin
+    .from('users')
+    .select('id')
+    .eq('email', email)
+    .maybeSingle()
 
-  if (linkError || !linkData?.properties?.hashed_token) {
+  if (lookupError || !lookup?.id) {
     return NextResponse.json(
-      { error: linkError?.message ?? 'Failed to generate link' },
+      { error: lookupError?.message ?? `No user row for ${email}` },
       { status: 500 },
     )
   }
 
-  // ── Exchange the token for a real session ───────────────────────────────
+  const tempPassword = `dev-${crypto.randomUUID()}`
+  const { error: updateError } = await admin.auth.admin.updateUserById(
+    lookup.id,
+    { password: tempPassword },
+  )
+  if (updateError) {
+    return NextResponse.json({ error: updateError.message }, { status: 500 })
+  }
+
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 
-  // Collect cookies written during verifyOtp so we can set them on the
+  // Collect cookies written during sign-in so we can set them on the
   // redirect response — same pattern as the production auth callback.
   const pendingCookies: Array<{
     name: string
@@ -68,14 +84,14 @@ export async function GET(request: NextRequest) {
     },
   })
 
-  const { error: otpError } = await supabase.auth.verifyOtp({
-    type: 'magiclink',
-    token_hash: linkData.properties.hashed_token,
+  const { error: signInError } = await supabase.auth.signInWithPassword({
+    email,
+    password: tempPassword,
   })
 
-  if (otpError) {
+  if (signInError) {
     return NextResponse.json(
-      { error: otpError.message },
+      { error: signInError.message },
       { status: 500 },
     )
   }

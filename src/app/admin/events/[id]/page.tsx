@@ -4,6 +4,7 @@ import { notFound, redirect } from 'next/navigation'
 import Link from 'next/link'
 import * as Sentry from '@sentry/nextjs'
 import { EventEditor } from '@/components/admin/EventEditor'
+import type { NotificationLogEntry } from '@/app/admin/events/actions'
 import {
   BREADCRUMB,
   BREADCRUMB_LINK,
@@ -201,6 +202,34 @@ export default async function EventEditorPage({ params }: PageProps) {
   const auditHasMore = allAuditRows.length > auditPageSize
   const auditLog = auditHasMore ? allAuditRows.slice(0, auditPageSize) : allAuditRows
 
+  // Fetch notification_log for this event, newest first.
+  // Mirrors the audit_log pattern: pageSize+1 to detect `hasMore`, Sentry-tagged
+  // error capture, and an initialLoadError threaded through the panel to trigger
+  // the same MGT-030-style Retry rescue on panel open.
+  const notificationPageSize = 25
+  const { data: notificationRows, error: notificationError } = await supabase
+    .from('notification_log')
+    .select('id, event_id, type, recipient_email, status, error, sent_at, created_at')
+    .eq('event_id', params.id)
+    .order('created_at', { ascending: false })
+    .limit(notificationPageSize + 1)
+
+  if (notificationError) {
+    Sentry.captureException(notificationError, {
+      tags: { action: 'eventEditorPage.listNotifications' },
+    })
+  }
+
+  const notificationLoadError = notificationError
+    ? 'Could not load notification history. Please retry.'
+    : null
+
+  const allNotificationRows = (notificationRows ?? []) as NotificationLogEntry[]
+  const notificationHasMore = allNotificationRows.length > notificationPageSize
+  const notificationLog = notificationHasMore
+    ? allNotificationRows.slice(0, notificationPageSize)
+    : allNotificationRows
+
   return (
     <div className="space-y-8">
       {/* Breadcrumb */}
@@ -223,6 +252,9 @@ export default async function EventEditorPage({ params }: PageProps) {
         auditLog={auditLog}
         auditHasMore={auditHasMore}
         auditLoadError={auditLoadError}
+        notificationLog={notificationLog}
+        notificationHasMore={notificationHasMore}
+        notificationLoadError={notificationLoadError}
         versions={versions}
         versionsLoadError={versionsLoadError}
         unsubscribedEmails={unsubscribedEmails}

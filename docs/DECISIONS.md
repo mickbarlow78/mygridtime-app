@@ -112,9 +112,11 @@
 
 **Decision**: Provide `/api/auth/dev-session` as a development-only route that creates a real Supabase session for `DEV_ADMIN_EMAIL` and redirects to `/admin`. Hard-gated on `NODE_ENV === 'development'` — returns 404 in all other environments.
 
-**Reason**: Claude Preview and other local testing tools cannot complete the magic-link auth flow. A real session (not a fake bypass) is required because RLS policies, server actions, and middleware all depend on a valid Supabase session. The route uses `auth.admin.generateLink()` + `verifyOtp()` to create a genuine session without sending an email.
+**Reason**: Claude Preview and other local testing tools cannot complete the magic-link auth flow. A real session (not a fake bypass) is required because RLS policies, server actions, and middleware all depend on a valid Supabase session.
 
-**Date**: 2026-04-13
+**Implementation note (2026-04-17, revised)**: The route no longer uses `admin.generateLink` + `verifyOtp`. That path cannot redeem an admin-minted magic-link token through an `@supabase/ssr` client: `createServerClient` hard-codes `auth.flowType: 'pkce'` (see `node_modules/@supabase/ssr/src/createServerClient.ts:190`, which applies `flowType: "pkce"` *after* the caller's `options?.auth` spread, so it cannot be overridden), while `admin.generateLink` mints implicit-flow tokens — the PKCE verify endpoint rejects every `(type, variant)` combination (`'email'`/`'magiclink'` × `token_hash`/`email_otp`) with `"Email link is invalid or has expired"` or `"Token has expired or is invalid"`. An earlier note in this DEC recorded `type: 'email'` as the "runtime-correct verify type"; that was based on a mistaken SDK-typing diagnosis — both `'email'` and `'magiclink'` sit on the `EmailOtpType` union and both fail at runtime for the same underlying reason. The route now mints sessions via `admin.auth.admin.updateUserById(userId, { password: <one-shot random uuid> })` + `supabase.auth.signInWithPassword({ email, password })` on a `createServerClient` cookie adapter. Password sign-in is PKCE-compatible, so the adapter captures real `sb-*` session cookies, which are attached to the `NextResponse.redirect('/admin')` response. The temp password is regenerated per request (a fresh `crypto.randomUUID()`) and never returned to the client, so no stable credential is persisted.
+
+**Date**: 2026-04-13 (updated 2026-04-17 to record the PKCE/implicit-flow incompatibility and the password sign-in implementation)
 
 **Status**: Active
 
@@ -254,6 +256,30 @@
 **Date**: 2026-04-16
 
 **Status**: Superseded by DEC-022 (2026-04-16) — the public organisation page now lives at `/{orgSlug}` with reserved-slug and cross-table collision validation. The `/o/{orgSlug}` route is preserved as a 308 redirect.
+
+---
+
+## DEC-024: Admin-UI date-chip presets produce local-calendar `YYYY-MM-DD` strings, not UTC-derived ISO slices
+
+**Decision**: Any date-preset affordance in the admin UI that writes into an `<input type="date">` filter must derive its `YYYY-MM-DD` string from the **local** `getFullYear` / `getMonth` / `getDate` components of a `Date`, via the file-local `toLocalIsoDate(d: Date): string` helper pattern. Date offsets must be applied through the `Date` constructor (`new Date(y, m, d - n)`), never through millisecond arithmetic (`Date.now() - n * 86_400_000`). `new Date(...).toISOString().slice(0, 10)` must not be used to produce these strings. The one exception is CSV-filename timestamping (e.g. `AuditLogView`, `NotificationLogView` export filenames), where a UTC slice is an acceptable artefact label and not a filter input. In `NotificationLogView` the rule originally governed nine date-value chips; as of MGT-052 those chips are consolidated into a single **Date range** `<select>` whose `handleDateRangeChange()` writes the same ISO pairs through the same local-calendar helpers, so the rule still applies to the dropdown's switch-case outputs. The three daily-triage preset chips (Failures today / Sent today / Published today) continue to inherit `todayIso` via `applyPreset()`. The **All time** dropdown option is explicitly outside this rule because it writes no date string: it unconditionally clears both `dateFrom` and `dateTo` to the empty string, and its selected-value derivation comes from `isAllTimeActive = !dateFrom && !dateTo` rather than equality with a generated ISO value. A **Custom** option is surfaced (disabled, for display only) when the current state matches no preset — e.g. the admin typed a manual range into the From/To inputs.
+
+**Reason**: `<input type="date">` values, the filter parser `new Date(iso + 'T00:00:00')`, and the user's mental model of "today" are all **local-calendar** dates. A UTC-derived slice disagrees with all three whenever the browser is not in UTC. Observed defects from the mixed model: off-by-one **Today** between 00:00–01:00 local in any `UTC+N` zone (including UK in BST); **This month** silently spanning into the previous month on the 1st; DST-unsafe millisecond subtraction. Constructor-based offsets (`new Date(y, m, d - 1)`) handle day/month/year rollover and DST transitions correctly. A single file-local helper keeps the rule visible at the call site and avoids a premature shared-utility extraction. See MGT-051 for the incident that drove this rule.
+
+**Date**: 2026-04-17
+
+**Status**: Active
+
+---
+
+## DEC-023: Audit log panel uses a `refreshSignal` counter prop for live refresh after save
+
+**Decision**: After a successful `saveDayEntries()` call, `EventEditor` increments an `auditRefreshSignal` counter (`useState(0)` → `n + 1`) passed to `AuditLogView` as the new optional `refreshSignal?: number` prop. `AuditLogView` watches the prop in a `useEffect` and, when it changes to a non-zero value, sets `allLoaded` back to `false`, which re-triggers the existing panel-open `useEffect` → `loadAll()` path. The initial-mount firing is suppressed by guarding `refreshSignal > 0`. The counter is only wired through the timetable save path in `performTimetableSave`; `performMetaSave` remains unchanged. No server code, no notification system, and no `VersionHistory` change.
+
+**Reason**: `router.refresh()` alone was insufficient: `AuditLogView` loads the full entry list into client-side state on first panel open (`allEntries`, `allLoaded`) and the existing effect only re-fires when `allLoaded` flips to `false`. A server-data refresh updates `initialEntries` but cannot re-populate the client cache. A counter prop is the minimum-surface signal that re-uses the already-established retry path (same one the Retry banner uses) without introducing a new state owner, prop-drilling refs, or coupling the audit view to a parent-held ref. The `> 0` guard avoids a double-fire on mount because the default (`0`) matches the mount render. Metadata saves are deliberately not wired in this pass — the task scope constrained the change to timetable saves and the metadata-audit-live-refresh gap is captured as a follow-up.
+
+**Date**: 2026-04-17
+
+**Status**: Active
 
 ---
 
