@@ -22,14 +22,18 @@ interface ReviewModalProps {
   saving: boolean
   onAccept: (id: string) => void
   onReject: (id: string) => void
-  onAcceptAll: () => void
-  onConfirmSave: () => void
+  onAcceptAll: (notify: boolean) => void
+  onConfirmSave: (notify: boolean) => void
   /** Called when the user accepts the final (or only) card while it is rejected —
    *  parent must un-reject that id AND save inline without relying on async state. */
-  onAcceptAndSave: (id: string) => void
+  onAcceptAndSave: (id: string, notify: boolean) => void
   onCancel: () => void
   /** Optional content rendered in the footer, above the action buttons */
   footerExtra?: React.ReactNode
+  /** When true, the footer exposes two explicit primary buttons
+   *  ("Save only" / "Save and notify") instead of a single "Save" button,
+   *  forcing the admin to make an explicit notify decision at submit time. */
+  notifyChoiceApplicable?: boolean
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -198,6 +202,7 @@ export function ReviewModal({
   open, title, cards, saving,
   onAccept, onReject, onAcceptAll, onConfirmSave, onAcceptAndSave, onCancel,
   footerExtra,
+  notifyChoiceApplicable = false,
 }: ReviewModalProps) {
   const [index, setIndex] = useState(0)
 
@@ -291,10 +296,12 @@ export function ReviewModal({
                 >
                   {rejectLabel(card.kind)}
                 </button>
-                {/* Accept (or Accept & save on last card) — primary solid */}
+                {/* Accept (or Accept & save on last card) — primary solid.
+                    The in-card submit shortcut always saves without notifying;
+                    the explicit notify choice lives in the footer buttons. */}
                 <button
                   type="button"
-                  onClick={() => isLastCard ? onConfirmSave() : handleAccept(card.id)}
+                  onClick={() => isLastCard ? onConfirmSave(false) : handleAccept(card.id)}
                   disabled={saving}
                   className="flex-1 py-2 text-sm font-medium text-white bg-gray-900 rounded-lg hover:bg-gray-700 disabled:opacity-40 transition-colors"
                 >
@@ -305,7 +312,7 @@ export function ReviewModal({
               card.kind !== 'entry-removed' && card.kind !== 'entry-reordered' ? (
                 <button
                   type="button"
-                  onClick={() => isLastCard ? onAcceptAndSave(card.id) : handleAccept(card.id)}
+                  onClick={() => isLastCard ? onAcceptAndSave(card.id, false) : handleAccept(card.id)}
                   disabled={saving}
                   className="flex-1 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-40 transition-colors"
                 >
@@ -355,28 +362,78 @@ export function ReviewModal({
 
           <div className="flex items-center gap-2">
             {pendingCount > 0 && (
-              <button
-                type="button"
-                onClick={onAcceptAll}
-                disabled={saving}
-                className="px-4 py-2 text-sm font-medium text-white bg-gray-900 rounded-lg hover:bg-gray-700 disabled:opacity-40 transition-colors"
-              >
-                Accept all &amp; save
-              </button>
+              notifyChoiceApplicable ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => onAcceptAll(false)}
+                    disabled={saving}
+                    className="px-4 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-40 transition-colors"
+                  >
+                    Accept all &amp; save only
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onAcceptAll(true)}
+                    disabled={saving}
+                    className="px-4 py-2 text-sm font-medium text-white bg-gray-900 rounded-lg hover:bg-gray-700 disabled:opacity-40 transition-colors"
+                  >
+                    Accept all &amp; save &amp; notify
+                  </button>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => onAcceptAll(false)}
+                  disabled={saving}
+                  className="px-4 py-2 text-sm font-medium text-white bg-gray-900 rounded-lg hover:bg-gray-700 disabled:opacity-40 transition-colors"
+                >
+                  Accept all &amp; save
+                </button>
+              )
             )}
             {allDecided && (
-              <button
-                type="button"
-                onClick={onConfirmSave}
-                disabled={saving}
-                className="px-4 py-2 text-sm font-medium text-white bg-gray-900 rounded-lg hover:bg-gray-700 disabled:opacity-40 transition-colors"
-              >
-                {saving
-                  ? 'Saving…'
-                  : rejectedCount > 0
-                    ? `Save ${total - rejectedCount} of ${total}`
-                    : 'Save'}
-              </button>
+              notifyChoiceApplicable ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => onConfirmSave(false)}
+                    disabled={saving}
+                    className="px-4 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-40 transition-colors"
+                  >
+                    {saving
+                      ? 'Saving…'
+                      : rejectedCount > 0
+                        ? `Save ${total - rejectedCount} of ${total} only`
+                        : 'Save only'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onConfirmSave(true)}
+                    disabled={saving}
+                    className="px-4 py-2 text-sm font-medium text-white bg-gray-900 rounded-lg hover:bg-gray-700 disabled:opacity-40 transition-colors"
+                  >
+                    {saving
+                      ? 'Saving…'
+                      : rejectedCount > 0
+                        ? `Save ${total - rejectedCount} of ${total} & notify`
+                        : 'Save and notify'}
+                  </button>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => onConfirmSave(false)}
+                  disabled={saving}
+                  className="px-4 py-2 text-sm font-medium text-white bg-gray-900 rounded-lg hover:bg-gray-700 disabled:opacity-40 transition-colors"
+                >
+                  {saving
+                    ? 'Saving…'
+                    : rejectedCount > 0
+                      ? `Save ${total - rejectedCount} of ${total}`
+                      : 'Save'}
+                </button>
+              )
             )}
           </div>
           </div>

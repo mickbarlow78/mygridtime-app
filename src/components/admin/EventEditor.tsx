@@ -404,7 +404,6 @@ export function EventEditor({ event, days: initialDays, entries: initialEntries,
   const [reviewOpen,   setReviewOpen]   = useState(false)
   const [reviewMode,   setReviewMode]   = useState<'metadata' | 'timetable' | null>(null)
   const [reviewSaving, setReviewSaving] = useState(false)
-  const [notifyOnSave, setNotifyOnSave] = useState(false)
 
   // ── Dialog state ─────────────────────────────────────────────────────────
   type DialogKind = 'publish' | 'unpublish' | 'archive' | 'duplicate' | 'saveTemplate'
@@ -636,7 +635,6 @@ export function EventEditor({ event, days: initialDays, entries: initialEntries,
       return
     }
 
-    setNotifyOnSave(false)
     setReviewMode('timetable')
     setReviewOpen(true)
   }
@@ -768,9 +766,10 @@ export function EventEditor({ event, days: initialDays, entries: initialEntries,
 
   async function performTimetableSave(
     rejAddedLocalIds: Set<string>,
-    rejEditedIds: Set<string>
+    rejEditedIds: Set<string>,
+    notify: boolean
   ) {
-    debugLog('EventEditor', 'FINAL SAVE notifyOnSave:', notifyOnSave)
+    debugLog('EventEditor', 'FINAL SAVE notify:', notify)
     const allEntries: EntryInput[] = []
     for (const day of days) {
       for (const e of dayEntries[day.id] ?? []) {
@@ -808,8 +807,8 @@ export function EventEditor({ event, days: initialDays, entries: initialEntries,
       }
     }
 
-    debugLog('EventEditor', 'CALL saveDayEntries notifyOnSave:', notifyOnSave)
-    const result = await saveDayEntries(event.id, allEntries, deletedEntryIds, notifyOnSave)
+    debugLog('EventEditor', 'CALL saveDayEntries notify:', notify)
+    const result = await saveDayEntries(event.id, allEntries, deletedEntryIds, notify)
     if (!result.success) {
       const friendly = /cannot affect row a second time|duplicate key/i.test(result.error)
         ? 'Could not save the timetable — the editor is out of sync with the server. Please refresh the page and try again.'
@@ -871,25 +870,25 @@ export function EventEditor({ event, days: initialDays, entries: initialEntries,
   // Review modal callbacks
   // ---------------------------------------------------------------------------
 
-  async function handleAcceptAll() {
+  async function handleAcceptAll(notify: boolean) {
     setReviewSaving(true)
     setReviewOpen(false)
     if (reviewMode === 'metadata') {
       await performMetaSave(new Set())  // empty rejections = save everything
     } else if (reviewMode === 'timetable') {
-      await performTimetableSave(new Set(), new Set())
+      await performTimetableSave(new Set(), new Set(), notify)
     }
     setReviewSaving(false)
     setReviewMode(null)
   }
 
-  async function handleConfirmSave() {
+  async function handleConfirmSave(notify: boolean) {
     setReviewSaving(true)
     setReviewOpen(false)
     if (reviewMode === 'metadata') {
       await performMetaSave(rejectedMetaFields)
     } else if (reviewMode === 'timetable') {
-      await performTimetableSave(rejectedAddedLocalIds, rejectedEditedIds)
+      await performTimetableSave(rejectedAddedLocalIds, rejectedEditedIds, notify)
     }
     setReviewSaving(false)
     setReviewMode(null)
@@ -901,7 +900,7 @@ export function EventEditor({ event, days: initialDays, entries: initialEntries,
    * rejection set AND save in the same synchronous step — we cannot wait for
    * React to flush the state update before reading it inside performXxxSave.
    */
-  async function handleAcceptAndSave(cardId: string) {
+  async function handleAcceptAndSave(cardId: string, notify: boolean) {
     const card = reviewCards.find((c) => c.id === cardId)
     setReviewSaving(true)
     setReviewOpen(false)
@@ -920,7 +919,7 @@ export function EventEditor({ event, days: initialDays, entries: initialEntries,
         newRejEdited = new Set(Array.from(rejectedEditedIds).filter((id) => id !== cardId))
         setRejectedEditedIds(newRejEdited)
       }
-      await performTimetableSave(newRejAdded, newRejEdited)
+      await performTimetableSave(newRejAdded, newRejEdited, notify)
     }
 
     setReviewSaving(false)
@@ -1293,20 +1292,9 @@ export function EventEditor({ event, days: initialDays, entries: initialEntries,
         onConfirmSave={handleConfirmSave}
         onAcceptAndSave={handleAcceptAndSave}
         onCancel={handleCancelReview}
-        footerExtra={reviewMode === 'timetable' && status === 'published' ? (
-          notificationEmails.trim() ? (
-            <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer select-none">
-              <input
-                type="checkbox"
-                checked={notifyOnSave}
-                onChange={(e) => { debugLog('EventEditor', 'NOTIFY TOGGLED:', e.target.checked); setNotifyOnSave(e.target.checked) }}
-                className="rounded border-gray-300 text-gray-900 focus:ring-gray-500"
-              />
-              Notify attendees about changes
-            </label>
-          ) : (
-            <p className="text-sm text-gray-400">No notification email addresses set for this event.</p>
-          )
+        notifyChoiceApplicable={reviewMode === 'timetable' && status === 'published' && !!notificationEmails.trim()}
+        footerExtra={reviewMode === 'timetable' && status === 'published' && !notificationEmails.trim() ? (
+          <p className="text-sm text-gray-400">No notification email addresses set for this event.</p>
         ) : undefined}
       />
 
