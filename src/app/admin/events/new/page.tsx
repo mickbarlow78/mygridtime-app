@@ -23,6 +23,10 @@ type Mode = 'blank' | 'template' | 'extract'
 const ALLOWED_MIME_TYPES = ['application/pdf', 'image/png', 'image/jpeg']
 const MAX_UPLOAD_BYTES = 10 * 1024 * 1024
 
+const AI_EXTRACTION_READY = process.env.NEXT_PUBLIC_AI_EXTRACTION_READY === 'true'
+const AI_EXTRACTION_BLOCKED_MSG =
+  'AI extraction not configured yet. This feature will be enabled once API access is set up.'
+
 export default function NewEventPage() {
   const router = useRouter()
 
@@ -267,6 +271,9 @@ export default function NewEventPage() {
       {/* Extract upload / preview */}
       {mode === 'extract' && !extracted && (
         <div className={`${CARD} ${CARD_PADDING} space-y-3`}>
+          {!AI_EXTRACTION_READY && (
+            <p className={ERROR_BANNER} role="alert">{AI_EXTRACTION_BLOCKED_MSG}</p>
+          )}
           <div>
             <label htmlFor="ex-file" className={LABEL}>Upload a schedule</label>
             <p className={HELP_TEXT}>
@@ -279,7 +286,7 @@ export default function NewEventPage() {
             type="file"
             accept="application/pdf,image/png,image/jpeg"
             onChange={handleFileChange}
-            disabled={uploading}
+            disabled={uploading || !AI_EXTRACTION_READY}
             className="block w-full text-sm text-gray-700 file:mr-3 file:rounded-md file:border-0 file:bg-gray-900 file:text-white file:px-4 file:py-2 file:text-sm file:font-medium file:hover:bg-gray-700 disabled:opacity-60"
           />
           {uploading && <p className="text-sm text-gray-500">Extracting…</p>}

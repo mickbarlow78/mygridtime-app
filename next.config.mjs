@@ -2,6 +2,10 @@ import { withSentryConfig } from '@sentry/nextjs'
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  env: {
+    NEXT_PUBLIC_AI_EXTRACTION_READY:
+      (process.env.ANTHROPIC_API_KEY?.trim() ?? '') !== '' ? 'true' : 'false',
+  },
   async headers() {
     return [
       {

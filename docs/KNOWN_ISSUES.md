@@ -1,5 +1,17 @@
 # Known Issues
 
+## MGT-071-BLOCKED: AI extraction requires ANTHROPIC_API_KEY (env not configured)
+
+**Scope**: MGT-069 + MGT-070 code paths are intact and the two supporting migrations are applied to the linked remote Supabase project (`hxxderwxxpfzdxlmsqpl`, 2026-04-17 via `supabase db push`). Real extraction cannot run end-to-end until `ANTHROPIC_API_KEY` is populated in the dev/staging env.
+
+**User-facing signal**: `/admin/events/new` → **From PDF / image** tab remains visible but the file input is rendered `disabled` and an inline `ERROR_BANNER` above it reads *"AI extraction not configured yet. This feature will be enabled once API access is set up."* Readiness is driven by `NEXT_PUBLIC_AI_EXTRACTION_READY`, derived at Next boot from the real `ANTHROPIC_API_KEY` presence in [next.config.mjs](../next.config.mjs) (`(process.env.ANTHROPIC_API_KEY?.trim() ?? '') !== '' ? 'true' : 'false'`). The secret itself is never exposed to the client bundle — only the derived boolean string.
+
+**Server behaviour unchanged**: with the flag on and the key missing, `extractWithClaude` throws at [src/lib/ai/extract.ts:290](../src/lib/ai/extract.ts), is caught at [src/app/admin/events/extract/actions.ts:258-278](../src/app/admin/events/extract/actions.ts), writes `ai_extraction_log { status: 'error', error_code: 'claude_call_failed' }`, and returns the generic user-facing error — identical to any other SDK-path failure. The UI gate makes this unreachable in the normal flow, so no erroneous log rows are produced by unsuspecting users.
+
+**Unblocks when**: `ANTHROPIC_API_KEY` is set in the target env and the Next process is restarted. The MGT-071 happy-path verification plan (one real extraction → `ai_extraction_log` success row → Storage object → audit detail with model + token counts) resumes at step 3 once the key lands.
+
+---
+
 ## MGT-069: AI-assisted event extraction — Phase A UX scaffold ships with a hardcoded mock response; real Claude Vision integration + observability + guardrails deferred to MGT-070
 
 **Scope (Phase A, landed 2026-04-17)**: `/admin/events/new` has a third `From PDF / image` tab. Upload + client validation (PDF/PNG/JPG, 10 MB cap) → `extractEventFromUpload(formData)` server action gates on `requireEditor()`, re-validates MIME + byte length server-side, waits 800 ms, and returns the hardcoded `MOCK_EXTRACTED_EVENT` fixture from `src/lib/ai/extract.ts`. `ExtractionPreview` renders the mock as an editable form; `Create event` chains `createEvent()` → `saveExtractedEventContent(eventId, days, meta)` with cascade-rollback on partial failure; `Discard and start from scratch` resets the page with no server hit. Audit rows are written as `event.created_from_extraction` with `detail.mock = true` so they remain filterable post-Phase-B cutover.
