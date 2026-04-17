@@ -4,7 +4,7 @@ import { validateEnv } from './env'
 // Keys that validateEnv checks
 const REQUIRED = ['NEXT_PUBLIC_SUPABASE_URL', 'NEXT_PUBLIC_SUPABASE_ANON_KEY']
 const SERVER_REQUIRED = ['SUPABASE_SERVICE_ROLE_KEY']
-const FEATURE_REQUIRED = ['RESEND_API_KEY', 'EMAIL_FROM']
+const FEATURE_REQUIRED = ['RESEND_API_KEY', 'EMAIL_FROM', 'ANTHROPIC_API_KEY']
 const URL_GROUP = ['APP_URL', 'NEXT_PUBLIC_APP_URL', 'NEXT_PUBLIC_SITE_URL', 'URL']
 const ALL_KEYS = [...REQUIRED, ...SERVER_REQUIRED, ...FEATURE_REQUIRED, ...URL_GROUP]
 
@@ -32,6 +32,7 @@ describe('validateEnv', () => {
     process.env.SUPABASE_SERVICE_ROLE_KEY = 'service-key'
     process.env.RESEND_API_KEY = 're_test'
     process.env.EMAIL_FROM = 'test@example.com'
+    process.env.ANTHROPIC_API_KEY = 'sk-ant-test'
     process.env.APP_URL = 'https://app.example.com'
   }
 

@@ -499,6 +499,77 @@ export type Database = {
           }
         ]
       }
+
+      ai_extraction_log: {
+        Row: {
+          id: string
+          org_id: string
+          user_id: string | null
+          event_id: string | null
+          source_mime: string
+          source_bytes: number
+          source_path: string | null
+          model: string | null
+          tokens_input: number | null
+          tokens_output: number | null
+          status: 'success' | 'error' | 'rate_limited' | 'validation_failed'
+          error_code: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          org_id: string
+          user_id?: string | null
+          event_id?: string | null
+          source_mime: string
+          source_bytes: number
+          source_path?: string | null
+          model?: string | null
+          tokens_input?: number | null
+          tokens_output?: number | null
+          status: 'success' | 'error' | 'rate_limited' | 'validation_failed'
+          error_code?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          org_id?: string
+          user_id?: string | null
+          event_id?: string | null
+          source_mime?: string
+          source_bytes?: number
+          source_path?: string | null
+          model?: string | null
+          tokens_input?: number | null
+          tokens_output?: number | null
+          status?: 'success' | 'error' | 'rate_limited' | 'validation_failed'
+          error_code?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_extraction_log_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_extraction_log_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_extraction_log_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
     }
 
     Views: {

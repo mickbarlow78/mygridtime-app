@@ -1,5 +1,19 @@
 # Known Issues
 
+## MGT-069: AI-assisted event extraction — Phase A UX scaffold ships with a hardcoded mock response; real Claude Vision integration + observability + guardrails deferred to MGT-070
+
+**Scope (Phase A, landed 2026-04-17)**: `/admin/events/new` has a third `From PDF / image` tab. Upload + client validation (PDF/PNG/JPG, 10 MB cap) → `extractEventFromUpload(formData)` server action gates on `requireEditor()`, re-validates MIME + byte length server-side, waits 800 ms, and returns the hardcoded `MOCK_EXTRACTED_EVENT` fixture from `src/lib/ai/extract.ts`. `ExtractionPreview` renders the mock as an editable form; `Create event` chains `createEvent()` → `saveExtractedEventContent(eventId, days, meta)` with cascade-rollback on partial failure; `Discard and start from scratch` resets the page with no server hit. Audit rows are written as `event.created_from_extraction` with `detail.mock = true` so they remain filterable post-Phase-B cutover.
+
+**Explicitly deferred to MGT-070 (Phase B)**: ~~the `@anthropic-ai/sdk` dependency~~, ~~the real Claude Vision tool-call body of `extractEventFromUpload`~~, ~~the `ai_extraction_log` table + migration + RLS policy~~, ~~the private `event-extractions` Supabase Storage bucket + migration + RLS policy~~, ~~the per-org 20-extractions/24h rate-limit pre-flight check~~, ~~the `ANTHROPIC_API_KEY` + `MGT_EXTRACT_MODEL` + `MGT_AI_EXTRACTION_ENABLED` env vars (and their entry in `src/lib/env.ts`)~~, and ~~token-count / cost fields on the audit detail~~. **All shipped 2026-04-17 via MGT-070 — see DEC-030.**
+
+**Also deferred (not owned by MGT-070)**: consumer-side upload (`/my/upload` stays "Coming soon"), batch / multi-file extraction (#16), re-extraction into an existing event, template creation from extraction, and the scheduled cleanup cron for the Storage bucket's 30-day retention. Paid-tier gating of extraction depends on #14 Stripe.
+
+**Why this split is fine**: the shared `ExtractedEvent` / `ExtractedDay` / `ExtractedEntry` contract in `src/lib/ai/extract.ts` is the single source of truth — Phase B swaps the action body without changing the client, the preview UI, the audit writer, or the insert path. The mock response is deterministic, fully typed, and truncated against `FIELD_LIMITS` before it leaves the server, so Phase A cannot produce data that Phase B would then reject.
+
+**Status**: Phase A resolved by MGT-069 (2026-04-17). Phase B resolved by MGT-070 (2026-04-17) — see DEC-030. Remaining deferred items (30-day Storage retention cron, consumer `/my/upload`, batch extraction, template-from-extraction, paid-tier gating) carried forward as noted above.
+
+---
+
 ## MGT-062: `org_member.role_updated` summary rendered nothing — renderer read `email`/`from`/`to` but payload writes `target_email` + `changes.role.{from,to}`
 
 **Description**: `OrgAuditLogView`'s `MemberRoleDetail` type declared `email?`, `from?`, `to?`, `old_role?`, `new_role?` and both the UI renderer (`MemberActionSummary`) and CSV formatter (`formatDetailForCsv`) destructured those top-level keys. The server-side `updateMemberRole()` action at `src/app/admin/orgs/actions.ts:425-438` actually writes `{ org_id, target_user_id, target_email, changes: { role: { from, to } } }` — none of the top-level keys the renderer read existed. Both call sites began `if (!from || !to) return …`, so they bailed before rendering. Result: every `org_member.role_updated` row in the panel rendered only the action label + actor + timestamp, with no summary line; the CSV Summary column was empty for the same rows. MGT-060 found and fixed the identical pattern on `org_member.removed` but explicitly scoped `role_updated` as a follow-up — MGT-062 is that follow-up.

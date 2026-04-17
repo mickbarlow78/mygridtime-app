@@ -43,8 +43,11 @@ const ENV_VARS: EnvVarDef[] = [
   // Feature-required — warn everywhere, but app still runs without email
   { name: 'RESEND_API_KEY', level: 'feature-required', description: 'Transactional email via Resend' },
   { name: 'EMAIL_FROM', level: 'feature-required', description: 'Verified sender email address' },
+  { name: 'ANTHROPIC_API_KEY', level: 'feature-required', description: 'Claude API key for AI timetable extraction (MGT-070)' },
 
   // Optional — features degrade gracefully when absent
+  { name: 'MGT_AI_EXTRACTION_ENABLED', level: 'optional', description: 'Feature flag for real Claude Vision extraction (defaults to off — mock fixture returned)' },
+  { name: 'MGT_EXTRACT_MODEL', level: 'optional', description: 'Claude model ID used for extraction (defaults to claude-sonnet-4-6)' },
   { name: 'NEXT_PUBLIC_SENTRY_DSN', level: 'optional', description: 'Sentry client-side error tracking' },
   { name: 'SENTRY_DSN', level: 'optional', description: 'Sentry server-side error tracking' },
   { name: 'SENTRY_ORG', level: 'optional', description: 'Sentry org (build-time source maps)' },

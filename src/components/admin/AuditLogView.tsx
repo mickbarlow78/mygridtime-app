@@ -39,6 +39,7 @@ const actionLabels: Record<string, string> = {
   'timetable.updated':           'Timetable updated',
   'template.created':            'Saved as template',
   'event.created_from_template': 'Created from template',
+  'event.created_from_extraction': 'Event created from extraction',
 }
 
 /** Options shown in the filter dropdown. Order matters for UX. */
@@ -56,6 +57,7 @@ const filterOptions: { value: string; label: string }[] = [
   { value: 'timetable.updated',         label: 'Timetable updated' },
   { value: 'template.created',          label: 'Saved as template' },
   { value: 'event.created_from_template', label: 'Created from template' },
+  { value: 'event.created_from_extraction', label: 'Event created from extraction' },
 ]
 
 const metaFieldLabels: Record<string, string> = {
