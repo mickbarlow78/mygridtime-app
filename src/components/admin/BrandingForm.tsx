@@ -10,6 +10,7 @@ import { CharCounter } from '@/components/ui/CharCounter'
 interface BrandingFormProps {
   orgId: string
   currentBranding: OrgBranding | null
+  onSaved?: () => void
 }
 
 const HEX_RE = /^#[0-9A-Fa-f]{3}([0-9A-Fa-f]{3})?$/
@@ -21,7 +22,7 @@ function to6Hex(hex: string): string {
   return hex.trim()
 }
 
-export function BrandingForm({ orgId, currentBranding }: BrandingFormProps) {
+export function BrandingForm({ orgId, currentBranding, onSaved }: BrandingFormProps) {
   const [primaryColor, setPrimaryColor] = useState(currentBranding?.primaryColor ?? '')
   // pickerColor must always be a valid 6-char hex for the native color input
   const [pickerColor, setPickerColor] = useState<string>(() => {
@@ -59,6 +60,7 @@ export function BrandingForm({ orgId, currentBranding }: BrandingFormProps) {
         setError(result.error)
       } else {
         setSuccess(true)
+        onSaved?.()
       }
     })
   }

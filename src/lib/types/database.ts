@@ -274,6 +274,7 @@ export type Database = {
           id: string
           user_id: string | null
           event_id: string | null
+          org_id: string | null
           action: string
           detail: Json | null
           actor_context: Json | null
@@ -283,6 +284,7 @@ export type Database = {
           id?: string
           user_id?: string | null
           event_id?: string | null
+          org_id?: string | null
           action: string
           detail?: Json | null
           actor_context?: Json | null
@@ -292,6 +294,7 @@ export type Database = {
           id?: string
           user_id?: string | null
           event_id?: string | null
+          org_id?: string | null
           action?: string
           detail?: Json | null
           actor_context?: Json | null

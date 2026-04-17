@@ -179,29 +179,35 @@ export function NotificationLogView({
 
   const controlsDisabled = loadingAll && !allLoaded
 
+  type DateRangeKey =
+    | 'all' | 'today' | 'yesterday' | '7d' | '30d'
+    | 'thisMonth' | 'lastMonth' | 'thisYear' | 'lastYear' | 'custom'
+  type AppliableDateRangeKey = Exclude<DateRangeKey, 'custom'>
+
   const today = new Date()
   const y = today.getFullYear()
   const m = today.getMonth()
   const d = today.getDate()
   const todayIso = toLocalIsoDate(today)
-  const yesterdayIso = toLocalIsoDate(new Date(y, m, d - 1))
-  const sevenDaysAgoIso = toLocalIsoDate(new Date(y, m, d - 6))
-  const thirtyDaysAgoIso = toLocalIsoDate(new Date(y, m, d - 29))
-  const firstOfMonthIso = toLocalIsoDate(new Date(y, m, 1))
-  const firstOfLastMonthIso = toLocalIsoDate(new Date(y, m - 1, 1))
-  const lastOfLastMonthIso = toLocalIsoDate(new Date(y, m, 0))
-  const firstOfYearIso = toLocalIsoDate(new Date(y, 0, 1))
-  const firstOfLastYearIso = toLocalIsoDate(new Date(y - 1, 0, 1))
-  const lastOfLastYearIso = toLocalIsoDate(new Date(y - 1, 11, 31))
-  const isTodayActive = dateFrom === todayIso && dateTo === todayIso
-  const isYesterdayActive = dateFrom === yesterdayIso && dateTo === yesterdayIso
-  const isLast7DaysActive = dateFrom === sevenDaysAgoIso && dateTo === todayIso
-  const isLast30DaysActive = dateFrom === thirtyDaysAgoIso && dateTo === todayIso
-  const isThisMonthActive = dateFrom === firstOfMonthIso && dateTo === todayIso
-  const isLastMonthActive = dateFrom === firstOfLastMonthIso && dateTo === lastOfLastMonthIso
-  const isThisYearActive = dateFrom === firstOfYearIso && dateTo === todayIso
-  const isLastYearActive = dateFrom === firstOfLastYearIso && dateTo === lastOfLastYearIso
-  const isAllTimeActive = !dateFrom && !dateTo
+
+  // Single source of truth for the date-range dropdown. Every mutation path
+  // (preset chips, dropdown change) and the derived `dateRangeValue` read
+  // goes through this map; 'custom' is a derivation outcome, not applyable.
+  const dateRangePresets: Record<AppliableDateRangeKey, { from: string; to: string }> = {
+    all:       { from: '',                                             to: ''                                          },
+    today:     { from: todayIso,                                       to: todayIso                                    },
+    yesterday: { from: toLocalIsoDate(new Date(y, m, d - 1)),          to: toLocalIsoDate(new Date(y, m, d - 1))       },
+    '7d':      { from: toLocalIsoDate(new Date(y, m, d - 6)),          to: todayIso                                    },
+    '30d':     { from: toLocalIsoDate(new Date(y, m, d - 29)),         to: todayIso                                    },
+    thisMonth: { from: toLocalIsoDate(new Date(y, m, 1)),              to: todayIso                                    },
+    lastMonth: { from: toLocalIsoDate(new Date(y, m - 1, 1)),          to: toLocalIsoDate(new Date(y, m, 0))           },
+    thisYear:  { from: toLocalIsoDate(new Date(y, 0, 1)),              to: todayIso                                    },
+    lastYear:  { from: toLocalIsoDate(new Date(y - 1, 0, 1)),          to: toLocalIsoDate(new Date(y - 1, 11, 31))     },
+  }
+
+  const dateRangeValue: DateRangeKey =
+    (Object.entries(dateRangePresets) as [AppliableDateRangeKey, { from: string; to: string }][])
+      .find(([, r]) => r.from === dateFrom && r.to === dateTo)?.[0] ?? 'custom'
 
   const isFailuresToday =
     statusFilter === 'failed' &&
@@ -234,11 +240,12 @@ export function NotificationLogView({
     statusFilter: '' | NotificationLogEntry['status']
     typeFilter: string
   }) {
+    const { from, to } = dateRangePresets.today
     setStatusFilter(next.statusFilter)
     setTypeFilter(next.typeFilter)
     setSearchQuery('')
-    setDateFrom(todayIso)
-    setDateTo(todayIso)
+    setDateFrom(from)
+    setDateTo(to)
   }
 
   const chipClass = (active: boolean, activeClasses: string) =>
@@ -248,35 +255,11 @@ export function NotificationLogView({
         : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-100'
     }`
 
-  type DateRangeKey =
-    | 'all' | 'today' | 'yesterday' | '7d' | '30d'
-    | 'thisMonth' | 'lastMonth' | 'thisYear' | 'lastYear' | 'custom'
-
-  const dateRangeValue: DateRangeKey = isAllTimeActive
-    ? 'all'
-    : isTodayActive      ? 'today'
-    : isYesterdayActive  ? 'yesterday'
-    : isLast7DaysActive  ? '7d'
-    : isLast30DaysActive ? '30d'
-    : isThisMonthActive  ? 'thisMonth'
-    : isLastMonthActive  ? 'lastMonth'
-    : isThisYearActive   ? 'thisYear'
-    : isLastYearActive   ? 'lastYear'
-    : 'custom'
-
   function handleDateRangeChange(value: DateRangeKey) {
-    switch (value) {
-      case 'all':       setDateFrom('');                  setDateTo('');                 return
-      case 'today':     setDateFrom(todayIso);            setDateTo(todayIso);           return
-      case 'yesterday': setDateFrom(yesterdayIso);        setDateTo(yesterdayIso);       return
-      case '7d':        setDateFrom(sevenDaysAgoIso);     setDateTo(todayIso);           return
-      case '30d':       setDateFrom(thirtyDaysAgoIso);    setDateTo(todayIso);           return
-      case 'thisMonth': setDateFrom(firstOfMonthIso);     setDateTo(todayIso);           return
-      case 'lastMonth': setDateFrom(firstOfLastMonthIso); setDateTo(lastOfLastMonthIso); return
-      case 'thisYear':  setDateFrom(firstOfYearIso);      setDateTo(todayIso);           return
-      case 'lastYear':  setDateFrom(firstOfLastYearIso);  setDateTo(lastOfLastYearIso);  return
-      case 'custom':    return
-    }
+    if (value === 'custom') return
+    const { from, to } = dateRangePresets[value]
+    setDateFrom(from)
+    setDateTo(to)
   }
 
   return (
@@ -429,13 +412,7 @@ export function NotificationLogView({
                 {hasActiveFilters && (
                   <button
                     type="button"
-                    onClick={() => {
-                      setStatusFilter('')
-                      setTypeFilter('')
-                      setSearchQuery('')
-                      setDateFrom('')
-                      setDateTo('')
-                    }}
+                    onClick={clearAllFilters}
                     disabled={controlsDisabled}
                     className="ml-auto text-xs text-gray-600 hover:text-gray-800 disabled:text-gray-400 border border-gray-200 rounded px-2 py-1 bg-white"
                   >

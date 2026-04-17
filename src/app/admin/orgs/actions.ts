@@ -10,6 +10,7 @@ import { getServerAppUrl } from '@/lib/utils/app-url'
 import { orgInviteSubject, orgInviteHtml, orgInviteText } from '@/lib/resend/templates'
 import type { OrgBranding } from '@/lib/types/database'
 import { isReservedSlug } from '@/lib/constants/reserved-slugs'
+import { writeAuditLog, makeActorContext } from '@/lib/audit'
 import * as Sentry from '@sentry/nextjs'
 
 // ---------------------------------------------------------------------------
@@ -133,6 +134,18 @@ export async function createOrganisation(input: {
       return { success: false, error: 'Could not create the organisation. Please retry.' }
     }
 
+    // Audit row — written via the authenticated client after the owner
+    // membership has committed, so RLS sees get_user_org_role(org.id) = 'owner'.
+    // Creator is by construction a genuine new member, so via: 'membership'.
+    await writeAuditLog(
+      supabase,
+      user.id,
+      { orgId: org.id },
+      'organisation.created',
+      { org_id: org.id, name, slug },
+      { via: 'membership' },
+    )
+
     // Post-commit side effects: the DB write has already succeeded, so a
     // failure here must not flip the user-facing result to an error. Any
     // exception (cookie write, cache revalidation) is captured to Sentry
@@ -200,11 +213,19 @@ export async function updateOrganisation(input: {
   orgId: string
   name: string
 }): Promise<ActionResult> {
-  const { supabase, authorized } = await requireOwnerOrAdmin()
+  const { supabase, user, activeOrg, authorized } = await requireOwnerOrAdmin()
   if (!authorized) return { success: false, error: 'Only owners and admins can update organisation settings.' }
 
   const name = input.name.trim()
   if (!name) return { success: false, error: 'Organisation name is required.' }
+
+  // Pre-fetch current name so the audit row captures the diff and can be
+  // suppressed on a no-op save, consistent with event.updated / event_day.label_updated.
+  const { data: current } = await supabase
+    .from('organisations')
+    .select('name')
+    .eq('id', input.orgId)
+    .maybeSingle()
 
   const { error } = await supabase
     .from('organisations')
@@ -214,6 +235,18 @@ export async function updateOrganisation(input: {
   if (error) {
     Sentry.captureException(error, { tags: { action: 'updateOrganisation.update' } })
     return { success: false, error: 'Could not update the organisation. Please retry.' }
+  }
+
+  const previousName = current?.name ?? null
+  if (previousName !== name) {
+    await writeAuditLog(
+      supabase,
+      user.id,
+      { orgId: input.orgId },
+      'organisation.updated',
+      { changes: { name: { from: previousName, to: name } } },
+      makeActorContext(activeOrg),
+    )
   }
 
   revalidatePath('/admin')
@@ -235,7 +268,7 @@ export async function updateOrgBranding(input: {
   orgId: string
   branding: OrgBranding
 }): Promise<ActionResult> {
-  const { supabase, authorized } = await requireOwnerOrAdmin()
+  const { supabase, user, activeOrg, authorized } = await requireOwnerOrAdmin()
   if (!authorized) return { success: false, error: 'Only owners and admins can update branding.' }
 
   const { primaryColor, logoUrl, headerText } = input.branding
@@ -243,6 +276,14 @@ export async function updateOrgBranding(input: {
   if (primaryColor && !HEX_RE.test(primaryColor)) {
     return { success: false, error: 'Primary colour must be a valid hex value (e.g. #ff0000 or #f00).' }
   }
+
+  // Pre-fetch current branding so the audit row captures a per-field diff
+  // and can be suppressed on a no-op save.
+  const { data: currentRow } = await supabase
+    .from('organisations')
+    .select('branding')
+    .eq('id', input.orgId)
+    .maybeSingle()
 
   // Build the stored object; omit empty fields so jsonb stays clean.
   // If everything is empty, store null on the column.
@@ -261,6 +302,29 @@ export async function updateOrgBranding(input: {
   if (error) {
     Sentry.captureException(error, { tags: { action: 'updateOrgBranding.update' } })
     return { success: false, error: 'Could not save branding. Please retry.' }
+  }
+
+  const previousBranding = (currentRow?.branding ?? null) as OrgBranding | null
+  const nextBranding = brandingValue as OrgBranding | null
+  const fields: Array<keyof OrgBranding> = ['primaryColor', 'logoUrl', 'headerText']
+  const changes: Record<string, { from: string | null; to: string | null }> = {}
+  for (const field of fields) {
+    const from = (previousBranding?.[field] ?? null) || null
+    const to   = (nextBranding?.[field]     ?? null) || null
+    if (from !== to) {
+      changes[field] = { from, to }
+    }
+  }
+
+  if (Object.keys(changes).length > 0) {
+    await writeAuditLog(
+      supabase,
+      user.id,
+      { orgId: input.orgId },
+      'organisation.branding_updated',
+      { changes },
+      makeActorContext(activeOrg),
+    )
   }
 
   revalidatePath('/admin')
@@ -317,21 +381,26 @@ export async function updateMemberRole(input: {
   orgId: string
   newRole: 'owner' | 'admin' | 'editor' | 'viewer'
 }): Promise<ActionResult> {
-  const { supabase, authorized } = await requireOwnerOrAdmin()
+  const { supabase, user, activeOrg, authorized } = await requireOwnerOrAdmin()
   if (!authorized) return { success: false, error: 'Only owners and admins can change roles.' }
 
-  // Fetch the member being changed
+  // Fetch the member being changed — include email join for audit detail.
+  // users RLS is self-only (users_select_own), so the email join may return
+  // null for other members; the audit row still writes with target_user_id.
   const { data: member } = await supabase
     .from('org_members')
-    .select('id, user_id, role')
+    .select('id, user_id, role, users!org_members_user_id_fkey(email)')
     .eq('id', input.memberId)
     .eq('org_id', input.orgId)
     .single()
 
   if (!member) return { success: false, error: 'Member not found.' }
 
+  const previousRole = member.role
+  const targetEmail = (member.users as unknown as { email: string } | null)?.email ?? null
+
   // Prevent demoting last owner
-  if (member.role === 'owner' && input.newRole !== 'owner') {
+  if (previousRole === 'owner' && input.newRole !== 'owner') {
     const { count } = await supabase
       .from('org_members')
       .select('id', { count: 'exact', head: true })
@@ -353,6 +422,22 @@ export async function updateMemberRole(input: {
     return { success: false, error: "Could not update this member's role. Please retry." }
   }
 
+  if (previousRole !== input.newRole) {
+    await writeAuditLog(
+      supabase,
+      user.id,
+      { orgId: input.orgId },
+      'org_member.role_updated',
+      {
+        org_id: input.orgId,
+        target_user_id: member.user_id,
+        target_email: targetEmail,
+        changes: { role: { from: previousRole, to: input.newRole } },
+      },
+      makeActorContext(activeOrg),
+    )
+  }
+
   revalidatePath('/admin')
   return { success: true, data: undefined }
 }
@@ -364,21 +449,28 @@ export async function removeMember(input: {
   memberId: string
   orgId: string
 }): Promise<ActionResult> {
-  const { supabase, authorized } = await requireOwnerOrAdmin()
+  const { supabase, user, activeOrg, authorized } = await requireOwnerOrAdmin()
   if (!authorized) return { success: false, error: 'Only owners and admins can remove members.' }
 
-  // Fetch the member being removed
+  // Fetch the member being removed — include user_id + email join for audit
+  // detail. Captured pre-delete so the detail survives the delete. users RLS
+  // (users_select_own) may null out the email for non-self rows; audit still
+  // writes with target_user_id.
   const { data: member } = await supabase
     .from('org_members')
-    .select('id, role')
+    .select('id, user_id, role, users!org_members_user_id_fkey(email)')
     .eq('id', input.memberId)
     .eq('org_id', input.orgId)
     .single()
 
   if (!member) return { success: false, error: 'Member not found.' }
 
+  const previousRole = member.role
+  const targetUserId = member.user_id
+  const targetEmail = (member.users as unknown as { email: string } | null)?.email ?? null
+
   // Prevent removing last owner
-  if (member.role === 'owner') {
+  if (previousRole === 'owner') {
     const { count } = await supabase
       .from('org_members')
       .select('id', { count: 'exact', head: true })
@@ -399,6 +491,20 @@ export async function removeMember(input: {
     Sentry.captureException(error, { tags: { action: 'removeMember.delete' } })
     return { success: false, error: 'Could not remove this member. Please retry.' }
   }
+
+  await writeAuditLog(
+    supabase,
+    user.id,
+    { orgId: input.orgId },
+    'org_member.removed',
+    {
+      org_id: input.orgId,
+      target_user_id: targetUserId,
+      target_email: targetEmail,
+      previous_role: previousRole,
+    },
+    makeActorContext(activeOrg),
+  )
 
   revalidatePath('/admin')
   return { success: true, data: undefined }
@@ -444,7 +550,7 @@ export async function inviteMember(input: {
   role: 'admin' | 'editor' | 'viewer'
 }): Promise<ActionResult> {
   try {
-    const { supabase, user, authorized } = await requireOwnerOrAdmin()
+    const { supabase, user, activeOrg, authorized } = await requireOwnerOrAdmin()
     if (!authorized) return { success: false, error: 'Only owners and admins can invite members.' }
 
     const email = input.email.trim().toLowerCase()
@@ -481,7 +587,7 @@ export async function inviteMember(input: {
         role: input.role,
         invited_by: user.id,
       })
-      .select('token')
+      .select('id, token')
       .single()
 
     if (insertError) {
@@ -495,6 +601,15 @@ export async function inviteMember(input: {
     if (!invite) {
       return { success: false, error: 'Failed to create invite.' }
     }
+
+    await writeAuditLog(
+      supabase,
+      user.id,
+      { orgId: input.orgId },
+      'org_member.invited',
+      { org_id: input.orgId, email, role: input.role, invite_id: invite.id },
+      makeActorContext(activeOrg),
+    )
 
     // Fetch org name for the email (use user client — RLS allows member read)
     const { data: org } = await supabase
@@ -548,8 +663,16 @@ export async function revokeInvite(input: {
   inviteId: string
   orgId: string
 }): Promise<ActionResult> {
-  const { supabase, authorized } = await requireOwnerOrAdmin()
+  const { supabase, user, activeOrg, authorized } = await requireOwnerOrAdmin()
   if (!authorized) return { success: false, error: 'Only owners and admins can revoke invites.' }
+
+  // Capture email pre-delete so the audit row records who was invited.
+  const { data: inviteRow } = await supabase
+    .from('org_invites')
+    .select('email')
+    .eq('id', input.inviteId)
+    .eq('org_id', input.orgId)
+    .maybeSingle()
 
   const { error } = await supabase
     .from('org_invites')
@@ -562,6 +685,15 @@ export async function revokeInvite(input: {
     return { success: false, error: 'Could not revoke this invite. Please retry.' }
   }
 
+  await writeAuditLog(
+    supabase,
+    user.id,
+    { orgId: input.orgId },
+    'org_member.invite_revoked',
+    { org_id: input.orgId, invite_id: input.inviteId, email: inviteRow?.email ?? null },
+    makeActorContext(activeOrg),
+  )
+
   revalidatePath('/admin')
   return { success: true, data: undefined }
 }
@@ -571,7 +703,7 @@ export async function revokeInvite(input: {
  * Validates: token exists, not already accepted, email matches user.
  */
 export async function acceptInvite(token: string): Promise<ActionResult<{ orgId: string; role: string }>> {
-  const { user } = await requireUser()
+  const { supabase, user } = await requireUser()
 
   const admin = createAdminClient()
 
@@ -654,6 +786,15 @@ export async function acceptInvite(token: string): Promise<ActionResult<{ orgId:
       error: 'You have been added to the organisation, but the invite could not be marked as accepted. Please refresh and try again.',
     }
   }
+
+  await writeAuditLog(
+    supabase,
+    user.id,
+    { orgId: invite.org_id },
+    'org_member.invite_accepted',
+    { org_id: invite.org_id, invite_id: invite.id, role: invite.role },
+    { via: 'membership' },
+  )
 
   // Set active org to the one they just joined
   setActiveOrgId(invite.org_id)

@@ -8,8 +8,11 @@ import type { EventStatus, Json } from '@/lib/types/database'
 import { sendEventNotification } from '@/lib/resend/notifications'
 import { debugLog } from '@/lib/debug'
 import { getActiveOrg } from '@/lib/utils/active-org'
-import { writeAuditLog, makeActorContext } from '@/lib/audit'
+import { writeAuditLog, makeActorContext, type AuditLogEntry } from '@/lib/audit'
+import { loadAuditLog } from '@/app/admin/audit/actions'
 import * as Sentry from '@sentry/nextjs'
+
+export type { AuditLogEntry } from '@/lib/audit'
 
 // ---------------------------------------------------------------------------
 // Revalidation helpers
@@ -172,7 +175,7 @@ export async function createEvent(input: CreateEventInput): Promise<ActionResult
     }
   }
 
-  await writeAuditLog(supabase, user.id, event.id, 'event.created', {
+  await writeAuditLog(supabase, user.id, { eventId: event.id }, 'event.created', {
     title: input.title,
     slug,
   }, makeActorContext(membership))
@@ -271,7 +274,7 @@ export async function updateEventMetadata(
     await writeAuditLog(
       supabase,
       user.id,
-      eventId,
+      { eventId },
       'event.updated',
       Object.keys(changes).length > 0 ? { changes } : undefined,
       makeActorContext(membership),
@@ -280,7 +283,7 @@ export async function updateEventMetadata(
     await writeAuditLog(
       supabase,
       user.id,
-      eventId,
+      { eventId },
       'event.updated',
       undefined,
       makeActorContext(membership),
@@ -375,7 +378,7 @@ export async function publishEvent(eventId: string, notify: boolean = false): Pr
     await writeAuditLog(
       supabase,
       user.id,
-      eventId,
+      { eventId },
       'event.published',
       { version: nextVersion },
       makeActorContext(membership),
@@ -386,7 +389,7 @@ export async function publishEvent(eventId: string, notify: boolean = false): Pr
     await writeAuditLog(
       supabase,
       user.id,
-      eventId,
+      { eventId },
       'event.published',
       undefined,
       makeActorContext(membership),
@@ -424,7 +427,7 @@ export async function unpublishEvent(eventId: string): Promise<ActionResult> {
   await writeAuditLog(
     supabase,
     user.id,
-    eventId,
+    { eventId },
     'event.unpublished',
     undefined,
     makeActorContext(membership),
@@ -456,7 +459,7 @@ export async function archiveEvent(eventId: string): Promise<ActionResult> {
   await writeAuditLog(
     supabase,
     user.id,
-    eventId,
+    { eventId },
     'event.archived',
     undefined,
     makeActorContext(membership),
@@ -632,7 +635,7 @@ export async function duplicateEvent(
   await writeAuditLog(
     supabase,
     user.id,
-    newEvent.id,
+    { eventId: newEvent.id },
     'event.duplicated',
     {
       source_event_id: sourceEventId,
@@ -655,7 +658,7 @@ export async function addEventDay(
   date: string,
   label?: string
 ): Promise<ActionResult<{ id: string }>> {
-  const { supabase, membership } = await requireEditor()
+  const { supabase, user, membership } = await requireEditor()
   if (!membership) return { success: false, error: 'You do not have permission to perform this action.' }
 
   // Get current max sort_order for this event
@@ -668,12 +671,14 @@ export async function addEventDay(
 
   const nextOrder = existing && existing.length > 0 ? existing[0].sort_order + 1 : 0
 
+  const trimmedLabel = label?.trim() || null
+
   const { data, error } = await supabase
     .from('event_days')
     .insert({
       event_id: eventId,
       date,
-      label: label?.trim() || null,
+      label: trimmedLabel,
       sort_order: nextOrder,
     })
     .select('id')
@@ -695,6 +700,15 @@ export async function addEventDay(
     return { success: false, error: genericAddError }
   }
 
+  await writeAuditLog(
+    supabase,
+    user.id,
+    { eventId },
+    'event_day.added',
+    { day_id: data.id, date, label: trimmedLabel },
+    makeActorContext(membership),
+  )
+
   revalidateAdminEventPaths(eventId)
   revalidatePublicEventPaths()
 
@@ -702,10 +716,27 @@ export async function addEventDay(
 }
 
 export async function removeEventDay(dayId: string): Promise<ActionResult> {
-  const { supabase, membership } = await requireEditor()
+  const { supabase, user, membership } = await requireEditor()
   if (!membership) return { success: false, error: 'You do not have permission to perform this action.' }
 
   const genericError = 'Could not remove this day. Please retry.'
+
+  // Resolve the parent event_id (plus date/label for the audit detail)
+  // BEFORE the delete, so the audit row can be written against a valid
+  // event scope and under the existing audit_log RLS policy.
+  const { data: dayRow, error: lookupError } = await supabase
+    .from('event_days')
+    .select('event_id, date, label')
+    .eq('id', dayId)
+    .single()
+
+  if (lookupError || !dayRow) {
+    Sentry.captureException(
+      new Error(`removeEventDay.lookup failed: ${lookupError?.message ?? 'no row'}`),
+      { tags: { action: 'removeEventDay.lookup' } }
+    )
+    return { success: false, error: genericError }
+  }
 
   // Cascade: delete entries first (RLS may require explicit delete).
   // If this fails we must NOT proceed to the day delete — otherwise we
@@ -733,6 +764,15 @@ export async function removeEventDay(dayId: string): Promise<ActionResult> {
     return { success: false, error: genericError }
   }
 
+  await writeAuditLog(
+    supabase,
+    user.id,
+    { eventId: dayRow.event_id },
+    'event_day.removed',
+    { day_id: dayId, date: dayRow.date, label: dayRow.label },
+    makeActorContext(membership),
+  )
+
   // dayId alone does not identify the parent event, so revalidate the
   // admin event editor dynamic route and the public timetable route.
   revalidatePath('/admin/events/[id]', 'page')
@@ -742,12 +782,32 @@ export async function removeEventDay(dayId: string): Promise<ActionResult> {
 }
 
 export async function updateDayLabel(dayId: string, label: string): Promise<ActionResult> {
-  const { supabase, membership } = await requireEditor()
+  const { supabase, user, membership } = await requireEditor()
   if (!membership) return { success: false, error: 'You do not have permission to perform this action.' }
+
+  // Pre-fetch event_id + current label so we can (a) audit against a
+  // valid event scope and (b) suppress the audit row on a no-op save
+  // (label unchanged) to match saveDayEntries' hasSubstantiveChanges gate.
+  const { data: dayRow, error: lookupError } = await supabase
+    .from('event_days')
+    .select('event_id, label')
+    .eq('id', dayId)
+    .single()
+
+  if (lookupError || !dayRow) {
+    Sentry.captureException(
+      new Error(`updateDayLabel.lookup failed: ${lookupError?.message ?? 'no row'}`),
+      { tags: { action: 'updateDayLabel.lookup' } }
+    )
+    return { success: false, error: 'Could not save this day label. Please retry.' }
+  }
+
+  const nextLabel = label.trim() || null
+  const prevLabel = dayRow.label ?? null
 
   const { error } = await supabase
     .from('event_days')
-    .update({ label: label.trim() || null })
+    .update({ label: nextLabel })
     .eq('id', dayId)
 
   if (error) {
@@ -756,6 +816,17 @@ export async function updateDayLabel(dayId: string, label: string): Promise<Acti
       { tags: { action: 'updateDayLabel.update' } }
     )
     return { success: false, error: 'Could not save this day label. Please retry.' }
+  }
+
+  if (prevLabel !== nextLabel) {
+    await writeAuditLog(
+      supabase,
+      user.id,
+      { eventId: dayRow.event_id },
+      'event_day.label_updated',
+      { day_id: dayId, changes: { label: { from: prevLabel, to: nextLabel } } },
+      makeActorContext(membership),
+    )
   }
 
   revalidatePath('/admin/events/[id]', 'page')
@@ -999,7 +1070,7 @@ export async function saveDayEntries(
     await writeAuditLog(
       supabase,
       user.id,
-      eventId,
+      { eventId },
       'timetable.updated',
       detail,
       makeActorContext(membership),
@@ -1134,72 +1205,19 @@ export async function getSnapshotData(
 // Audit Log Pagination
 // ---------------------------------------------------------------------------
 
-export interface AuditLogEntry {
-  id: string
-  user_id: string | null
-  event_id: string | null
-  action: string
-  detail: Json | null
-  actor_context: Json | null
-  created_at: string
-  user_email: string | null
-}
-
 /**
  * Loads all audit log entries for an event (no pagination).
- * Used by AuditLogView to enable client-side filtering and CSV export.
- * Safety cap: 2000 rows to prevent runaway queries.
+ *
+ * Backwards-compat delegator kept for `AuditLogView` (which imports
+ * `loadAllAuditLog` + `AuditLogEntry` from this module). The real
+ * implementation now lives in `src/app/admin/audit/actions.ts` as
+ * `loadAuditLog({ eventId })` — a scope-polymorphic loader that also
+ * serves the forthcoming org-audit UI. See DEC-026.
  */
 export async function loadAllAuditLog(
   eventId: string
 ): Promise<ActionResult<{ entries: AuditLogEntry[]; capped: boolean }>> {
-  const { supabase, membership } = await requireEditor()
-  if (!membership) return { success: false, error: 'No permission.' }
-
-  // Safety cap — per-event volume is small, but guard against edge cases
-  const CAP = 2000
-
-  const { data: rows, error } = await supabase
-    .from('audit_log')
-    .select('*, users:user_id ( email )')
-    .eq('event_id', eventId)
-    .order('created_at', { ascending: false })
-    .limit(CAP + 1)
-
-  if (error) {
-    Sentry.captureException(error, { tags: { action: 'loadAllAuditLog.select' } })
-    return { success: false, error: 'Could not load audit log. Please retry.' }
-  }
-
-  type AuditRowRaw = {
-    id: string
-    user_id: string | null
-    event_id: string | null
-    action: string
-    detail: unknown
-    actor_context: unknown
-    created_at: string
-    users: { email: string } | null
-  }
-
-  const allRows = (rows ?? []).map((row) => {
-    const raw = row as unknown as AuditRowRaw
-    return {
-      id: raw.id,
-      user_id: raw.user_id,
-      event_id: raw.event_id,
-      action: raw.action,
-      detail: raw.detail as Json | null,
-      actor_context: raw.actor_context as Json | null,
-      created_at: raw.created_at,
-      user_email: raw.users?.email ?? null,
-    }
-  })
-
-  const capped = allRows.length > CAP
-  const entries = capped ? allRows.slice(0, CAP) : allRows
-
-  return { success: true, data: { entries, capped } }
+  return loadAuditLog({ eventId })
 }
 
 /**
@@ -1233,6 +1251,7 @@ export async function loadMoreAuditLog(
     id: string
     user_id: string | null
     event_id: string | null
+    org_id: string | null
     action: string
     detail: unknown
     actor_context: unknown
@@ -1246,6 +1265,7 @@ export async function loadMoreAuditLog(
       id: raw.id,
       user_id: raw.user_id,
       event_id: raw.event_id,
+      org_id: raw.org_id,
       action: raw.action,
       detail: raw.detail as Json | null,
       actor_context: raw.actor_context as Json | null,

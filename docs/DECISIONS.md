@@ -1,5 +1,86 @@
 # Decisions
 
+## DEC-028: Dev-only route for exercising the positive `target_email` audit branch
+
+**Decision**: A dev-only `POST /api/dev/audit-fixture` route handler
+(`src/app/api/dev/audit-fixture/route.ts`) inserts synthetic `org_member.role_updated`
+and `org_member.removed` audit rows with caller-supplied non-null `target_email`
+values by invoking the shared `writeAuditLog()` helper (`src/lib/audit.ts:81`) through
+the caller's authenticated Supabase client. The route is hard-gated on
+`NODE_ENV === 'development'` (returns `404` in every other environment, matching the
+DEC-010 `/api/auth/dev-session` gate verbatim), additionally requires
+`DEV_ADMIN_EMAIL` to be set and the session email to match, requires the request's
+`orgId` to match the caller's active org, and requires the caller to hold
+`owner` or `admin` role in that org. The detail-payload shape matches the exact
+fields written by `updateMemberRole()` / `removeMember()` in
+`src/app/admin/orgs/actions.ts:426-438,495-507`, and `actor_context` is stamped via
+the shared `makeActorContext()` helper so the fixture row is structurally
+indistinguishable from a production write. Rejected alternatives: (a) a raw SQL
+snippet in docs — not repeatable without Supabase-console access and easy to get
+the payload shape wrong against the hardened `audit_log_scope_xor` CHECK; (b) a
+service-role client bypass — introduces a second audit write path and widens the
+trust surface for no functional gain, since the fixture doesn't need to bypass
+RLS for the *target user*, only inject a known `target_email` string into the
+detail payload; (c) extending `updateMemberRole()` / `removeMember()` with a dev
+flag — explicitly violates the "no backend production changes" constraint.
+
+**Reason**: MGT-063 closed the positive-branch by inspection but left the live
+UI and CSV rendering paths (`OrgAuditLogView.tsx:160,165,269,285`) unexercised
+end-to-end. The `users_select_own` RLS policy nulls `users.email` for every
+non-self row in the `updateMemberRole()` / `removeMember()` joins, so
+`target_email` is always `null` on live org audit rows and the non-null branch
+is unreachable by any production action. Sole-owner guards block the
+self-target workaround. A dev-only route that shares the `writeAuditLog()`
+invariants (XOR scope `CHECK`, RLS, Sentry-swallowed failure mode) lets the
+branch be exercised in dev without any production-code, schema, RLS, or
+event-audit change. Sharing the writer preserves the single-source-of-truth
+property of DEC-025 (no second write path that could drift from the
+production shape). The dev-only + `DEV_ADMIN_EMAIL` + active-org match triple
+gate means the route cannot write audit rows in production even if the
+`NODE_ENV` gate were somehow bypassed.
+
+**Date**: 2026-04-17
+
+**Status**: Closed — dev fixture removed via MGT-066 (2026-04-17). Route was dev-only (NODE_ENV + DEV_ADMIN_EMAIL guarded); no production impact. Positive-branch audit UI verification complete.
+
+---
+
+## DEC-027: Org-settings live audit refresh uses a client wrapper, not React Context
+
+**Decision**: The live-refresh plumbing for `OrgAuditLogView` on `/admin/orgs/settings` lives in a single colocated `'use client'` wrapper — `src/app/admin/orgs/settings/SettingsPanels.tsx` — rather than a new React Context provider. The wrapper owns `const [refreshSignal, setRefreshSignal] = useState(0)` plus a `bumpRefresh` helper, renders the four interactive sections (org name, slug, branding, members & invites, audit log) inline with their existing `<section>` + `H2` markup, and passes `onSaved={bumpRefresh}` to `OrgNameForm`, `BrandingForm`, `MemberManager` and `refreshSignal={refreshSignal}` to `OrgAuditLogView`. The settings page stays a server component and delegates the entire panel stack (plus the static slug card) to `<SettingsPanels … />`, keeping breadcrumb, H1, and subtitle at the server layer. Mirrors DEC-023 exactly: the `EventEditor` → `AuditLogView` pattern for events is reused wholesale for the org surface.
+
+**Reason**: The page already parallel-fetches org, members, invites, and audit entries server-side — a Context provider would force either a second fetch layer or awkward prop-then-context re-declaration, and would add an abstraction that exists to serve a single one-page relationship. One local `useState` + one callback prop per form is the minimum-surface signal that reuses the already-established `OrgAuditLogView.useEffect → allLoaded = false` retry path (shipped inert in MGT-057). The wrapper also keeps the server page small: auth, `getActiveOrg`, and the `Promise.all` data fetch stay on the server; all `'use client'` state lives in one file. Putting the slug card inside the wrapper (even though it has no state) is a readability call — the four visible sections stay visually adjacent in one source file rather than being interleaved between server and client components in the page. The event-side pattern (DEC-023) is the authoritative precedent for audit-refresh signalling in this codebase, so the choice is "same shape, second surface" rather than a new idiom.
+
+**Date**: 2026-04-17
+
+**Status**: Active — shipped with MGT-058
+
+---
+
+## DEC-026: Audit log read layer is scope-polymorphic via `loadAuditLog(scope: AuditScope)`
+
+**Decision**: The audit log read layer mirrors the write layer's scope contract (DEC-025). A single server action `loadAuditLog(scope: AuditScope)` in `src/app/admin/audit/actions.ts` accepts the discriminated union `{ eventId: string } | { orgId: string }` already exported from `src/lib/audit.ts` and dispatches to `.eq('event_id', …)` or `.eq('org_id', …)` on the `audit_log` table. The `AuditLogEntry` row-shape type moves from `src/app/admin/events/actions.ts` to `src/lib/audit.ts` so both the event-side and audit-side action files reference one source. RLS (`audit_log_select_admin`) remains the sole access gate for both branches — the loader only requires an authenticated user, consistent with the existing `loadAllAuditLog()` pattern. `loadAllAuditLog(eventId)` stays exported from `src/app/admin/events/actions.ts` as a thin delegator (`return loadAuditLog({ eventId })`) and `AuditLogEntry` is type-re-exported from the same module, so `AuditLogView`'s imports at `src/components/admin/AuditLogView.tsx:5` are unchanged. The 2000-row safety cap and row-mapping shape are preserved verbatim. `loadMoreAuditLog(eventId, cursor)` at `src/app/admin/events/actions.ts:1280` is deliberately **not** unified in this pass — it is a cursor-pagination fallback, not the primary flow (DEC-014), and the forthcoming org-audit UI will reuse the `loadAll` path.
+
+**Reason**: MGT-055 wrote org-scoped rows to `audit_log` but left the read layer event-only, so those rows were invisible to any UI. Before the org-audit surface can ship, the read layer needs the same compile-time scope-branch safety the writer has. Putting the shared loader in a dedicated `src/app/admin/audit/actions.ts` (rather than extending events/ or orgs/) keeps the audit read layer independent of both action groups and avoids the naming anomaly of an "events" file owning an org-scoped reader. Centralising `AuditLogEntry` in `src/lib/audit.ts` removes the implicit circular-import risk that would otherwise appear once orgs/actions.ts starts reading audit rows. Keeping `loadAllAuditLog(eventId)` as a one-line delegator (rather than renaming all call sites) holds the "NO UI changes in this task" boundary — the prep refactor ships without touching any component — and lets the next MGT ticket (org-audit UI) land as a pure consumer of the new API. Leaving `loadMoreAuditLog` event-only is a scope call: per-scope volumes remain small (DEC-014's 2000-row cap has never been hit in practice), and the org UI will reuse the `loadAll` path; unifying the cursor variant speculatively would add surface area for no current caller.
+
+**Date**: 2026-04-17
+
+**Status**: Active — shipped with MGT-056
+
+---
+
+## DEC-025: `audit_log` is dual-scoped — exactly one of `event_id` / `org_id` per row
+
+**Decision**: The `audit_log` table is now scoped to either an event **or** an organisation, enforced by a DB `CHECK` constraint (`audit_log_scope_xor`: `((event_id IS NULL) <> (org_id IS NULL))`). A nullable `org_id uuid REFERENCES organisations(id)` column is added alongside the existing nullable `event_id`. The shared `writeAuditLog()` helper in `src/lib/audit.ts` now takes a discriminated-union `scope: { eventId: string } | { orgId: string }` argument — the helper writes one of the two columns based on the branch and leaves the other `NULL`. Both the INSERT policy (`audit_log_insert_members`) and the SELECT policy (`audit_log_select_admin`) are re-created to cover both branches (event rows via `event_id IN (SELECT e.id FROM events e WHERE get_user_org_role(e.org_id) IN (...))`, org rows via `get_user_org_role(org_id) IN (...)`), with INSERT permitted for `owner | admin | editor` and SELECT restricted to `owner | admin`. Admin-client audit fallback is explicitly rejected — every `writeAuditLog()` call goes through the caller's authenticated Supabase client so RLS remains the single source of truth for who can write an audit row to which scope. Platform-staff access inherits both branches automatically via DEC-018's `get_user_org_role()` short-circuit; no separate platform clause is added to either policy.
+
+**Reason**: Closing MGT-054's zero-audit-coverage gap in `src/app/admin/orgs/actions.ts` required a scope the table did not have — the pre-existing `event_id`-only shape could not represent `organisation.created`, membership changes, or branding edits without a fake event. A nullable `org_id` with an XOR `CHECK` is the smallest schema change that covers the eight org-scoped actions while preserving the existing event-scoped behaviour untouched; a separate `org_audit_log` table was considered and rejected because every read path (`AuditLogView`, future admin reporting) would need to UNION both tables. A discriminated-union `scope` argument forces call sites to commit to one branch at compile time, so R1 (malformed scope violating the CHECK) is caught at typecheck and cannot land in production. Keeping audits on the authenticated client means a compromised or misused code path can only write rows the caller is permitted to — consistent with the rest of the admin server-action layer and with DEC-014's "no service-role fallback on user-initiated writes" principle. Admin-client fallback would have widened the trust surface for no functional gain; platform staff already have org coverage via DEC-018.
+
+**Date**: 2026-04-17
+
+**Status**: Active — shipped with MGT-055
+
+---
+
 ## DEC-001: Notifications are opt-in
 
 **Decision**: All notifications (publish and save) require explicit user opt-in before sending.

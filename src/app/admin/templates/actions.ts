@@ -163,7 +163,7 @@ export async function saveAsTemplate(
   await writeAuditLog(
     supabase,
     user.id,
-    eventId,
+    { eventId },
     'template.created',
     {
       template_id: template.id,
@@ -363,7 +363,7 @@ export async function createEventFromTemplate(
   await writeAuditLog(
     supabase,
     user.id,
-    event.id,
+    { eventId: event.id },
     'event.created_from_template',
     {
       template_id: templateId,

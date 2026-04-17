@@ -18,9 +18,10 @@ interface MemberManagerProps {
   orgId: string
   initialMembers: Member[]
   initialInvites: Invite[]
+  onSaved?: () => void
 }
 
-type Member = {
+export type Member = {
   id: string
   user_id: string
   role: string
@@ -28,7 +29,7 @@ type Member = {
   created_at: string
 }
 
-type Invite = {
+export type Invite = {
   id: string
   email: string
   role: string
@@ -42,7 +43,7 @@ type Invite = {
 const SELECTABLE_ROLES = ['owner', 'admin'] as const
 const LEGACY_ROLES = ['editor', 'viewer'] as const
 
-export function MemberManager({ orgId, initialMembers, initialInvites }: MemberManagerProps) {
+export function MemberManager({ orgId, initialMembers, initialInvites, onSaved }: MemberManagerProps) {
   // Initialise from server-fetched props so the list is visible immediately
   // on first paint. No empty state flash while the first async load completes.
   const [members, setMembers] = useState<Member[]>(initialMembers)
@@ -142,6 +143,7 @@ export function MemberManager({ orgId, initialMembers, initialInvites }: MemberM
         if (!refresh.success) {
           setError(`Role updated, but the member list could not be refreshed: ${refresh.error}`)
         }
+        onSaved?.()
       }
     })
   }
@@ -165,6 +167,7 @@ export function MemberManager({ orgId, initialMembers, initialInvites }: MemberM
         if (!refresh.success) {
           setError(`Member removed, but the member list could not be refreshed: ${refresh.error}`)
         }
+        onSaved?.()
       }
     })
   }
@@ -184,6 +187,7 @@ export function MemberManager({ orgId, initialMembers, initialInvites }: MemberM
         if (!refresh.success) {
           setError(`Invite sent, but the invite list could not be refreshed: ${refresh.error}`)
         }
+        onSaved?.()
       }
     })
   }
@@ -200,6 +204,7 @@ export function MemberManager({ orgId, initialMembers, initialInvites }: MemberM
         if (!refresh.success) {
           setError(`Invite revoked, but the invite list could not be refreshed: ${refresh.error}`)
         }
+        onSaved?.()
       }
     })
   }

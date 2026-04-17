@@ -10,9 +10,10 @@ import { CharCounter } from '@/components/ui/CharCounter'
 interface OrgNameFormProps {
   orgId: string
   currentName: string
+  onSaved?: () => void
 }
 
-export function OrgNameForm({ orgId, currentName }: OrgNameFormProps) {
+export function OrgNameForm({ orgId, currentName, onSaved }: OrgNameFormProps) {
   const router = useRouter()
   const [name, setName] = useState(currentName)
   const [error, setError] = useState<string | null>(null)
@@ -33,6 +34,7 @@ export function OrgNameForm({ orgId, currentName }: OrgNameFormProps) {
         setError(result.error)
       } else {
         setSuccess(true)
+        onSaved?.()
         router.refresh()
       }
     })
