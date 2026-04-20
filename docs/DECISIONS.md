@@ -1,5 +1,15 @@
 # Decisions
 
+## DEC-031: Extraction review step derives `was_modified` via `JSON.stringify` diff and logs it through existing `ExtractionMeta` — no DB schema change
+
+**Decision**: MGT-072 formalises the review contract between AI extraction and event creation without adding a new screen or persistence column. `ExtractionPreview` captures the server-returned `ExtractedEvent` into a `useRef` pristine snapshot on first render, then at confirm time computes `wasModified = JSON.stringify(pristineRef.current) !== JSON.stringify(state)` and passes it via a widened `onConfirm(edited, wasModified)` callback. The flag is threaded through the existing `ExtractionMeta` object (new optional field `was_modified?: boolean`) into `saveExtractedEventContent` and rides along in the existing `event.created_from_extraction` audit row — no migration, no new column.
+
+**Why `JSON.stringify` and not a deep-equals helper**: the repo has no existing deep-equals utility and no lodash; `ExtractedEvent` is plain serialisable data with no `Date`/`Function`/`Symbol` values; mutations always go through `updateMeta`/`updateDay`/`updateEntry` which spread onto existing objects so key order is stable. The flag is a log-only signal (audit colour, not business logic), so the one-line inline compare is the minimal fit. A future refactor that reorders keys could false-positive the flag — acceptable trade-off given it never drives persistence or control flow.
+
+**Why no dedicated column**: a `was_modified` boolean is useful observability but is not load-bearing on any user-facing behaviour. Adding a column would require a migration, a backfill story, and a typed Supabase row shape — disproportionate for a signal whose only consumer today is the human reading an audit row. If it ever needs to become queryable (e.g. "percentage of extractions accepted unchanged"), it can be promoted from the JSON `meta` into a column in a later, targeted migration.
+
+---
+
 ## DEC-030: AI extraction calls Claude Vision via forced tool-use, archives every upload, and soft-caps at 20 extractions per org per 24 hours
 
 **Decision**: MGT-070 Phase B wires `extractEventFromUpload()` to a real Claude Vision call via `extractWithClaude()` in `src/lib/ai/extract.ts`. The call uses `@anthropic-ai/sdk`'s `messages.create` with `tool_choice: { type: 'tool', name: 'emit_event' }` against a JSON schema that mirrors `ExtractedEvent` — the model cannot return free-text prose, only a structured `tool_use` block. After parsing the block, the existing hand-written `isExtractedEvent()` guard is run; any mismatch throws `ExtractValidationError` and is logged as `validation_failed`. The system prompt is prompt-cached (`cache_control: { type: 'ephemeral' }`) so subsequent extractions in the same 5-minute window reuse the cached tokens. Default model is `claude-sonnet-4-6`, overridable via `MGT_EXTRACT_MODEL`.

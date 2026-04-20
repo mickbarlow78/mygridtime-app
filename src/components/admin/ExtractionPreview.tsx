@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import {
   CARD,
   CARD_PADDING,
@@ -24,7 +24,7 @@ interface Props {
   initialEvent: ExtractedEvent
   submitting: boolean
   error: string | null
-  onConfirm: (edited: ExtractedEvent) => void
+  onConfirm: (edited: ExtractedEvent, wasModified: boolean) => void
   onDiscard: () => void
 }
 
@@ -38,6 +38,9 @@ interface Props {
 export function ExtractionPreview({ initialEvent, submitting, error, onConfirm, onDiscard }: Props) {
   const [state, setState] = useState<ExtractedEvent>(initialEvent)
   const [localError, setLocalError] = useState<string | null>(null)
+  // MGT-072: pristine snapshot of the extraction as returned by the server — used
+  // only to derive `was_modified` at confirm time. Never mutated.
+  const pristineRef = useRef<ExtractedEvent>(initialEvent)
 
   function updateMeta<K extends keyof ExtractedEvent>(key: K, value: ExtractedEvent[K]) {
     setState((prev) => ({ ...prev, [key]: value }))
@@ -117,7 +120,8 @@ export function ExtractionPreview({ initialEvent, submitting, error, onConfirm, 
       return
     }
 
-    onConfirm(state)
+    const wasModified = JSON.stringify(pristineRef.current) !== JSON.stringify(state)
+    onConfirm(state, wasModified)
   }
 
   const banner = localError ?? error
@@ -127,7 +131,7 @@ export function ExtractionPreview({ initialEvent, submitting, error, onConfirm, 
       <div className={`${CARD} ${CARD_PADDING}`}>
         <h2 className={`${H2} mb-3`}>Event details</h2>
         <p className={`${HELP_TEXT} mb-4`}>
-          Review and edit the extracted values. Nothing is saved until you click{' '}
+          Review and edit — you can change any field before creating. Nothing is saved until you click{' '}
           <span className="font-medium text-gray-600">Create event</span>.
         </p>
 

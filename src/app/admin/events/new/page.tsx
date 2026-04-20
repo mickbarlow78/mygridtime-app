@@ -146,7 +146,7 @@ export default function NewEventPage() {
     setExtractedMeta(result.data.meta)
   }
 
-  async function handleExtractedConfirm(edited: ExtractedEvent) {
+  async function handleExtractedConfirm(edited: ExtractedEvent, wasModified: boolean) {
     if (!extractedMeta) return
     setError(null)
     setSubmitting(true)
@@ -168,7 +168,7 @@ export default function NewEventPage() {
     const saveResult = await saveExtractedEventContent(
       createResult.data.id,
       edited.days,
-      extractedMeta,
+      { ...extractedMeta, was_modified: wasModified },
     )
     if (!saveResult.success) {
       // saveExtractedEventContent already rolled back the event on failure.

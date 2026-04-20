@@ -37,6 +37,8 @@ export interface ExtractionMeta {
   model?: string
   tokens_input?: number
   tokens_output?: number
+  /** MGT-072 — true if user edited any field in the review step before create. Log-only. */
+  was_modified?: boolean
 }
 
 export interface ExtractEventFromUploadResult {
