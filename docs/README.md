@@ -15,6 +15,7 @@ Docs must be kept in sync with code at all times.
 | `LAUNCH_PLAN.md` | Prioritised roadmap to market-ready v1 |
 | `KNOWN_ISSUES.md` | Tracked bugs, risks, and gaps with status |
 | `DECISIONS.md` | Key architectural and product decisions |
+| `QA_RUNBOOKS.md` | Operational runbooks for manual verification flows (dev-only tooling, browser-driven QA) |
 
 ## Rules
 

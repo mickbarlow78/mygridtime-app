@@ -71,3 +71,4 @@ At the start of every new session:
 1. Read `/docs/CLAUDE_SETUP.md`
 2. Read `/docs/*.md`
 3. Confirm rules will be followed before proceeding
+- Read /docs/QA_PREVIEW_RULES.md before any UI verification

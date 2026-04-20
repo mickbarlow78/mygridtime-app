@@ -1,5 +1,47 @@
 # Decisions
 
+## DEC-034: Operational QA flows for dev-only tooling live in `docs/QA_RUNBOOKS.md`, separate from `DECISIONS.md`
+
+**Decision**: Manual verification flows that depend on dev-only scripts, routes, or fixtures (starting with the MGT-075 `seed:extractions` / `cleanup:extractions` pair) are documented in a new top-level doc `docs/QA_RUNBOOKS.md`. Each runbook is a self-contained, step-by-step procedure — required env vars inline, command to run, expected browser state, cleanup command, troubleshooting table — written so a new operator can execute the flow end-to-end without opening any script file or source module. Design rationale (why the tool exists, what alternatives were rejected, what the blast radius is) stays in `DECISIONS.md`; runbooks reference the relevant DEC rather than duplicating prose. `docs/README.md` is updated to list the new file alongside the existing four; `docs/PROJECT_STATUS.md` and `docs/LAUNCH_PLAN.md` reference it from the MGT-075 entries so operators land on the runbook when following the scripts.
+
+**Why a dedicated file rather than a `## QA` section in `PROJECT_STATUS.md` or `DECISIONS.md`**: `PROJECT_STATUS.md` is a state snapshot, not a how-to; `DECISIONS.md` is append-only rationale, not procedure. A reviewer trying to run the extraction-log seed should not have to scroll past 33 decisions or 200 lines of state prose to find the command. A dedicated runbook file keeps each concern in one place and gives future runbooks (dev-session auth flow, audit-fixture pattern if ever reintroduced, notification-log replay, etc.) a natural home without growing either of the existing docs.
+
+**Why not the plan (`LAUNCH_PLAN.md`) or `KNOWN_ISSUES.md`**: the plan is roadmap; known issues is defect tracking. Runbooks are neither — they are operational artefacts that describe *how to run existing tooling*, independent of whether the feature is shipped, blocked, or in progress.
+
+**Alternatives considered**:
+- Put the runbook inline inside DEC-033. Rejected — DEC-033 is the rationale for the seed/cleanup design (source_path marker, .mjs over ts-node, scripts over dev route); mixing operational steps into that prose makes both jobs harder to read.
+- A top-level `docs/RUNBOOKS.md` covering *all* runbooks (not just QA). Rejected for this pass — the only runbooks on the horizon are QA-shaped (dev-only verification, manual browser checks). If a production runbook ever appears (incident response, key rotation, DB recovery), it can live in a sibling `docs/OPS_RUNBOOKS.md` without renaming this one.
+- Inline operational steps inside the scripts themselves as expanded top-of-file comments. Rejected — forces the operator to open the script to understand the flow, which is the exact failure mode this doc prevents.
+
+**Implications**: every future dev-only verification tool (scripts, `/api/dev/*` routes, fixture builders) should add a section to `QA_RUNBOOKS.md` at ship time, and the feature's DEC / PROJECT_STATUS entry should cross-link to that section. The runbook file is markdown-only — no code, no migrations, no runtime surface; edits to it do not require a build or redeploy and cannot break the app.
+
+**Date**: 2026-04-20
+
+**Status**: Active — shipped 2026-04-20 via MGT-076.
+
+---
+
+## DEC-033: ExtractionLogView dev verification uses a local-only seed/cleanup script pair with a `source_path` marker — no new runtime surface
+
+**Decision**: MGT-075 introduces a dev-only verification harness for the `ExtractionLogView` panel (DEC-032) as two Node scripts — `scripts/seed-extraction-log.mjs` and `scripts/cleanup-extraction-log.mjs` — wired through npm as `seed:extractions` / `cleanup:extractions`. Both use the service-role Supabase client (`SUPABASE_SERVICE_ROLE_KEY`) loaded via Node 20's native `--env-file=.env.local`, so no new dev dependency (`dotenv`, `ts-node`, etc.) is added. The seed script resolves the org via `DEV_ADMIN_EMAIL → users.id → org_members (role IN owner/admin/editor)` and inserts 6 rows covering every rendered branch of `ExtractionLogView`: success linked to a live event, success unlinked, success linked to a soft-deleted event (falls back to unlinked when no such event exists), `error` with `error_code`, `rate_limited`, `validation_failed` with `error_code`. Every seeded row carries `source_path = 'seed/mgt-075/<uuid>'`; cleanup deletes via `LIKE 'seed/mgt-075/%'`, so the marker is the single source of truth for "is this a seeded row?" and the pair is idempotent and fully reversible. No DB migration, no RLS change, no new API route, no new env var, no UI change, and no touch of the `extractEventFromUpload()` / `saveExtractedEventContent()` production paths.
+
+**Why a `source_path` marker rather than a dedicated seed flag column**: adding a nullable `seeded boolean` would require a migration, widen the production row shape, and leak dev concerns into a table that the RLS policy already permits member SELECT on. `source_path` is already nullable, already carries the real storage path `{org_id}/{extraction_id}/{ts}.{ext}` in the Phase-B code path, and is never read by the ExtractionLogView UI — it renders only the MIME / byte size / model / tokens / status / error_code columns. Using a sentinel prefix in an existing column is zero-cost in schema terms and the prefix itself is self-documenting for anyone inspecting the table directly.
+
+**Why ship this at all**: MGT-071-BLOCKED leaves the real Claude Vision path unreachable until `ANTHROPIC_API_KEY` is provisioned; in the meantime MGT-073 / MGT-074 shipped the full ExtractionLogView UI surface without a repeatable way to exercise the non-`success` branches (error / rate_limited / validation_failed) or the soft-deleted-event fallback. Reviewers and future maintainers need a one-command way to populate the panel, verify visually, and clean up — matching the spirit of the DEV_ADMIN_EMAIL / `/api/auth/dev-session` pattern already established for dev auth (DEC-010). Scripts rather than a dev route are chosen because the seed is a one-time setup + teardown, not an interactive per-request operation, and because a route would introduce production surface area (404-gated or not) for no gain.
+
+**Alternatives considered**:
+- A dev-only `POST /api/dev/extraction-seed` route mirroring DEC-028's audit-fixture pattern. Rejected — MGT-066 already retired DEC-028's route once verification was complete, and adding a new one would re-open the same production-surface footprint for a use case that is fundamentally build-time (seed once, verify, clean up) rather than request-time.
+- `ts-node scripts/*.ts` with shared TypeScript types from `src/app/admin/extractions/actions.ts`. Rejected — adds a `ts-node` dev dep and the script only writes to the table; the column shape is enforced by Postgres. `.mjs` with inline field names is the smallest viable surface.
+- Marker in `model` field (e.g. `model = 'seed:mgt-075'`). Rejected — `model` is rendered in the UI and non-seed `rate_limited` / `error` rows legitimately have `model = null`; a seed-specific string would be visible in every row and would misrepresent the row to a reviewer reading the panel.
+
+**Implications**: Scripts are dev-only by dependency, not by runtime gate — they require `SUPABASE_SERVICE_ROLE_KEY` which production never exposes to the client or to Node processes outside the `createAdminClient()` path. If a developer accidentally pointed `.env.local` at a production Supabase project, cleanup would still remove exactly the rows the seed inserted (via the sentinel prefix) and nothing else, so the worst-case blast radius is bounded to six rows that carry an obvious marker. The seed is not wired into CI and is not expected to be run during automated verification — it is an on-demand tool for manual browser verification of the panel.
+
+**Date**: 2026-04-20
+
+**Status**: Active — shipped 2026-04-20 via MGT-075.
+
+---
+
 ## DEC-032: Extraction log visibility is an org-settings section that queries `ai_extraction_log` directly — no audit_log join, no schema change
 
 **Decision**: MGT-073 adds a read-only `Extraction log` section to `/admin/orgs/settings`, rendered by a new `ExtractionLogView` client component fed by a new `loadExtractionLog(orgId)` server action (`src/app/admin/extractions/actions.ts`). The action selects from `ai_extraction_log` with `users:user_id ( email )` and `events:event_id ( id, title, slug, deleted_at )` joins, orders by `created_at DESC`, and caps at 2000 rows — mirroring the shape of `loadAuditLog()` (DEC-026). The view follows the `OrgAuditLogView` idiom: collapsible panel, client-side filters (status dropdown, date range, free-text search across email / error_code / model / event title), `refreshSignal`-driven reload (DEC-027), subtle 2000-row cap banner. No CSV export and no `was_modified` column in this pass. The page-level `owner | admin` gate at `src/app/admin/orgs/settings/page.tsx` governs visibility; editors cannot see the section even though the underlying RLS policy permits them to read.
