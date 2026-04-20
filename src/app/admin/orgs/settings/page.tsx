@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { getActiveOrg } from '@/lib/utils/active-org'
 import { listOrgMembers, listOrgInvites } from '@/app/admin/orgs/actions'
 import { loadAuditLog } from '@/app/admin/audit/actions'
+import { loadExtractionLog } from '@/app/admin/extractions/actions'
 import { SettingsPanels } from './SettingsPanels'
 import type { OrgBranding } from '@/lib/types/database'
 import { getServerAppUrl } from '@/lib/utils/app-url'
@@ -39,10 +40,11 @@ export default async function OrgSettingsPage() {
 
   // Fetch members and invites server-side so MemberManager can hydrate
   // immediately without a blank-then-populate flash on first paint.
-  const [membersResult, invitesResult, auditResult] = await Promise.all([
+  const [membersResult, invitesResult, auditResult, extractionResult] = await Promise.all([
     listOrgMembers(org.id),
     listOrgInvites(org.id),
     loadAuditLog({ orgId: org.id }),
+    loadExtractionLog(org.id),
   ])
   const initialMembers = membersResult.success ? membersResult.data : []
   const initialInvites = invitesResult.success ? invitesResult.data : []
@@ -80,6 +82,8 @@ export default async function OrgSettingsPage() {
         membersLoadError={loadError}
         initialAuditEntries={auditResult.success ? auditResult.data.entries : []}
         initialAuditLoadError={auditResult.success ? null : auditResult.error}
+        initialExtractionEntries={extractionResult.success ? extractionResult.data.entries : []}
+        initialExtractionLoadError={extractionResult.success ? null : extractionResult.error}
       />
     </div>
   )

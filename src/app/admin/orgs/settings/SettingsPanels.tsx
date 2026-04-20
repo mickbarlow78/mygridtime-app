@@ -6,8 +6,10 @@ import { PublicOrgUrlField } from './PublicOrgUrlField'
 import { BrandingForm } from '@/components/admin/BrandingForm'
 import { MemberManager, type Member, type Invite } from '@/components/admin/MemberManager'
 import { OrgAuditLogView } from '@/components/admin/OrgAuditLogView'
+import { ExtractionLogView } from '@/components/admin/ExtractionLogView'
 import type { OrgBranding } from '@/lib/types/database'
 import type { AuditLogEntry } from '@/lib/audit'
+import type { ExtractionLogEntry } from '@/app/admin/extractions/actions'
 import { CARD, CARD_PADDING_COMPACT, H2, HELP_TEXT, ERROR_BANNER } from '@/lib/styles'
 
 interface SettingsPanelsProps {
@@ -21,6 +23,8 @@ interface SettingsPanelsProps {
   membersLoadError: string | null
   initialAuditEntries: AuditLogEntry[]
   initialAuditLoadError: string | null
+  initialExtractionEntries: ExtractionLogEntry[]
+  initialExtractionLoadError: string | null
 }
 
 export function SettingsPanels({
@@ -34,6 +38,8 @@ export function SettingsPanels({
   membersLoadError,
   initialAuditEntries,
   initialAuditLoadError,
+  initialExtractionEntries,
+  initialExtractionLoadError,
 }: SettingsPanelsProps) {
   const [refreshSignal, setRefreshSignal] = useState(0)
   const bumpRefresh = () => setRefreshSignal((n) => n + 1)
@@ -88,6 +94,21 @@ export function SettingsPanels({
           initialMembers={initialMembers}
           initialInvites={initialInvites}
           onSaved={bumpRefresh}
+        />
+      </section>
+
+      {/* Extraction log */}
+      <section>
+        <h2 className={`${H2} mb-3`}>Extraction log</h2>
+        <p className="text-sm text-gray-500 mb-3">
+          AI extraction attempts for this organisation. Mock extractions are not logged.
+        </p>
+        <ExtractionLogView
+          entries={initialExtractionEntries}
+          orgId={orgId}
+          initialHasMore={false}
+          initialLoadError={initialExtractionLoadError}
+          refreshSignal={refreshSignal}
         />
       </section>
 

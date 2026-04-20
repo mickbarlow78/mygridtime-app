@@ -1,5 +1,26 @@
 # Decisions
 
+## DEC-032: Extraction log visibility is an org-settings section that queries `ai_extraction_log` directly — no audit_log join, no schema change
+
+**Decision**: MGT-073 adds a read-only `Extraction log` section to `/admin/orgs/settings`, rendered by a new `ExtractionLogView` client component fed by a new `loadExtractionLog(orgId)` server action (`src/app/admin/extractions/actions.ts`). The action selects from `ai_extraction_log` with `users:user_id ( email )` and `events:event_id ( id, title, slug, deleted_at )` joins, orders by `created_at DESC`, and caps at 2000 rows — mirroring the shape of `loadAuditLog()` (DEC-026). The view follows the `OrgAuditLogView` idiom: collapsible panel, client-side filters (status dropdown, date range, free-text search across email / error_code / model / event title), `refreshSignal`-driven reload (DEC-027), subtle 2000-row cap banner. No CSV export and no `was_modified` column in this pass. The page-level `owner | admin` gate at `src/app/admin/orgs/settings/page.tsx` governs visibility; editors cannot see the section even though the underlying RLS policy permits them to read.
+
+**Why no audit_log join for `was_modified`**: `was_modified` lives on the `event.created_from_extraction` audit row detail (DEC-031). Surfacing it alongside the `ai_extraction_log` list would require a second query and a mapping step keyed on `detail.extraction_id`. For MGT-073 the flag remains visible in each event's per-event audit row; the extraction log answers "what attempts happened, which failed, which created events" without needing it. If future demand makes the per-event lookup awkward (e.g. "percentage of extractions accepted unchanged"), promoting `was_modified` to a column on `ai_extraction_log` is a cleaner upgrade path than a cross-table join.
+
+**Why nest under settings rather than a standalone `/admin/extractions` page**: the log is a low-traffic observability surface. Reusing the existing `SettingsPanels` wrapper, its `bumpRefresh` plumbing, and its owner/admin gate keeps the change to two new files plus two wiring edits — no new route, no new nav link, no layout duplication. Editor-role invisibility is the known trade-off: editors hitting the rate limit must ask an admin. A future promotion to `/admin/extractions` (visible to editors) remains trivial and was explicitly deferred.
+
+**Alternatives considered**:
+- Standalone `/admin/extractions` page. Rejected for MGT-073 — duplicates the page scaffolding and introduces a new nav link for a surface that admins will consult occasionally, not daily. Deferred to a follow-up if editor visibility becomes a problem.
+- Embedding in the existing per-event `AuditLogView`. Rejected — only shows attempts that became events, hiding the exact failure modes (`rate_limited`, `error`, `validation_failed`) the log exists to expose.
+- Adding a `was_modified` column via audit_log join. Rejected in this pass as a scope expansion — the flag is already visible per-event and adding a second query for a secondary signal violates the "minimal scope" constraint on MGT-073.
+
+**Implications**: mock-path extractions (`MGT_AI_EXTRACTION_ENABLED=false`) are invisible here by design — the mock path at `src/app/admin/events/extract/actions.ts:160` returns without writing an `ai_extraction_log` row. The empty-state copy documents this so reviewers don't mistake it for a bug. Soft-deleted event links render as `(event deleted)` rather than a dead hyperlink. The `error_code` column shows raw strings with no label map, so new codes appear without a docs change.
+
+**Date**: 2026-04-20
+
+**Status**: Active — shipped 2026-04-20 via MGT-073; presentation-only UX polish follow-up shipped 2026-04-20 via MGT-074 (empty-state redesign, dismissible mock-mode tip banner, status-pill dot + tooltip, "Updated ·" indicator, "Clear filters" reset — no query/schema/API change, DEC-032 architecture unchanged).
+
+---
+
 ## DEC-031: Extraction review step derives `was_modified` via `JSON.stringify` diff and logs it through existing `ExtractionMeta` — no DB schema change
 
 **Decision**: MGT-072 formalises the review contract between AI extraction and event creation without adding a new screen or persistence column. `ExtractionPreview` captures the server-returned `ExtractedEvent` into a `useRef` pristine snapshot on first render, then at confirm time computes `wasModified = JSON.stringify(pristineRef.current) !== JSON.stringify(state)` and passes it via a widened `onConfirm(edited, wasModified)` callback. The flag is threaded through the existing `ExtractionMeta` object (new optional field `was_modified?: boolean`) into `saveExtractedEventContent` and rides along in the existing `event.created_from_extraction` audit row — no migration, no new column.

@@ -66,7 +66,7 @@ Dependencies: Item 9 depends on Must Have #4.
 ## Nice to Have
 
 12. **Web push notifications** — service worker, subscription management
-13. **AI timetable extraction** — Claude Vision document upload + OCR _(Phases A + B shipped MGT-069 / MGT-070 — real Claude Vision tool-use behind `MGT_AI_EXTRACTION_ENABLED`, `ai_extraction_log` observability, 20/org/24h rate limit, private `event-extractions` Storage archive — **Shipped (disabled in env)** pending `ANTHROPIC_API_KEY`, see MGT-071-BLOCKED. Review & correction contract formalised MGT-072 — pristine-snapshot preserved, `was_modified` flag logged via existing `ExtractionMeta`, no schema change.)_
+13. **AI timetable extraction** — Claude Vision document upload + OCR _(Phases A + B shipped MGT-069 / MGT-070 — real Claude Vision tool-use behind `MGT_AI_EXTRACTION_ENABLED`, `ai_extraction_log` observability, 20/org/24h rate limit, private `event-extractions` Storage archive — **Shipped (disabled in env)** pending `ANTHROPIC_API_KEY`, see MGT-071-BLOCKED. Review & correction contract formalised MGT-072 — pristine-snapshot preserved, `was_modified` flag logged via existing `ExtractionMeta`, no schema change. Admin visibility shipped MGT-073 — read-only Extraction log section on `/admin/orgs/settings` with status/date/search filters; queries `ai_extraction_log` directly, no schema change. UX polish shipped MGT-074 — empty-state redesign, dismissible mock-mode tip banner, status-pill dot + tooltip, "Updated ·" indicator, and "Clear filters" reset; presentation-only.)_
 14. **Stripe integration** — paid alerts, subscriptions
 15. **SMS/WhatsApp via Twilio** — alternative notification channels
 16. **Batch timetable upload** — `/my/upload` functionality
