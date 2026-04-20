@@ -118,7 +118,7 @@ export function PublicOrgView({ org, events, user }: Props) {
                     <tr key={event.id} className="group hover:bg-gray-50 transition-colors">
                       <td className="py-3.5 pr-6 pl-4">
                         <Link
-                          href={`/${event.slug}`}
+                          href={`/${org.slug}/${event.slug}`}
                           className="font-medium text-gray-900 group-hover:text-gray-600 hover:underline"
                         >
                           {event.title}
@@ -135,7 +135,7 @@ export function PublicOrgView({ org, events, user }: Props) {
                       </td>
                       <td className="py-3.5 pr-4 text-right">
                         <Link
-                          href={`/${event.slug}`}
+                          href={`/${org.slug}/${event.slug}`}
                           className="text-gray-300 group-hover:text-gray-400 transition-colors"
                           aria-hidden="true"
                           tabIndex={-1}

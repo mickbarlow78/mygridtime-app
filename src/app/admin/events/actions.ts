@@ -34,8 +34,13 @@ function revalidateAdminEventPaths(eventId?: string): void {
  * landing page (lists published events), and the sitemap.
  */
 function revalidatePublicEventPaths(): void {
+  // MGT-082: canonical public event URL is now nested under the owning
+  // organisation (`/[orgSlug]/[eventSlug]`). The top-level `/[slug]` route
+  // still resolves organisations and issues 308 redirects for legacy event
+  // slugs, so it is invalidated alongside the new nested path.
+  revalidatePath('/[orgSlug]/[eventSlug]', 'page')
+  revalidatePath('/[orgSlug]/[eventSlug]/print', 'page')
   revalidatePath('/[slug]', 'page')
-  revalidatePath('/[slug]/print', 'page')
   revalidatePath('/my')
   revalidatePath('/')
 }
@@ -66,20 +71,40 @@ async function requireEditor() {
   return { supabase, user, membership }
 }
 
-async function generateUniqueSlug(
+/**
+ * MGT-082: compute an event slug within an organisation and verify it is
+ * free. No auto-suffixing — callers surface the friendly error so users can
+ * pick a different title. The DB enforces uniqueness via
+ * `events_org_id_slug_key`; this pre-check exists only to replace the
+ * generic Postgres error with a human-readable message.
+ */
+async function computeEventSlug(
   supabase: Awaited<ReturnType<typeof createClient>>,
-  title: string
-): Promise<string> {
-  const base = slugify(title) || `event-${Date.now()}`
-  const { data } = await supabase
+  orgId: string,
+  title: string,
+): Promise<{ ok: true; slug: string } | { ok: false; error: string }> {
+  const slug = slugify(title) || `event-${Date.now()}`
+  const { data, error } = await supabase
     .from('events')
-    .select('slug')
-    .ilike('slug', `${base}%`)
-  const existing = (data ?? []).map((r) => r.slug)
-  if (!existing.includes(base)) return base
-  let i = 2
-  while (existing.includes(`${base}-${i}`)) i++
-  return `${base}-${i}`
+    .select('id')
+    .eq('org_id', orgId)
+    .eq('slug', slug)
+    .maybeSingle()
+  if (error) {
+    Sentry.captureException(
+      new Error(`computeEventSlug.select failed: ${error.message}`),
+      { tags: { action: 'computeEventSlug' } },
+    )
+    return { ok: false, error: 'Could not verify the event name. Please retry.' }
+  }
+  if (data) {
+    return {
+      ok: false,
+      error:
+        'An event with this title already exists in this organisation. Please choose a different title.',
+    }
+  }
+  return { ok: true, slug }
 }
 
 
@@ -120,7 +145,11 @@ export async function createEvent(input: CreateEventInput): Promise<ActionResult
     }
   }
 
-  const slug = await generateUniqueSlug(supabase, input.title)
+  const slugResult = await computeEventSlug(supabase, membership.org_id, input.title)
+  if (!slugResult.ok) {
+    return { success: false, error: slugResult.error }
+  }
+  const slug = slugResult.slug
 
   const { data: event, error: eventError } = await supabase
     .from('events')
@@ -510,7 +539,11 @@ export async function duplicateEvent(
 
   if (srcErr || !source) return { success: false, error: 'Source event not found' }
 
-  const slug = await generateUniqueSlug(supabase, input.title)
+  const slugResult = await computeEventSlug(supabase, source.org_id, input.title)
+  if (!slugResult.ok) {
+    return { success: false, error: slugResult.error }
+  }
+  const slug = slugResult.slug
 
   // Create new event (always draft)
   const { data: newEvent, error: newErr } = await supabase

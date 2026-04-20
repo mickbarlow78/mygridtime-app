@@ -129,3 +129,50 @@ Re-open the panel to confirm it returns to the "0 entries" empty state.
 | `No users row found for DEV_ADMIN_EMAIL=...` | The email has never signed in against this Supabase project — sign in once via `/api/auth/dev-session` first. |
 | `User ... has no owner/admin/editor org membership.` | Create an org (or be invited into one) with an elevated role before seeding. |
 | Panel stays empty after seed | Confirm you are viewing the same org the script targeted (check the printed `Org:` line) and that your session has `owner` or `admin` role on that org (editors cannot see the panel per DEC-032). |
+
+---
+
+## Extraction retention — manual verification
+
+**Purpose.** Exercise the 30-day retention cron (`GET /api/cron/retention-extractions`) locally. Confirms that `ai_extraction_log` rows older than 30 days have their `event-extractions` storage objects removed and the rows deleted; rows younger than the cutoff are untouched.
+
+**When to run.** Any time the retention helper (`src/lib/retention/extractions.ts`), the cron route, or the `event-extractions` bucket policies change. See [DEC-035](DECISIONS.md) for design rationale.
+
+### Prerequisites
+
+- `.env.local` populated with `NEXT_PUBLIC_SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` (and `DEV_ADMIN_EMAIL` if you are also seeding via MGT-075).
+- The manual script calls the shared helper directly via a service-role client — no Next server needs to be running.
+- To verify the HTTP route instead, additionally set `CRON_SECRET` and start `npm run dev`, then `curl -H "authorization: Bearer $CRON_SECRET" http://localhost:3000/api/cron/retention-extractions`.
+
+### Seed test data
+
+1. `npm run seed:extractions` — inserts 6 rows via the MGT-075 harness. The seed rows use `created_at = at(mins ago)` values that are **less than** 30 days old, so they are safe and will not be deleted by the first retention run.
+2. Optionally, hand-edit one row's `created_at` via the Supabase SQL editor to e.g. `now() - interval '40 days'` to produce an eligible row. The `source_path` prefix `seed/mgt-075/` remains, so the MGT-075 cleanup still catches anything left over.
+
+### Invoke the cron
+
+```bash
+npm run retention:extractions
+```
+
+The script imports `runExtractionRetention` from `src/lib/retention/extractions.mjs` and invokes it against a service-role client built inline. Expected output:
+
+```
+[retention:extractions] rowsDeleted=<n> objectsRemoved=<n> storageErrors=0
+```
+
+Idempotent — a second run with no eligible rows returns `rowsDeleted=0`.
+
+### Clean up
+
+`npm run cleanup:extractions` — removes any remaining `seed/mgt-075/%` rows inserted above.
+
+### Troubleshooting
+
+| Symptom | Likely cause |
+|---|---|
+| `NEXT_PUBLIC_SUPABASE_URL is not set.` | `.env.local` missing or Node < 20. |
+| `SUPABASE_SERVICE_ROLE_KEY is not set.` | Same — supply the service-role key in `.env.local`. |
+| (HTTP path only) `401 Unauthorized` | `CRON_SECRET` in the request does not match the value the Next process booted with — restart `npm run dev` after editing `.env.local`. |
+| (HTTP path only) `503 … CRON_SECRET is not configured` | `CRON_SECRET` is unset in the server's env. |
+| `storageErrors` non-zero | Storage-bucket RLS / connectivity issue. Rows for failed paths remain in `ai_extraction_log` for the next run. |

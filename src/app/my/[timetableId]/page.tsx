@@ -45,19 +45,27 @@ export default async function ConsumerTimetablePage({ params, searchParams }: Pa
 
   if (!membership) notFound()
 
-  // Fetch org branding via admin client (RLS may block anon read on organisations)
+  // Fetch org branding + slug via admin client (RLS may block anon read on
+  // organisations). MGT-082: slug is needed to build the canonical public
+  // URL (`/{orgSlug}/{eventSlug}`).
   let orgBranding: Json | null = null
+  let orgSlug: string | null = null
   try {
     const admin = createAdminClient()
     const { data: orgRow } = await admin
       .from('organisations')
-      .select('branding')
+      .select('slug, branding')
       .eq('id', event.org_id)
       .maybeSingle()
     orgBranding = orgRow?.branding ?? null
+    orgSlug = orgRow?.slug ?? null
   } catch {
     // Admin client unavailable — fall back to event-level branding only
   }
+  // Build the canonical public URL; if we could not resolve the org slug
+  // (admin client unavailable) fall back to the event admin editor so the
+  // link never points at a broken path.
+  const publicHref = orgSlug ? `/${orgSlug}/${event.slug}` : `/admin/events/${event.id}`
 
   const branding = resolveEffectiveBranding(event.branding, orgBranding)
 
@@ -117,7 +125,7 @@ export default async function ConsumerTimetablePage({ params, searchParams }: Pa
               )}
             </div>
             <Link
-              href={`/${event.slug}`}
+              href={publicHref}
               target="_blank"
               rel="noopener noreferrer"
               className={HEADER_NAV_LINK}
@@ -129,7 +137,7 @@ export default async function ConsumerTimetablePage({ params, searchParams }: Pa
           <div className={HEADER_INNER}>
             <div />
             <Link
-              href={`/${event.slug}`}
+              href={publicHref}
               target="_blank"
               rel="noopener noreferrer"
               className={HEADER_NAV_LINK}

@@ -44,6 +44,7 @@ const ENV_VARS: EnvVarDef[] = [
   { name: 'RESEND_API_KEY', level: 'feature-required', description: 'Transactional email via Resend' },
   { name: 'EMAIL_FROM', level: 'feature-required', description: 'Verified sender email address' },
   { name: 'ANTHROPIC_API_KEY', level: 'feature-required', description: 'Claude API key for AI timetable extraction (MGT-070)' },
+  { name: 'CRON_SECRET', level: 'feature-required', description: 'Bearer secret for authenticated cron endpoints (MGT-081 retention)' },
 
   // Optional — features degrade gracefully when absent
   { name: 'MGT_AI_EXTRACTION_ENABLED', level: 'optional', description: 'Feature flag for real Claude Vision extraction (defaults to off — mock fixture returned)' },

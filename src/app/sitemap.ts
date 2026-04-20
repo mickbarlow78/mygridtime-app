@@ -23,19 +23,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
     const eventList = events ?? []
 
-    const eventRoutes: MetadataRoute.Sitemap = eventList.map((event) => ({
-      url: `${baseUrl}/${event.slug}`,
-      lastModified: event.updated_at ? new Date(event.updated_at) : new Date(),
-      changeFrequency: 'weekly' as const,
-      priority: 0.8,
-    }))
-
-    // Include /{orgSlug} only for orgs with at least one published event.
-    // Anon RLS does not grant SELECT on `organisations`, so this lookup
-    // must go through the admin client (same pattern as the public pages).
-    // Per Pass C1 the public organisation page lives at `/{orgSlug}`, so
-    // the sitemap emits the bare slug here — the legacy `/o/{slug}` route
-    // 308-redirects to the same location and is intentionally NOT listed.
+    // MGT-082: canonical event URL is `/{orgSlug}/{eventSlug}`. Event rows
+    // alone don't carry the org slug under anon RLS, so resolve it via the
+    // admin client. Events whose org slug can't be resolved are omitted
+    // from the sitemap (they'd 404 or produce an ambiguous legacy
+    // redirect).
+    let eventRoutes: MetadataRoute.Sitemap = []
     let orgRoutes: MetadataRoute.Sitemap = []
     const distinctOrgIds = Array.from(new Set(eventList.map((e) => e.org_id)))
     if (distinctOrgIds.length > 0) {
@@ -43,8 +36,21 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         const admin = createAdminClient()
         const { data: orgs } = await admin
           .from('organisations')
-          .select('slug')
+          .select('id, slug')
           .in('id', distinctOrgIds)
+        const orgSlugById = new Map<string, string>((orgs ?? []).map((o) => [o.id, o.slug]))
+
+        eventRoutes = eventList.flatMap((event) => {
+          const orgSlug = orgSlugById.get(event.org_id)
+          if (!orgSlug) return []
+          return [{
+            url: `${baseUrl}/${orgSlug}/${event.slug}`,
+            lastModified: event.updated_at ? new Date(event.updated_at) : new Date(),
+            changeFrequency: 'weekly' as const,
+            priority: 0.8,
+          }]
+        })
+
         orgRoutes = (orgs ?? []).map((org) => ({
           url: `${baseUrl}/${org.slug}`,
           lastModified: new Date(),
@@ -52,7 +58,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
           priority: 0.6,
         }))
       } catch {
-        // Admin client unavailable — omit org routes, keep event routes.
+        // Admin client unavailable — omit event + org routes, keep static.
       }
     }
 

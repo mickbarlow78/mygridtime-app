@@ -1,26 +1,24 @@
 /**
- * Print view — /[slug]/print
+ * Legacy print route — /[slug]/print
  *
- * Renders all published days and their timetable entries in a single scrollable
- * page optimised for the browser's print dialog and PDF export.
+ * MGT-082 (supersedes DEC-022): the canonical print URL is now
+ * `/[orgSlug]/[eventSlug]/print` (see `../[eventSlug]/print/page.tsx`).
+ * This route is preserved so previously shared `/{eventSlug}/print` URLs
+ * continue to resolve.
  *
- * Differences from the main timetable page:
- *   - All days shown in sequence — no tabs or day switching.
- *   - Navigation chrome is hidden via print:hidden Tailwind modifiers.
- *   - A "Print / Save as PDF" button triggers window.print().
- *   - Clean typography; no sticky headers or interactive elements.
+ * Behaviour:
+ *   - Look up published events where `slug = params.slug`.
+ *   - If exactly one matches, 308 to `/{orgSlug}/{eventSlug}/print`.
+ *   - Otherwise 404 (ambiguous or no match under per-org uniqueness).
  *
- * Access rules: same as the main timetable page — published events only.
+ * Static segment `print` wins precedence over the sibling
+ * `/[slug]/[eventSlug]` dynamic segment, so this route is safely
+ * reachable for legacy URLs.
  */
 
-import { createClient } from '@/lib/supabase/server'
-import { notFound } from 'next/navigation'
-import Link from 'next/link'
-import type { Metadata } from 'next'
-import { TimetableDay } from '@/components/public/TimetableDay'
-import type { PublicEntry } from '@/components/public/TimetableDay'
-import { PrintButton } from '@/components/public/PrintButton'
-import { formatDate } from '@/lib/utils/slug'
+import { notFound, permanentRedirect } from 'next/navigation'
+import * as Sentry from '@sentry/nextjs'
+import { createAdminClient } from '@/lib/supabase/admin'
 
 export const dynamic = 'force-dynamic'
 
@@ -28,117 +26,42 @@ interface PageProps {
   params: { slug: string }
 }
 
-export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
-  const supabase = createClient()
+async function resolveLegacyEventPrintPath(slug: string): Promise<string | null> {
+  try {
+    const admin = createAdminClient()
+    const { data: events, error } = await admin
+      .from('events')
+      .select('slug, organisations!inner(slug)')
+      .eq('slug', slug)
+      .eq('status', 'published')
+      .is('deleted_at', null)
+      .limit(2)
 
-  const { data: event } = await supabase
-    .from('events')
-    .select('title')
-    .eq('slug', params.slug)
-    .eq('status', 'published')
-    .is('deleted_at', null)
-    .maybeSingle()
+    if (error) {
+      Sentry.captureException(error, {
+        tags: { action: 'legacyPrint.resolveEvent' },
+      })
+      return null
+    }
+    if (!events || events.length !== 1) return null
 
-  return { title: event ? `${event.title} — Print` : 'Event not found' }
+    const row = events[0] as {
+      slug: string
+      organisations: { slug: string } | { slug: string }[]
+    }
+    const orgSlug = Array.isArray(row.organisations)
+      ? row.organisations[0]?.slug
+      : row.organisations?.slug
+    if (!orgSlug) return null
+    return `/${orgSlug}/${row.slug}/print`
+  } catch (err) {
+    Sentry.captureException(err, { tags: { action: 'legacyPrint.resolveEvent' } })
+    return null
+  }
 }
 
-export default async function PrintTimetablePage({ params }: PageProps) {
-  const supabase = createClient()
-
-  // Published events only
-  const { data: event } = await supabase
-    .from('events')
-    .select('id, title, venue, start_date, end_date, slug')
-    .eq('slug', params.slug)
-    .eq('status', 'published')
-    .is('deleted_at', null)
-    .maybeSingle()
-
-  if (!event) notFound()
-
-  // All days, sorted
-  const { data: days } = await supabase
-    .from('event_days')
-    .select('id, date, label, sort_order')
-    .eq('event_id', event.id)
-    .order('sort_order', { ascending: true })
-    .order('date', { ascending: true })
-
-  const dayList = days ?? []
-
-  // All entries across all days in one query
-  const { data: allEntries } = dayList.length > 0
-    ? await supabase
-        .from('timetable_entries')
-        .select('id, event_day_id, title, start_time, end_time, category, notes, is_break, sort_order')
-        .in('event_day_id', dayList.map((d) => d.id))
-        .order('sort_order', { ascending: true })
-    : { data: [] }
-
-  // Group entries by day
-  const entriesByDay: Record<string, PublicEntry[]> = {}
-  for (const day of dayList) {
-    entriesByDay[day.id] = ((allEntries ?? []) as (PublicEntry & { event_day_id: string })[])
-      .filter((e) => e.event_day_id === day.id)
-  }
-
-  const dateRange =
-    event.start_date === event.end_date
-      ? formatDate(event.start_date)
-      : `${formatDate(event.start_date)} – ${formatDate(event.end_date)}`
-
-  return (
-    <div className="min-h-screen bg-white">
-      <div className="max-w-3xl mx-auto px-6 py-8 print:px-0 print:py-0 print:max-w-none">
-        {/* Screen-only toolbar — hidden when printing */}
-        <div className="print:hidden flex items-center justify-between mb-8 pb-6 border-b border-gray-200">
-          <Link
-            href={`/${params.slug}`}
-            className="text-sm text-gray-500 hover:text-gray-800 transition-colors"
-          >
-            ← Back to timetable
-          </Link>
-          <PrintButton className="text-sm text-gray-700 border border-gray-300 rounded px-3 py-1.5 hover:bg-gray-50 transition-colors" />
-        </div>
-
-        {/* Print header — always visible */}
-        <div className="mb-8 print:mb-6">
-          <p className="text-xs text-gray-400 mb-1 print:hidden">MyGridTime</p>
-          <h1 className="text-2xl font-semibold text-gray-900 leading-tight print:text-xl">
-            {event.title}
-          </h1>
-          <p className="mt-1 text-sm text-gray-500">
-            {event.venue && <span>{event.venue} · </span>}
-            <span>{dateRange}</span>
-          </p>
-        </div>
-
-        {/* Timetable — all days in sequence */}
-        {dayList.length === 0 ? (
-          <p className="text-sm text-gray-400">No timetable has been published yet.</p>
-        ) : (
-          <div className="space-y-10 print:space-y-8">
-            {dayList.map((day) => (
-              <section key={day.id}>
-                {/* Day heading — only shown for multi-day events */}
-                {dayList.length > 1 && (
-                  <h2 className="text-sm font-semibold text-gray-700 mb-3 pb-2 border-b border-gray-200 print:text-xs">
-                    {day.label || formatDate(day.date)}
-                  </h2>
-                )}
-                <TimetableDay entries={entriesByDay[day.id] ?? []} />
-              </section>
-            ))}
-          </div>
-        )}
-
-        {/* Print footer */}
-        <div className="hidden print:block mt-12 pt-4 border-t border-gray-200">
-          <p className="text-xs text-gray-400">
-            MyGridTime · {event.title} · {dateRange}
-          </p>
-        </div>
-      </div>
-    </div>
-  )
+export default async function LegacyPrintPage({ params }: PageProps) {
+  const canonical = await resolveLegacyEventPrintPath(params.slug)
+  if (canonical) permanentRedirect(canonical)
+  notFound()
 }

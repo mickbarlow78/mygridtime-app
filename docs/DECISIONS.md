@@ -1,5 +1,69 @@
 # Decisions
 
+## DEC-036: Event slugs are unique per organisation; canonical public URL is nested (`/{orgSlug}/{eventSlug}`) — supersedes DEC-022 for event routing
+
+**Decision**: MGT-082 fixes a production bug where creating a second event titled the same as any existing event in the system failed with `duplicate key value violates unique constraint "events_slug_key"`. The fix makes event slugs unique *only within the owning organisation* and moves the canonical public event URL to `/{orgSlug}/{eventSlug}`.
+
+Concrete changes:
+
+1. **Database** — `supabase/migrations/20260420000000_events_slug_org_scoped.sql` drops the global `events_slug_key` unique constraint and replaces it with a composite `UNIQUE (org_id, slug)` (`events_org_id_slug_key`). `NOT NULL` on `slug` is preserved.
+
+2. **Routing**:
+   - New canonical route `/[slug]/[eventSlug]/page.tsx` (+ `/print`) resolves the org first, then fetches the event by `(org_id, slug)`.
+   - Top-level `/[slug]/page.tsx` now resolves **organisations first**. If the slug does not match any org, it falls through to a legacy resolver that 308-redirects to the canonical nested URL iff *exactly one* published event in the system still uses that slug. Multiple matches → 404 (ambiguous under per-org uniqueness), zero matches → 404.
+   - Legacy `/[slug]/print/page.tsx` applies the same 308 fallback for print URLs; otherwise 404.
+   - Reserved top-level slugs (`/admin`, `/api`, `/o`, …) remain blocked at org creation via `isReservedSlug`.
+
+3. **Create / duplicate / template flows** — the previous `generateUniqueSlug` auto-suffix helper (`round-1`, `round-1-2`, `round-1-3`…) is replaced by an org-scoped `computeEventSlug` pre-check in `src/app/admin/events/actions.ts` and `src/app/admin/templates/actions.ts`. If the slug is already taken within the org, the action returns a handled validation error `"An event with this title already exists in this organisation. Please choose a different title."` — surfaced verbatim in the existing `ERROR_BANNER` on `/admin/events/new`. Unexpected DB errors during the pre-check still go to Sentry under `tags.action = 'computeEventSlug'`.
+
+4. **Link generators** updated to emit canonical nested URLs: `src/app/sitemap.ts`, `src/lib/resend/notifications.ts` (publish / updated emails), `src/app/(public)/page.tsx` (landing), `src/components/public/PublicOrgView.tsx`, `src/app/my/[timetableId]/page.tsx`, and `src/components/admin/EventEditor.tsx` (admin URL preview + copy-URL). `revalidatePath` calls in `src/app/admin/events/actions.ts` now invalidate both `/[orgSlug]/[eventSlug]` and `/[slug]` so org landing and event pages are refreshed together.
+
+5. **Org cross-table slug check preserved**: `createOrganisation` still rejects a new org slug that collides with any existing event slug. Under DEC-036, this is no longer required for DB integrity (events live under a nested path) but it is still required for **legacy URL stability** — otherwise creating an org named after a legacy event slug would shadow the 308 redirect for that slug. The cost is one extra `SELECT` on a unique-indexed column at org creation; acceptable.
+
+**Why nested canonical URL rather than keeping `/{eventSlug}` + per-org uniqueness**: Per-org uniqueness alone would allow two different orgs' events to claim the same slug, at which point `/{eventSlug}` would have to pick one or offer a disambiguation page — both of which are silent-collision footguns the product intent is trying to avoid. A nested URL makes the org context explicit in the URL itself and means "which event is this?" has a single deterministic answer.
+
+**Why no auto-suffix on duplicate slugs**: Auto-suffix (`round-1`, `round-1-2`, `round-1-3`) produces URLs the user never chose and can't predict, which is particularly bad for printed collateral, QR codes, and shared links — the typical lifecycle of a public event URL. A handled validation error with a clear message puts the user back in control of their URL. (This also removes a class of race-condition bugs where two concurrent creates could both read `round-1` as taken, both compute `round-1-2`, and have the second insert fail at the constraint.)
+
+**Why 308 and not 301 for legacy redirects**: 308 preserves method semantics (identical behaviour for GET; no method rewrite on POST) and signals permanence. Matches the existing `/o/{slug}` → `/{slug}` redirect introduced under DEC-022.
+
+**Alternatives considered**:
+- Keep global uniqueness and auto-suffix indefinitely. Rejected — the bug that triggered this ticket is exactly the auto-suffix path failing when the suffix space is narrow (every `round-1` variant across every org collides in one namespace).
+- Add a hidden randomised suffix (`round-1-x4f7`). Rejected — same URL-stability problem as numeric suffixing, and makes URLs uglier.
+- Keep global uniqueness but widen the slug to include a date or org prefix automatically. Rejected — couples two unrelated identifiers (org + event) into a single user-visible string without making the org context navigable; the nested-URL option is strictly better.
+- Return the raw Postgres `duplicate key` error to the UI. Rejected — leaks schema internals; the friendly message is a small wrapper that also lets us handle the rare case where `slugify(title)` produced an identical slug for two differently-titled events in the same org.
+
+**Backward safety**: The migration drops `events_slug_key` and immediately adds the composite constraint, so there is no window where events can be inserted with duplicate `(org_id, slug)`. Existing events are unchanged — no data movement. Legacy shared URLs `/{eventSlug}` continue to resolve via 308 as long as exactly one event retains that slug; once a second event in another org picks the same slug the legacy resolver returns 404 (the expected behaviour under the new model — a legacy share can't disambiguate).
+
+**Relationship to DEC-022**: DEC-022 established the top-level `/{orgSlug}` + top-level `/{eventSlug}` model and the org-creation cross-table slug check. DEC-036 supersedes DEC-022 for **event routing only** — `/{orgSlug}` for the org page is unchanged, reserved slugs are unchanged, the cross-table check is preserved (now for legacy URL stability rather than routing correctness). DEC-022's "Status" is updated to mark the event-routing portion superseded.
+
+**Date**: 2026-04-20
+
+**Status**: Active — shipped 2026-04-20 via MGT-082.
+
+---
+
+## DEC-035: 30-day retention for `ai_extraction_log` + `event-extractions` storage runs via an authenticated cron route that delegates to a shared helper
+
+**Decision**: MGT-081 closes the deferred 30-day retention story for the `event-extractions` Storage bucket and the matching `ai_extraction_log` rows. The retention logic lives in one shared helper — `runExtractionRetention({ admin, olderThanDays = 30, now })` in `src/lib/retention/extractions.ts` — called from two entry points: (a) a new authenticated `GET /api/cron/retention-extractions` route (`export const dynamic = 'force-dynamic'`, `runtime = 'nodejs'`) that bearer-auths against `CRON_SECRET` (401 on mismatch, 503 when the secret is not configured on the server), and (b) a manual runner `npm run retention:extractions` that fetches the same route with the same bearer, so both paths exercise identical production code. The helper pages through old rows in batches of 1000, chunks storage removals in groups of 100, removes storage objects first, and only deletes the DB rows whose objects were confirmed removed (or whose `source_path` is null/empty — no object to remove). Rows whose storage removal errored are left intact for retry on the next run; the returned `storageErrors` array surfaces per-chunk failures. The service-role admin client is used throughout (`createAdminClient()`), matching the existing Storage-write pattern. No schema change, no RLS change, no UI, and no new runtime dependency. Scheduler platform config (Vercel Cron / Netlify Scheduled Functions / GitHub Actions) is explicitly out of scope for this ticket — the route and helper ship ready to be wired up by whichever platform the deploy target chooses.
+
+**Why storage-first, DB-second**: If the DB row is deleted before the storage object and the storage remove then fails, the orphan object is unreachable — there is no index from bucket path back to log row other than the log row itself. By removing the object first and only then deleting the row, a failure at any point leaves a row that can be retried on the next run. The price — a window where the row exists but the object is gone — is harmless: the row still records what happened, and no downstream code reads the object without first reading the row.
+
+**Why one helper, two entry points**: The manual runner exists as a verification shortcut for operators and dev-time smoke checks; the cron route is the production path. Duplicating the logic across a `.mjs` script and a `.ts` route would risk drift in exit conditions, batching, or error handling — the bugs the ticket is specifically trying to prevent. Having the script fetch the route keeps the helper as the single source of truth and means any manual invocation exercises the same auth / admin-client path the production cron will use.
+
+**Alternatives considered**:
+- Scheduler config in-repo (Vercel `vercel.json` cron, Netlify `netlify.toml` scheduled function). Rejected for this ticket — platform choice is a deploy-time decision and the ticket is explicit that scheduler wiring is a follow-up. The route is the stable primitive either platform will call.
+- DB-first, then storage. Rejected — creates unreachable orphans on partial failure (see above).
+- A dedicated retention table or backfill tombstone. Rejected — the existing `source_path` + `created_at` columns are sufficient; adding state would widen the schema for no gain.
+- Signed-URL-based deletion. Rejected — service-role already bypasses RLS and is the idiomatic path for admin-scope cleanup.
+
+**Implications**: `CRON_SECRET` is added to `src/lib/env.ts` as `feature-required` (warn everywhere, error nowhere) — the app boots fine without it; hitting the route without the secret simply returns 503. The `event-extractions` bucket migration's "30-day retention cleanup is deferred per KNOWN_ISSUES" comment is now outdated; a future migration touch can strike it, but the comment is descriptive and does not affect behaviour. Retention is idempotent and safe to run repeatedly — calling it a second time with no eligible rows is a no-op.
+
+**Date**: 2026-04-20
+
+**Status**: Active — shipped 2026-04-20 via MGT-081. Scheduler-platform wiring deferred to a follow-up.
+
+---
+
 ## DEC-034: Operational QA flows for dev-only tooling live in `docs/QA_RUNBOOKS.md`, separate from `DECISIONS.md`
 
 **Decision**: Manual verification flows that depend on dev-only scripts, routes, or fixtures (starting with the MGT-075 `seed:extractions` / `cleanup:extractions` pair) are documented in a new top-level doc `docs/QA_RUNBOOKS.md`. Each runbook is a self-contained, step-by-step procedure — required env vars inline, command to run, expected browser state, cleanup command, troubleshooting table — written so a new operator can execute the flow end-to-end without opening any script file or source module. Design rationale (why the tool exists, what alternatives were rejected, what the blast radius is) stays in `DECISIONS.md`; runbooks reference the relevant DEC rather than duplicating prose. `docs/README.md` is updated to list the new file alongside the existing four; `docs/PROJECT_STATUS.md` and `docs/LAUNCH_PLAN.md` reference it from the MGT-075 entries so operators land on the runbook when following the scripts.
@@ -435,7 +499,7 @@ gate means the route cannot write audit rows in production even if the
 
 **Date**: 2026-04-16
 
-**Status**: Active — Pass C1 (supersedes DEC-019)
+**Status**: Partially superseded by DEC-036 (2026-04-20). The `/{orgSlug}` organisation-page route, reserved-slug list, and org-creation cross-table slug check remain active. The paragraph about per-event URLs remaining at top-level `/{eventSlug}` and event-org slug-collision resolution order is superseded: events now live at `/{orgSlug}/{eventSlug}` with per-org slug uniqueness, and top-level `/{eventSlug}` URLs are preserved via a 308 redirect in `/[slug]/page.tsx` (with the legacy resolver returning 404 when multiple events share a slug under the new model).
 
 ---
 

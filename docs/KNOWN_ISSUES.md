@@ -1,5 +1,22 @@
 # Known Issues
 
+## MGT-082: Production event creation failed with `duplicate key value violates unique constraint "events_slug_key"` — resolved 2026-04-20
+
+**Description**: `events.slug` carried a global `UNIQUE` constraint (`events_slug_key`) from the original schema. When two organisations — or the same organisation over time — attempted to create events with the same title (e.g. "Round 1"), the `generateUniqueSlug` helper would suffix (`round-1`, `round-1-2`, …) until it found a free slot, but under concurrency and across orgs the constraint still produced the raw Postgres error to end users on the admin create flow. The auto-suffix also produced URLs users never chose, which is particularly bad for printed collateral and QR codes.
+
+**Fix**: Per-org slug uniqueness + nested canonical public URL. Full rationale in DEC-036. Summary:
+
+1. Migration `20260420000000_events_slug_org_scoped.sql` drops `events_slug_key` and adds composite `UNIQUE (org_id, slug)` (`events_org_id_slug_key`).
+2. Canonical public URL moves to `/{orgSlug}/{eventSlug}` (new `src/app/(public)/[slug]/[eventSlug]/page.tsx` + `/print`).
+3. Top-level `/{slug}` resolves org first; falls back to a 308 redirect to the canonical nested URL iff exactly one published event still matches the slug (ambiguous matches → 404).
+4. `createEvent`, `duplicateEvent`, `createEventFromTemplate` now use `computeEventSlug(orgId, title)` — an org-scoped pre-check with no auto-suffix. On collision, the server action returns `"An event with this title already exists in this organisation. Please choose a different title."`, surfaced verbatim in the existing `ERROR_BANNER` on `/admin/events/new`.
+5. All link generators (sitemap, publish / updated emails, landing page, `PublicOrgView`, `/my/[timetableId]`, admin URL preview) emit canonical nested URLs.
+6. `revalidatePublicEventPaths` now invalidates `/[orgSlug]/[eventSlug]` and `/[slug]` together.
+
+**Status**: Resolved (2026-04-20) — see DEC-036. Deploy impact: code + migration + path invalidation; no env changes; manual verification required (see *Verification* below).
+
+---
+
 ## MGT-071-BLOCKED: AI extraction requires ANTHROPIC_API_KEY (env not configured)
 
 **Scope**: MGT-069 + MGT-070 code paths are intact and the two supporting migrations are applied to the linked remote Supabase project (`hxxderwxxpfzdxlmsqpl`, 2026-04-17 via `supabase db push`). Real extraction cannot run end-to-end until `ANTHROPIC_API_KEY` is populated in the dev/staging env.
@@ -18,11 +35,11 @@
 
 **Explicitly deferred to MGT-070 (Phase B)**: ~~the `@anthropic-ai/sdk` dependency~~, ~~the real Claude Vision tool-call body of `extractEventFromUpload`~~, ~~the `ai_extraction_log` table + migration + RLS policy~~, ~~the private `event-extractions` Supabase Storage bucket + migration + RLS policy~~, ~~the per-org 20-extractions/24h rate-limit pre-flight check~~, ~~the `ANTHROPIC_API_KEY` + `MGT_EXTRACT_MODEL` + `MGT_AI_EXTRACTION_ENABLED` env vars (and their entry in `src/lib/env.ts`)~~, and ~~token-count / cost fields on the audit detail~~. **All shipped 2026-04-17 via MGT-070 — see DEC-030.**
 
-**Also deferred (not owned by MGT-070)**: consumer-side upload (`/my/upload` stays "Coming soon"), batch / multi-file extraction (#16), re-extraction into an existing event, template creation from extraction, and the scheduled cleanup cron for the Storage bucket's 30-day retention. Paid-tier gating of extraction depends on #14 Stripe.
+**Also deferred (not owned by MGT-070)**: consumer-side upload (`/my/upload` stays "Coming soon"), batch / multi-file extraction (#16), re-extraction into an existing event, template creation from extraction. Paid-tier gating of extraction depends on #14 Stripe. ~~The scheduled cleanup cron for the Storage bucket's 30-day retention~~ — shipped 2026-04-20 via MGT-081 (see DEC-035).
 
 **Why this split is fine**: the shared `ExtractedEvent` / `ExtractedDay` / `ExtractedEntry` contract in `src/lib/ai/extract.ts` is the single source of truth — Phase B swaps the action body without changing the client, the preview UI, the audit writer, or the insert path. The mock response is deterministic, fully typed, and truncated against `FIELD_LIMITS` before it leaves the server, so Phase A cannot produce data that Phase B would then reject.
 
-**Status**: Phase A resolved by MGT-069 (2026-04-17). Phase B resolved by MGT-070 (2026-04-17) — see DEC-030. Remaining deferred items (30-day Storage retention cron, consumer `/my/upload`, batch extraction, template-from-extraction, paid-tier gating) carried forward as noted above.
+**Status**: Phase A resolved by MGT-069 (2026-04-17). Phase B resolved by MGT-070 (2026-04-17) — see DEC-030. 30-day Storage retention cron resolved by MGT-081 (2026-04-20) — see DEC-035. Remaining deferred items (consumer `/my/upload`, batch extraction, template-from-extraction, paid-tier gating) carried forward as noted above.
 
 ---
 

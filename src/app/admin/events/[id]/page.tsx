@@ -39,6 +39,23 @@ export default async function EventEditorPage({ params }: PageProps) {
 
   if (eventError || !event) notFound()
 
+  // MGT-082: load the owning organisation's slug so the editor can render
+  // the canonical public URL (`/{orgSlug}/{eventSlug}`). Anon/authed RLS
+  // does not grant SELECT on organisations, so the admin client is used —
+  // same pattern as the public pages.
+  let orgSlug = ''
+  try {
+    const admin = createAdminClient()
+    const { data: orgRow } = await admin
+      .from('organisations')
+      .select('slug')
+      .eq('id', event.org_id)
+      .maybeSingle()
+    orgSlug = orgRow?.slug ?? ''
+  } catch (err) {
+    Sentry.captureException(err, { tags: { action: 'eventEditorPage.resolveOrgSlug' } })
+  }
+
   // Fetch event days, sorted
   const { data: days, error: daysError } = await supabase
     .from('event_days')
@@ -260,6 +277,7 @@ export default async function EventEditorPage({ params }: PageProps) {
         versions={versions}
         versionsLoadError={versionsLoadError}
         unsubscribedEmails={unsubscribedEmails}
+        orgSlug={orgSlug}
       />
     </div>
   )

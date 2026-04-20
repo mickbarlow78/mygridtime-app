@@ -21,7 +21,7 @@ import type { Metadata } from 'next'
 import type { OrgBranding } from '@/lib/types/database'
 import { PAGE_BG, HEADER, HEADER_INNER, CONTAINER_FULL, AUTH_EMAIL, AUTH_LINK } from '@/lib/styles'
 
-type OrgInfo = { name: string; branding: OrgBranding | null }
+type OrgInfo = { name: string; slug: string; branding: OrgBranding | null }
 
 export const dynamic = 'force-dynamic'
 
@@ -95,10 +95,14 @@ export default async function LandingPage() {
       const admin = createAdminClient()
       const { data: orgs } = await admin
         .from('organisations')
-        .select('id, name, branding')
+        .select('id, name, slug, branding')
         .in('id', distinctOrgIds)
       for (const o of orgs ?? []) {
-        orgMap.set(o.id, { name: o.name, branding: (o.branding ?? null) as OrgBranding | null })
+        orgMap.set(o.id, {
+          name: o.name,
+          slug: o.slug,
+          branding: (o.branding ?? null) as OrgBranding | null,
+        })
       }
     } catch {
       // Graceful degradation — org names will be absent.
@@ -183,15 +187,21 @@ export default async function LandingPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
-                {eventList.map((event) => {
-                  const orgName = orgMap.get(event.org_id)?.name
+                {eventList.flatMap((event) => {
+                  // MGT-082: event URL requires the owning org's slug. If the
+                  // admin fetch failed and the org slug is unknown, omit the
+                  // row rather than render a broken link.
+                  const orgInfo = orgMap.get(event.org_id)
+                  if (!orgInfo) return []
+                  const orgName = orgInfo.name
+                  const eventHref = `/${orgInfo.slug}/${event.slug}`
                   const sameDay = event.start_date === event.end_date
 
-                  return (
+                  return [(
                     <tr key={event.id} className="group hover:bg-gray-50 transition-colors">
                       <td className="py-3.5 pr-6 pl-4">
                         <Link
-                          href={`/${event.slug}`}
+                          href={eventHref}
                           className="font-medium text-gray-900 group-hover:text-gray-600 hover:underline"
                         >
                           {event.title}
@@ -211,7 +221,7 @@ export default async function LandingPage() {
                       </td>
                       <td className="py-3.5 pr-4 text-right">
                         <Link
-                          href={`/${event.slug}`}
+                          href={eventHref}
                           className="text-gray-300 group-hover:text-gray-400 transition-colors"
                           aria-hidden="true"
                           tabIndex={-1}
@@ -220,7 +230,7 @@ export default async function LandingPage() {
                         </Link>
                       </td>
                     </tr>
-                  )
+                  )]
                 })}
               </tbody>
             </table>

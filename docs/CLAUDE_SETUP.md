@@ -1,74 +1,223 @@
-# MyGridTime — Claude Operating Rules
+# MyGridTime — Claude Operating System (STRICT)
 
-## Core Principle
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SOURCE OF TRUTH
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+- Codebase is ALWAYS the source of truth
+- Docs (/docs/*.md) must reflect real code state
+- If code and docs conflict → trust code → update docs immediately
 
-The codebase is the source of truth.
-Documentation must always reflect the real system state.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+MANDATORY START (EVERY SESSION)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. Read:
+   - /docs/CLAUDE_SETUP.md
+   - all /docs/*.md
 
-## Mandatory Validation Rule
+2. Confirm BEFORE doing anything:
+   - will follow this file
+   - code is source of truth
+   - docs must match code
 
-Before completing ANY task:
+❌ If not confirmed → STOP
 
-1. Re-check relevant code paths
-2. Verify behaviour matches `/docs/*.md`
-3. If mismatch:
-   - Fix the code, OR
-   - Update the docs
-4. Then proceed
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STATE AUDIT (REQUIRED BEFORE ANY WORK)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+You MUST determine from code + docs:
 
-Never proceed with outdated or assumed behaviour.
+1. What is COMPLETED (tickets with real code)
+2. What is IN PROGRESS (partial code only)
+3. What is BLOCKED (with exact reason)
+4. What is the SINGLE NEXT RECOMMENDED TICKET
 
-## Documentation Responsibilities
+Rules:
+- Do NOT guess
+- Do NOT invent tickets
+- If unclear → say so
 
-For ANY change (feature, fix, refactor):
+❌ Never start work without identifying the current next ticket
 
-Update relevant docs automatically:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PRIORITY CONTROL (ANTI-DRIFT)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+- Only work on the CURRENT NEXT TICKET
+- If user asks for something else:
+  - flag it as off-roadmap
+  - wait for explicit override
 
-- `/docs/PROJECT_STATUS.md`
-- `/docs/LAUNCH_PLAN.md`
-- `/docs/KNOWN_ISSUES.md`
-- `/docs/DECISIONS.md`
+- BLOCKED items MUST exist in:
+  - docs/KNOWN_ISSUES.md
 
-### Status Rules
+❌ If missing → add/update docs when relevant
 
-Statuses flow: `open` → `in progress` → `resolved`
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+WORKFLOW MODES (STRICT)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+You MUST operate in one mode only:
 
-Do not leave stale statuses.
+PLAN:
+- analyse only
+- no code changes
 
-### Behaviour Rules
+EXEC:
+- implement only
+- no redesign
 
-- If a bug is fixed → mark resolved in `KNOWN_ISSUES.md`
-- If work starts → mark in progress in `PROJECT_STATUS.md`
-- If behaviour changes → update descriptions across affected docs
-- If a rule is introduced → add to `DECISIONS.md`
-- If a risk appears → add to `KNOWN_ISSUES.md`
+REVISE:
+- fix targeted issue only
 
-## Output Requirement
+❌ Never mix modes
 
-After any task:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+IMPLEMENTATION RULES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+- Smallest possible change
+- One ticket only
+- No speculative improvements
+- No unrelated refactors
 
-1. Show code changes (if any)
-2. Show updated docs (only files changed)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+TESTING (MANDATORY)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+After ANY change:
 
-## Fail Condition
+- run: npm run typecheck
+- run: npm test
+- run: npm run build
 
-If docs are not updated to reflect changes, the task is incomplete.
+If UI touched:
+- verify in browser via `npm run dev`
 
-## Security Rule
+❌ No green checks → task NOT complete
 
-Never include:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+QA PREVIEW RULE (CRITICAL)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+- ALWAYS use `npm run dev` for UI checks
+- NEVER trust build preview for QA
 
-- API keys
-- Secrets
-- Environment variables
+If UI broken:
+- STOP
+- delete `.next`
+- restart dev server
+- re-check
 
-Use `[REDACTED]` if referencing any of the above.
+❌ Do not mark complete if UI is broken or unstyled
 
-## Session Start Rule
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ERROR HANDLING
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+- Server errors → Sentry
+- UI errors → ERROR_BANNER
 
-At the start of every new session:
+❌ Never break user flow
 
-1. Read `/docs/CLAUDE_SETUP.md`
-2. Read `/docs/*.md`
-3. Confirm rules will be followed before proceeding
-- Read /docs/QA_PREVIEW_RULES.md before any UI verification
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ENV / FEATURE FLAGS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+If API key missing:
+
+- UI visible
+- Feature disabled
+- Show banner
+- No API calls
+
+| flag | key | result   |
+|------|-----|----------|
+| off  | any | mock     |
+| on   | no  | disabled |
+| on   | yes | live     |
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+DATABASE RULES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+- Supabase remote
+- Migrations must be explicit
+
+❌ Never assume environment
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+DOCUMENTATION (MANDATORY)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+After ANY meaningful change:
+
+Update:
+- docs/PROJECT_STATUS.md
+- docs/KNOWN_ISSUES.md (if relevant)
+- any affected docs
+
+Rules:
+- No contradictions
+- No stale states
+
+❌ No docs update → task NOT complete
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+DRIFT DETECTION (ALWAYS)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+You MUST report:
+
+- Any mismatch between docs and code
+- Any missing blocked items
+- Any outdated status
+
+Format:
+- doc says:
+- code does:
+- required fix:
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+DEPLOY DECLARATION (REQUIRED)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+State clearly:
+
+- code changes?
+- db changes?
+- env changes?
+- deploy required?
+- manual verification required?
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+OUTPUT FORMAT (STRICT)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Every response MUST include:
+
+- MODE (PLAN / EXEC / REVISE)
+- Model + effort
+- Files changed
+- Code
+- Docs updated
+- Verification steps/results
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CORE PRINCIPLES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+small
+safe
+verified
+
+no drift
+no guessing
+one ticket at a time
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ROADMAP SOURCE HIERARCHY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+When deciding the current next ticket, use this priority order:
+
+1. Explicit user instruction in the current chat
+2. Latest approved handover / audit provided by user
+3. /docs/PROJECT_STATUS.md
+4. Other /docs/*.md
+5. Codebase evidence
+
+Rules:
+- Code is still source of truth for implementation status
+- But the NEXT ticket may come from a newer user-approved audit or handover not yet written into docs
+- If a newer audit/handover defines the next ticket, treat it as planning authority
+- If docs do not yet contain that ticket, flag:
+  - "roadmap doc update needed"
+- Do NOT reject the ticket solely because docs have not yet been updated
+- Do NOT invent ticket details that were not provided

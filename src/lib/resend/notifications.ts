@@ -65,13 +65,21 @@ export async function sendEventNotification(
 ): Promise<void> {
   debugLog('sendEventNotification', 'ENTER type:', type, '| eventId:', eventId)
   // ── 1. Fetch event (slug, title, venue, dates, recipients) ───────────────
+  //
+  // MGT-082: canonical public URL is nested under the org slug, so the
+  // owning organisation's slug must be joined in here. The join is `!inner`
+  // so an event with a missing/invalid org is skipped rather than sent with
+  // a broken link.
   const { data: event } = await supabase
     .from('events')
-    .select('slug, title, venue, start_date, end_date, notification_emails')
+    .select('slug, title, venue, start_date, end_date, notification_emails, organisations!inner(slug)')
     .eq('id', eventId)
     .maybeSingle()
 
   if (!event) return
+  const orgRow = (event as typeof event & { organisations: { slug: string } | { slug: string }[] }).organisations
+  const orgSlug = Array.isArray(orgRow) ? orgRow[0]?.slug : orgRow?.slug
+  if (!orgSlug) return
 
   // ── 2. Normalise recipients to lowercase, skip if none ──────────────────
   const rawRecipients = event.notification_emails ?? []
@@ -124,7 +132,7 @@ export async function sendEventNotification(
       : `${formatDate(event.start_date)} – ${formatDate(event.end_date)}`
 
   const appUrl = getServerAppUrl()
-  const publicUrl = `${appUrl}/${event.slug}`
+  const publicUrl = `${appUrl}/${orgSlug}/${event.slug}`
 
   const subject =
     type === 'event.published'

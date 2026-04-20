@@ -41,20 +41,38 @@ async function requireEditor() {
   return { supabase, user, membership }
 }
 
-async function generateUniqueSlug(
+/**
+ * MGT-082: mirrors `computeEventSlug` in events/actions.ts. Scopes the
+ * uniqueness check to the target organisation and returns a friendly error
+ * if the slug is already taken.
+ */
+async function computeEventSlug(
   supabase: Awaited<ReturnType<typeof createClient>>,
-  title: string
-): Promise<string> {
-  const base = slugify(title) || `event-${Date.now()}`
-  const { data } = await supabase
+  orgId: string,
+  title: string,
+): Promise<{ ok: true; slug: string } | { ok: false; error: string }> {
+  const slug = slugify(title) || `event-${Date.now()}`
+  const { data, error } = await supabase
     .from('events')
-    .select('slug')
-    .ilike('slug', `${base}%`)
-  const existing = (data ?? []).map((r) => r.slug)
-  if (!existing.includes(base)) return base
-  let i = 2
-  while (existing.includes(`${base}-${i}`)) i++
-  return `${base}-${i}`
+    .select('id')
+    .eq('org_id', orgId)
+    .eq('slug', slug)
+    .maybeSingle()
+  if (error) {
+    Sentry.captureException(
+      new Error(`computeEventSlug.select failed: ${error.message}`),
+      { tags: { action: 'createEventFromTemplate.computeEventSlug' } },
+    )
+    return { ok: false, error: 'Could not verify the event name. Please retry.' }
+  }
+  if (data) {
+    return {
+      ok: false,
+      error:
+        'An event with this title already exists in this organisation. Please choose a different title.',
+    }
+  }
+  return { ok: true, slug }
 }
 
 
@@ -266,7 +284,11 @@ export async function createEventFromTemplate(
   if (!Array.isArray(templateDays)) return { success: false, error: 'Invalid template data.' }
 
   // Create the event
-  const slug = await generateUniqueSlug(supabase, input.title)
+  const slugResult = await computeEventSlug(supabase, membership.org_id, input.title)
+  if (!slugResult.ok) {
+    return { success: false, error: slugResult.error }
+  }
+  const slug = slugResult.slug
 
   const { data: event, error: eventErr } = await supabase
     .from('events')
