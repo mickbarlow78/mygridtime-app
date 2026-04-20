@@ -5,7 +5,7 @@ import type { Database, OrgMemberRole, PlatformRole } from '@/lib/types/database
 const ORG_COOKIE = 'mgt-org-id'
 
 /** Allowed roles for admin access (matches layout + requireEditor). */
-const ALLOWED_ROLES: OrgMemberRole[] = ['owner', 'admin', 'editor']
+const ALLOWED_ROLES: OrgMemberRole[] = ['owner', 'editor']
 
 // ---------------------------------------------------------------------------
 // Cookie helpers

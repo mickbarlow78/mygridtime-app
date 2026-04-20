@@ -14,7 +14,8 @@ export function AcceptInviteForm({ token }: AcceptInviteFormProps) {
   const router = useRouter()
   const [status, setStatus] = useState<'idle' | 'accepting' | 'success' | 'error'>('idle')
   const [error, setError] = useState<string | null>(null)
-  const [destination, setDestination] = useState<string>('/admin')
+  // MGT-084: invites now only grant 'editor'; all accepted invites land on /admin.
+  const destination = '/admin'
 
   async function handleAccept() {
     setStatus('accepting')
@@ -28,11 +29,8 @@ export function AcceptInviteForm({ token }: AcceptInviteFormProps) {
       return
     }
 
-    // Viewers land on /my (consumer dashboard); elevated roles go to /admin.
-    const next = result.data.role === 'viewer' ? '/my' : '/admin'
-    setDestination(next)
     setStatus('success')
-    setTimeout(() => router.push(next), 1500)
+    setTimeout(() => router.push(destination), 1500)
   }
 
   return (
@@ -78,7 +76,7 @@ export function AcceptInviteForm({ token }: AcceptInviteFormProps) {
                 href={destination}
                 className="text-sm text-gray-500 hover:text-gray-700 underline underline-offset-2 transition-colors inline-block"
               >
-                Continue to {destination === '/admin' ? 'admin' : 'your timetables'}
+                Continue to admin
               </Link>
             </div>
           )}

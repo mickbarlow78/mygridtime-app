@@ -1,5 +1,26 @@
 # Known Issues
 
+## MGT-083: Top-bar org switcher did not refresh the Organisation settings page — resolved 2026-04-20
+
+**Description**: When an owner belonging to 2+ organisations changed the active org via the top-bar `<OrgSelector>` dropdown, the `/admin` layout updated correctly (title, dropdown selection), but `/admin/orgs/settings` continued to display the previous org's name, slug, branding, members, invites, extraction log, and audit log until a manual browser refresh. Silently stale settings on a mutable page is dangerous — an owner could edit Org B believing they were editing Org A (or vice versa).
+
+**Root cause**: The page RSC (`src/app/admin/orgs/settings/page.tsx`) correctly re-executed on `router.refresh()` and passed new props to `<SettingsPanels>` on org switch. But the client form components inside `SettingsPanels` (`OrgNameForm`, `BrandingForm`, etc.) seed their local `useState(...)` from props only at mount. Because React reconciles the same component identity across RSC re-renders, those `useState` values never re-initialised with the new org's data — the forms stayed on the previous org.
+
+Contributing weakness: `switchOrg()` in `src/app/admin/orgs/actions.ts` called `revalidatePath('/admin')`, which only invalidates the exact `/admin` route, not nested routes like `/admin/orgs/settings`. `router.refresh()` picked up the new cookie regardless (the settings page is dynamic via cookies), so this was not the visible cause — but the scope was inconsistent with Next 14 semantics for an app-wide org switch.
+
+**Fix**: Two-line change.
+
+1. `src/app/admin/orgs/settings/page.tsx` — added `key={org.id}` to `<SettingsPanels>`. On org change, React fully unmounts and remounts the client subtree, so every child form re-seeds its `useState` from the new props. Standard React idiom for "treat this prop change as a new instance."
+2. `src/app/admin/orgs/actions.ts` — inside `switchOrg()` changed `revalidatePath('/admin')` to `revalidatePath('/admin', 'layout')` so the entire `/admin` layout subtree is invalidated on switch (belt-and-braces alongside `router.refresh()`). No other `revalidatePath('/admin')` call sites were touched — individual mutations keep their narrower, correct scope.
+
+Known tradeoff (acceptable): an unsaved edit in `OrgNameForm`/`BrandingForm` is discarded when the user switches org mid-edit. This is the correct UX — stale draft values must not bleed across orgs.
+
+**Status**: Resolved (2026-04-20). Deploy impact: code only (2 lines); no schema; no env; no migrations; no DB state change.
+
+**Verification**: dev-server dual-org end-to-end pass on 2026-04-20. Seeded a second organisation `MGT QA Org B` (slug `mgt-qa-org-b`, primary colour `#0066FF`, logo `example.com/mgt-qa-org-b-logo.png`, header text `Bravo HQ`) owned by the dev admin via the new standalone `scripts/seed-second-org.mjs` (npm script `seed:mgt-083`) — idempotent find-or-create against `organisations` + `org_members`, logs every step, fails loudly on missing env, prints DELETE SQL for cleanup. Verified Org A `MGT-060 Verify Org` (colour `#FF0000`, logo `logo-v3.png`, no header text) vs Org B values are visibly distinct. Loaded `/admin/orgs/settings` as Org A, dispatched a native `change` event on the top-bar `<OrgSelector>` to switch to Org B, and re-read the page DOM after the RSC refresh. Every field updated without manual browser refresh: `h1`, `OrgNameForm` name input, public URL (slug text), `BrandingForm` colour pickers + logo URL + header text. Repeated the switch three full A↔B cycles — each cycle restored the correct org's values with no cross-bleed and no stale draft values leaking across switches. Browser console: zero errors and zero warnings across the full run. Unsaved draft discard on mid-edit switch behaves as expected (acceptable tradeoff noted above).
+
+---
+
 ## MGT-082: Production event creation failed with `duplicate key value violates unique constraint "events_slug_key"` — resolved 2026-04-20
 
 **Description**: `events.slug` carried a global `UNIQUE` constraint (`events_slug_key`) from the original schema. When two organisations — or the same organisation over time — attempted to create events with the same title (e.g. "Round 1"), the `generateUniqueSlug` helper would suffix (`round-1`, `round-1-2`, …) until it found a free slot, but under concurrency and across orgs the constraint still produced the raw Postgres error to end users on the admin create flow. The auto-suffix also produced URLs users never chose, which is particularly bad for printed collateral and QR codes.

@@ -56,21 +56,24 @@ export type Database = {
           id: string
           email: string
           display_name: string | null
-          platform_role: 'staff' | 'support' | null
+          platform_role: 'admin' | 'staff' | 'support' | null
+          subscription_status: 'member' | 'subscriber'
           created_at: string
         }
         Insert: {
           id: string
           email: string
           display_name?: string | null
-          platform_role?: 'staff' | 'support' | null
+          platform_role?: 'admin' | 'staff' | 'support' | null
+          subscription_status?: 'member' | 'subscriber'
           created_at?: string
         }
         Update: {
           id?: string
           email?: string
           display_name?: string | null
-          platform_role?: 'staff' | 'support' | null
+          platform_role?: 'admin' | 'staff' | 'support' | null
+          subscription_status?: 'member' | 'subscriber'
           created_at?: string
         }
         Relationships: []
@@ -81,21 +84,21 @@ export type Database = {
           id: string
           org_id: string
           user_id: string
-          role: 'owner' | 'admin' | 'editor' | 'viewer'
+          role: 'owner' | 'editor'
           created_at: string
         }
         Insert: {
           id?: string
           org_id: string
           user_id: string
-          role: 'owner' | 'admin' | 'editor' | 'viewer'
+          role: 'owner' | 'editor'
           created_at?: string
         }
         Update: {
           id?: string
           org_id?: string
           user_id?: string
-          role?: 'owner' | 'admin' | 'editor' | 'viewer'
+          role?: 'owner' | 'editor'
           created_at?: string
         }
         Relationships: [
@@ -385,7 +388,7 @@ export type Database = {
           id: string
           org_id: string
           email: string
-          role: 'admin' | 'editor' | 'viewer'
+          role: 'editor'
           token: string
           invited_by: string | null
           accepted_at: string | null
@@ -395,7 +398,7 @@ export type Database = {
           id?: string
           org_id: string
           email: string
-          role?: 'admin' | 'editor' | 'viewer'
+          role?: 'editor'
           token?: string
           invited_by?: string | null
           accepted_at?: string | null
@@ -405,7 +408,7 @@ export type Database = {
           id?: string
           org_id?: string
           email?: string
-          role?: 'admin' | 'editor' | 'viewer'
+          role?: 'editor'
           token?: string
           invited_by?: string | null
           accepted_at?: string | null

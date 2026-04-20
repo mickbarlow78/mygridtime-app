@@ -12,7 +12,8 @@ import { CONTAINER_FORM, BREADCRUMB, BREADCRUMB_LINK, BREADCRUMB_SEP, BREADCRUMB
 
 /**
  * Org settings page — server component.
- * Only accessible to owner/admin of the active org.
+ * MGT-084: owner-only. Platform staff/support reach this via the
+ * `via: 'platform'` short-circuit in getActiveOrg (returns role 'owner').
  */
 export default async function OrgSettingsPage() {
   const supabase = createClient()
@@ -25,7 +26,7 @@ export default async function OrgSettingsPage() {
   const activeOrg = await getActiveOrg(supabase, user.id)
   if (!activeOrg) redirect('/admin')
 
-  if (!['owner', 'admin'].includes(activeOrg.role)) {
+  if (activeOrg.role !== 'owner') {
     redirect('/admin')
   }
 
@@ -72,6 +73,7 @@ export default async function OrgSettingsPage() {
       </div>
 
       <SettingsPanels
+        key={org.id}
         orgId={org.id}
         orgSlug={org.slug}
         orgName={org.name}

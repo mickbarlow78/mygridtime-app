@@ -26,7 +26,7 @@ const eventDataWithUnsub = {
 const inviteData = {
   orgName: 'Test Org',
   inviterEmail: 'admin@example.com',
-  role: 'admin',
+  role: 'editor',
   acceptUrl: 'https://mygridtime.com/invites/abc123',
 }
 
@@ -107,7 +107,7 @@ describe('org invite templates', () => {
   it('HTML contains accept URL and role', () => {
     const html = orgInviteHtml(inviteData)
     expect(html).toContain('https://mygridtime.com/invites/abc123')
-    expect(html).toContain('admin')
+    expect(html).toContain('editor')
   })
 
   it('text contains accept URL', () => {

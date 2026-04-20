@@ -12,7 +12,8 @@
     "test:watch": "vitest",
     "seed:extractions": "node --env-file=.env.local scripts/seed-extraction-log.mjs",
     "cleanup:extractions": "node --env-file=.env.local scripts/cleanup-extraction-log.mjs",
-    "retention:extractions": "node --env-file=.env.local scripts/retention-extractions.mjs"
+    "retention:extractions": "node --env-file=.env.local scripts/retention-extractions.mjs",
+    "seed:mgt-083": "node --env-file=.env.local scripts/seed-second-org.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.39.0",

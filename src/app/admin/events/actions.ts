@@ -58,16 +58,24 @@ async function requireUser() {
 
 /**
  * Requires the calling user to be authenticated AND to hold an allowed role
- * (owner | admin | editor) in their active org.
+ * (owner | editor) in their active org.
  *
  * Returns { supabase, user, membership } where membership is the user's
  * active org (resolved via cookie with fallback), or membership: null if
  * the user has no qualifying role.  Every mutation action must check
  * membership !== null before proceeding.
+ *
+ * MGT-084: explicit role gate. `getActiveOrg` already filters to
+ * ('owner','editor'), but platform staff/support short-circuit returns
+ * role 'owner' via: 'platform' — still allowed. The explicit check here
+ * is defense-in-depth should the resolution contract change.
  */
 async function requireEditor() {
   const { supabase, user } = await requireUser()
   const membership = await getActiveOrg(supabase, user.id)
+  if (membership && membership.role !== 'owner' && membership.role !== 'editor') {
+    return { supabase, user, membership: null }
+  }
   return { supabase, user, membership }
 }
 

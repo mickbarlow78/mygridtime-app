@@ -1,11 +1,14 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
-import { signOut } from '@/app/admin/actions'
-import { PAGE_BG, HEADER, HEADER_INNER, CONTAINER_FULL, AUTH_EMAIL, AUTH_LINK, HEADER_NAV_LINK } from '@/lib/styles'
+import { getActiveOrg, getUserOrgs } from '@/lib/utils/active-org'
+import { computeUserBadge } from '@/lib/utils/role-badge'
+import { UserMenu } from '@/components/admin/UserMenu'
+import { PAGE_BG, HEADER, HEADER_INNER, CONTAINER_FULL, HEADER_NAV_LINK } from '@/lib/styles'
 
-/** Roles that can access /admin (owner, admin, editor). */
-const ELEVATED_ROLES = ['owner', 'admin', 'editor'] as const
+/** Roles that can access /admin. MGT-084 collapsed org_members.role to
+ *  owner | editor — both are elevated for admin-area purposes. */
+const ELEVATED_ROLES = ['owner', 'editor'] as const
 
 export default async function ConsumerLayout({
   children,
@@ -22,15 +25,36 @@ export default async function ConsumerLayout({
     redirect('/auth/login')
   }
 
-  // 2. Authorisation — must be a member of at least one org (any role)
-  const { data: memberships } = await supabase
-    .from('org_members')
-    .select('org_id, role')
-    .eq('user_id', user.id)
+  // 2. MGT-084: /my is the subscription-axis surface — any authenticated
+  //    user can reach it (member or subscriber). Memberships are only read
+  //    to decide whether to show the "Manage events" shortcut.
+  const userOrgs = await getUserOrgs(supabase, user.id)
+  const activeOrg = userOrgs.length > 0 ? await getActiveOrg(supabase, user.id) : null
 
-  const hasAccess = memberships && memberships.length > 0
-  const hasElevatedRole = memberships?.some((m) =>
-    (ELEVATED_ROLES as readonly string[]).includes(m.role)
+  const hasElevatedRole = userOrgs.some((o) =>
+    (ELEVATED_ROLES as readonly string[]).includes(o.role)
+  )
+
+  // Fetch the user row for the header badge.
+  const { data: userRow } = await supabase
+    .from('users')
+    .select('platform_role, subscription_status, display_name')
+    .eq('id', user.id)
+    .maybeSingle()
+
+  const platformRole = (userRow?.platform_role ?? null) as 'admin' | 'staff' | 'support' | null
+  const subscriptionStatus = (userRow?.subscription_status ?? 'member') as 'member' | 'subscriber'
+  const displayName = userRow?.display_name ?? null
+
+  const activeOrgName =
+    activeOrg && userOrgs.find((o) => o.org_id === activeOrg.org_id)?.org_name
+      ? userOrgs.find((o) => o.org_id === activeOrg.org_id)?.org_name ?? null
+      : null
+
+  const badge = computeUserBadge(
+    { platform_role: platformRole, subscription_status: subscriptionStatus },
+    activeOrg,
+    activeOrgName,
   )
 
   return (
@@ -48,33 +72,20 @@ export default async function ConsumerLayout({
                 Manage events
               </Link>
             )}
-            <span className={AUTH_EMAIL}>{user.email}</span>
-            <form action={signOut}>
-              <button type="submit" className={AUTH_LINK}>
-                Sign out
-              </button>
-            </form>
+            <UserMenu
+              badge={badge}
+              userEmail={user.email ?? ''}
+              userDisplayName={displayName}
+              subscriptionStatus={subscriptionStatus}
+              userOrgs={userOrgs}
+              activeOrgId={activeOrg?.org_id ?? null}
+            />
           </div>
         </div>
       </header>
 
       <main className={`${CONTAINER_FULL} py-6`}>
-        {hasAccess ? (
-          children
-        ) : (
-          <div className="flex flex-col items-center justify-center py-24 text-center space-y-3">
-            <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center mb-2">
-              <svg className="w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
-              </svg>
-            </div>
-            <h1 className="text-base font-semibold text-gray-900">No access</h1>
-            <p className="text-sm text-gray-500 max-w-sm">
-              <span className="font-medium text-gray-700">{user.email}</span> is not a member
-              of any organisation. Ask your organisation administrator to invite you.
-            </p>
-          </div>
-        )}
+        {children}
       </main>
     </div>
   )

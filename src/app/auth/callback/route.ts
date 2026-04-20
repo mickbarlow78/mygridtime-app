@@ -92,10 +92,13 @@ export async function GET(request: NextRequest) {
   // handles its own viewer routing after accept.
   // For a plain login with no return path, branch on membership state:
   //   - elevated role in any org → /admin
-  //   - viewer-only memberships   → /my (consumer dashboard)
   //   - zero memberships           → /admin/orgs/new (first-run onboarding,
   //                                  permitted by the admin layout when the
   //                                  user has no orgs at all)
+  //
+  // MGT-084: org_members.role is now only 'owner' | 'editor' — both are
+  // elevated. The legacy 'viewer → /my' branch was removed when the
+  // 20260420010000 migration deleted all viewer rows and tightened the CHECK.
   let destination = safeNext ?? '/admin'
 
   if (!safeNext) {
@@ -108,18 +111,12 @@ export async function GET(request: NextRequest) {
 
       const roles = (memberships ?? []).map((m) => m.role)
       const hasElevatedRole = roles.some((r) =>
-        ['owner', 'admin', 'editor'].includes(r)
+        ['owner', 'editor'].includes(r)
       )
-      if (!hasElevatedRole) {
-        if (roles.length === 0) {
-          // No orgs at all — drop into the first-run onboarding page so the
-          // user can create their first organisation immediately.
-          destination = '/admin/orgs/new'
-        } else {
-          // Viewer-only membership(s) — send to the consumer dashboard, which
-          // is where their read-only timetable access lives.
-          destination = '/my'
-        }
+      if (!hasElevatedRole && roles.length === 0) {
+        // No orgs at all — drop into the first-run onboarding page so the
+        // user can create their first organisation immediately.
+        destination = '/admin/orgs/new'
       }
     }
   }

@@ -183,7 +183,7 @@ export async function switchOrg(orgId: string): Promise<ActionResult> {
   if (!membership) return { success: false, error: 'You are not a member of this organisation.' }
 
   setActiveOrgId(orgId)
-  revalidatePath('/admin')
+  revalidatePath('/admin', 'layout')
 
   return { success: true, data: undefined }
 }
@@ -196,11 +196,11 @@ export async function switchOrg(orgId: string): Promise<ActionResult> {
  * Require the current user to be owner or admin of the active org.
  * Returns the supabase client, user, and active org.
  */
-async function requireOwnerOrAdmin() {
+async function requireOwner() {
   const { supabase, user } = await requireUser()
   const activeOrg = await getActiveOrg(supabase, user.id)
   if (!activeOrg) redirect('/admin')
-  if (!['owner', 'admin'].includes(activeOrg.role)) {
+  if (activeOrg.role !== 'owner') {
     return { supabase, user, activeOrg, authorized: false as const }
   }
   return { supabase, user, activeOrg, authorized: true as const }
@@ -213,7 +213,7 @@ export async function updateOrganisation(input: {
   orgId: string
   name: string
 }): Promise<ActionResult> {
-  const { supabase, user, activeOrg, authorized } = await requireOwnerOrAdmin()
+  const { supabase, user, activeOrg, authorized } = await requireOwner()
   if (!authorized) return { success: false, error: 'Only owners and admins can update organisation settings.' }
 
   const name = input.name.trim()
@@ -268,7 +268,7 @@ export async function updateOrgBranding(input: {
   orgId: string
   branding: OrgBranding
 }): Promise<ActionResult> {
-  const { supabase, user, activeOrg, authorized } = await requireOwnerOrAdmin()
+  const { supabase, user, activeOrg, authorized } = await requireOwner()
   if (!authorized) return { success: false, error: 'Only owners and admins can update branding.' }
 
   const { primaryColor, logoUrl, headerText } = input.branding
@@ -345,7 +345,7 @@ export async function listOrgMembers(orgId: string): Promise<ActionResult<Array<
   email: string
   created_at: string
 }>>> {
-  const { supabase, authorized } = await requireOwnerOrAdmin()
+  const { supabase, authorized } = await requireOwner()
   if (!authorized) return { success: false, error: 'Only owners and admins can view members.' }
 
   // Use admin client so the users join returns emails for all members,
@@ -379,9 +379,9 @@ export async function listOrgMembers(orgId: string): Promise<ActionResult<Array<
 export async function updateMemberRole(input: {
   memberId: string
   orgId: string
-  newRole: 'owner' | 'admin' | 'editor' | 'viewer'
+  newRole: 'owner' | 'editor'
 }): Promise<ActionResult> {
-  const { supabase, user, activeOrg, authorized } = await requireOwnerOrAdmin()
+  const { supabase, user, activeOrg, authorized } = await requireOwner()
   if (!authorized) return { success: false, error: 'Only owners and admins can change roles.' }
 
   // Fetch the member being changed — include email join for audit detail.
@@ -449,7 +449,7 @@ export async function removeMember(input: {
   memberId: string
   orgId: string
 }): Promise<ActionResult> {
-  const { supabase, user, activeOrg, authorized } = await requireOwnerOrAdmin()
+  const { supabase, user, activeOrg, authorized } = await requireOwner()
   if (!authorized) return { success: false, error: 'Only owners and admins can remove members.' }
 
   // Fetch the member being removed — include user_id + email join for audit
@@ -523,7 +523,7 @@ export async function listOrgInvites(orgId: string): Promise<ActionResult<Array<
   role: string
   created_at: string
 }>>> {
-  const { supabase, authorized } = await requireOwnerOrAdmin()
+  const { supabase, authorized } = await requireOwner()
   if (!authorized) return { success: false, error: 'Only owners and admins can view invites.' }
 
   const { data, error } = await supabase
@@ -547,10 +547,10 @@ export async function listOrgInvites(orgId: string): Promise<ActionResult<Array<
 export async function inviteMember(input: {
   orgId: string
   email: string
-  role: 'admin' | 'editor' | 'viewer'
+  role: 'editor'
 }): Promise<ActionResult> {
   try {
-    const { supabase, user, activeOrg, authorized } = await requireOwnerOrAdmin()
+    const { supabase, user, activeOrg, authorized } = await requireOwner()
     if (!authorized) return { success: false, error: 'Only owners and admins can invite members.' }
 
     const email = input.email.trim().toLowerCase()
@@ -663,7 +663,7 @@ export async function revokeInvite(input: {
   inviteId: string
   orgId: string
 }): Promise<ActionResult> {
-  const { supabase, user, activeOrg, authorized } = await requireOwnerOrAdmin()
+  const { supabase, user, activeOrg, authorized } = await requireOwner()
   if (!authorized) return { success: false, error: 'Only owners and admins can revoke invites.' }
 
   // Capture email pre-delete so the audit row records who was invited.

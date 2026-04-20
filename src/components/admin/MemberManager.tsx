@@ -36,12 +36,10 @@ export type Invite = {
   created_at: string
 }
 
-// Product-visible roles reduced to owner + admin. Legacy editor/viewer roles
-// remain supported in the database but are no longer selectable from the UI —
-// existing legacy rows are surfaced via a disabled option so the row still
-// renders its current role correctly.
-const SELECTABLE_ROLES = ['owner', 'admin'] as const
-const LEGACY_ROLES = ['editor', 'viewer'] as const
+// MGT-084: org role model collapsed to owner + editor. The 20260420010000
+// migration rewrote all admin→editor and deleted viewer rows, and CHECK
+// constraints now prevent any other value from reappearing.
+const SELECTABLE_ROLES = ['owner', 'editor'] as const
 
 export function MemberManager({ orgId, initialMembers, initialInvites, onSaved }: MemberManagerProps) {
   // Initialise from server-fetched props so the list is visible immediately
@@ -60,12 +58,12 @@ export function MemberManager({ orgId, initialMembers, initialInvites, onSaved }
     memberId: string
     email: string
     currentRole: string
-    newRole: 'owner' | 'admin'
+    newRole: 'owner' | 'editor'
   } | null>(null)
 
   // Invite form state
-  // New invites may only create admin users. Legacy roles (editor/viewer) are
-  // no longer sendable from the UI, so the role is fixed at the call site.
+  // MGT-084: invites only create editors. Owners are only created via
+  // createOrganisation. The UI shows role as a read-only display.
   const [inviteEmail, setInviteEmail] = useState('')
 
   // Skip the first-mount effect — data is fresh from the server.
@@ -108,9 +106,7 @@ export function MemberManager({ orgId, initialMembers, initialInvites, onSaved }
     const member = members.find((m) => m.id === memberId)
     if (!member) return
     if (member.role === newRole) return
-    // Only owner/admin are UI-selectable. Legacy roles appear as disabled
-    // options purely to render the current legacy role on pre-existing rows.
-    if (newRole !== 'owner' && newRole !== 'admin') return
+    if (newRole !== 'owner' && newRole !== 'editor') return
     setRoleChangeTarget({
       memberId,
       email: member.email,
@@ -177,7 +173,7 @@ export function MemberManager({ orgId, initialMembers, initialInvites, onSaved }
     clearMessages()
     if (!inviteEmail.trim()) { setError('Email is required.'); return }
     startTransition(async () => {
-      const result = await inviteMember({ orgId, email: inviteEmail, role: 'admin' })
+      const result = await inviteMember({ orgId, email: inviteEmail, role: 'editor' })
       if (!result.success) {
         setError(result.error)
       } else {
@@ -242,11 +238,6 @@ export function MemberManager({ orgId, initialMembers, initialInvites, onSaved }
                   {SELECTABLE_ROLES.map((r) => (
                     <option key={r} value={r}>{r}</option>
                   ))}
-                  {LEGACY_ROLES.includes(member.role as (typeof LEGACY_ROLES)[number]) && (
-                    <option key={member.role} value={member.role} disabled>
-                      {member.role} (legacy)
-                    </option>
-                  )}
                 </select>
                 <button
                   onClick={() => handleRemove(member.id, member.email)}
@@ -326,7 +317,7 @@ export function MemberManager({ orgId, initialMembers, initialInvites, onSaved }
                 className="text-sm bg-gray-50 border border-gray-300 rounded-md px-3 py-2 text-gray-900 w-full sm:w-auto"
                 aria-label="Invite role"
               >
-                admin
+                editor
               </p>
             </div>
             <button
@@ -374,7 +365,7 @@ export function MemberManager({ orgId, initialMembers, initialInvites, onSaved }
 }
 
 // Role privilege ordering — used to classify downgrades for dialog wording
-const ROLE_RANK: Record<string, number> = { owner: 3, admin: 2, editor: 1, viewer: 0 }
+const ROLE_RANK: Record<string, number> = { owner: 2, editor: 1 }
 function isDowngrade(current: string, next: string): boolean {
   return (ROLE_RANK[next] ?? 0) < (ROLE_RANK[current] ?? 0)
 }

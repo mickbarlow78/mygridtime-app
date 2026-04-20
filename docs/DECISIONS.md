@@ -1,5 +1,72 @@
 # Decisions
 
+## DEC-037: Role model is three orthogonal axes (PLATFORM / ORG / SUBSCRIPTION); platform staff/support are surfaced honestly in the UI, never relabelled as Owner
+
+**Decision**: MGT-084 aligns the role model to the three-axis shape the product has always implied, and makes the shape visible in the header. Each axis is stored and displayed independently:
+
+| Axis | Column | Values | Default | Who sets |
+|---|---|---|---|---|
+| Platform | `users.platform_role` | `admin \| staff \| support \| null` | `null` | Internal invite only |
+| Org (per org) | `org_members.role` | `owner \| editor` | — | Owner at create; editor via invite |
+| Subscription | `users.subscription_status` | `member \| subscriber` | `member` | Signup → member; Phase 7c Stripe flips to subscriber |
+
+**Data migration**:
+- `org_members.role = 'admin'` → `'editor'` (current admins lose org-settings access; owner must re-promote if intended)
+- `org_members.role = 'viewer'` → row deleted (ex-viewers retain auth via the subscription axis and reach `/my`)
+- `org_invites.role IN ('admin','viewer')` → `'editor'` (invites only produce editors under the new model)
+- `users.platform_role` CHECK extended to allow `'admin'`; no existing rows change
+- `users.subscription_status` added with default `'member'`; every existing row backfills to `member` via the column default
+
+**Badge priority** (top-right pill):
+
+1. `platform_role = 'admin'` → **Admin** (no org qualifier — global)
+2. `platform_role = 'staff'` → **Staff — {OrgName}** (scoped to the active org)
+3. `platform_role = 'support'` → **Support — {OrgName}** (scoped to the active org)
+4. Active org membership → **Owner — {OrgName}** or **Editor — {OrgName}**
+5. Else → **Subscriber** or **Member**
+
+**Why staff/support are surfaced as their true label and not as Owner**: `get_user_org_role()` short-circuits platform `admin`/`staff`/`support` to effective `'owner'` so RLS grants cross-org access (DEC-018, unchanged). But *access level* and *identity* are different questions. Labelling a support engineer as "Owner — Acme Ltd" in the header misrepresents what Acme's owner is seeing and breaks audit reasoning ("the owner did X" vs "a support engineer acting as owner did X"). The UI reads the user's true platform role via `computeUserBadge()` while RLS keeps using the effective role — the discriminator is `ActiveOrg.via: 'platform' | 'membership'`, already threaded through from Phase A and preserved on every `writeAuditLog()` call site via `actor_context.via`.
+
+**Rationale**:
+
+- **Three axes because they move independently.** A platform support engineer can also be an org owner (of their own throwaway test org) and also a subscription subscriber (if they paid personally). Collapsing any pair loses information. `org_members.role = 'admin'` was a permission-muddled middle tier — it granted almost-owner power without clear semantics, and two-thirds of the production admin rows were actually meant to be editors. `viewer` duplicated what the subscription axis will cover properly (a read-only account that does not belong to an org), and kept the org axis carrying a role that is not really a role in the org.
+- **Editor as the only invitable role is a feature, not a limitation.** Owners are intentionally created only via `createOrganisation()`. A single-value `org_invites.role` CHECK (`'editor'`) makes this invariant explicit in the schema rather than a convention enforced in application code. If a second assignable role is needed later, the CHECK widens in one migration.
+- **CHECK constraint in the role migration + RLS body rewrite as a separate migration.** The first migration rewrites data and tightens the CHECK — that is enough for correctness, because `'admin'` can never reappear in `org_members.role` once the CHECK is in place. The surviving `IN ('owner','admin','editor')` clauses in RLS bodies become dead code. The second migration is pure clean-up (drift-audit hygiene so `pg_policies LIKE '%''admin''%'` returns zero rows); policy *names* are preserved — renaming policies widens the migration for no correctness gain, so the historical `_admin` / `_owner_admin` suffixes become labels, not claims.
+- **`is_platform_staff()` OR-clauses preserved byte-for-byte.** The RLS cleanup migration rewrites `USING` / `WITH CHECK` bodies only; every existing `is_platform_staff()` OR on SELECT policies is copied across unchanged so DEC-018 cross-org platform access keeps working without re-verification.
+- **Pre-deploy audit script**. Before the role migration runs, operators should list the users who will lose `admin` → `editor` and who will be deleted as `viewer`:
+  ```sql
+  SELECT om.user_id, u.email, o.name, om.role
+  FROM   org_members om
+  JOIN   users u ON u.id = om.user_id
+  JOIN   organisations o ON o.id = om.org_id
+  WHERE  om.role IN ('admin','viewer');
+  ```
+  Output is a punch list for owners who want to re-promote intended admins before the migration applies.
+
+**Rejected alternatives**:
+
+- *Keep `org_members.role = 'admin'` alongside `'editor'`*: retained the permission muddle that motivated the ticket. No product surface needed the middle tier — the settings surface is owner-only, event editing is editor-or-above, and cross-org platform work already flows through `get_user_org_role()`'s short-circuit. Three values on one axis with no distinguishable product behaviour between two of them is a leaky abstraction.
+- *Label platform staff as "Owner — {OrgName}" to keep the header compact*: dishonest. A support engineer clicking through a customer org should see that they are acting as Support, and the customer's own audit trail should read "Support — Acme Ltd" on actions taken during a support session. Cross-referencing `audit_log.actor_context.via` ('platform' vs 'membership') and the header badge against each other is how an owner verifies their org has not been touched out-of-band.
+- *Put the subscription axis on `org_members` as a per-org flag*: makes orgless consumer users (the whole point of the subscription tier) unrepresentable. Subscription is a property of the **user**, not of any single org relationship.
+
+**Scope**:
+
+- Applies to every auth surface: `/admin/*`, `/my/*`, invite acceptance flow, `/auth/callback` post-login routing.
+- Does not apply to the public `/(public)` routes — they remain unauthenticated and unchanged.
+- `writeAuditLog()` call sites remain unchanged: `actor_context` was already widened in Phase A (DEC-018) and carries the `via` discriminator; no new columns, no new payload shape.
+
+**Verification**:
+
+- Post-migration: `SELECT count(*) FROM org_members WHERE role NOT IN ('owner','editor')` returns 0. `SELECT subscription_status, count(*) FROM users GROUP BY 1` shows every row defaults to `'member'`.
+- Drift audit: `SELECT policyname FROM pg_policies WHERE qual LIKE '%''admin''%' OR with_check LIKE '%''admin''%'` returns zero rows after the cleanup migration.
+- Browser: dev admin reads **Owner — {OrgName}**; flipping `platform_role = 'admin'` reads **Admin** (no org qualifier); `'staff'` reads **Staff — {OrgName}**, **not** Owner; `'support'` reads **Support — {OrgName}**. Orgless user with `subscription_status = 'subscriber'` reads **Subscriber** on `/my`. Invited editor sees `/admin/orgs/settings` 403 via the `requireOwner()` gate.
+
+**Tickets**: MGT-084 (roles foundation + header badge).
+
+**Related**: Supersedes the implicit 4-way `org_members.role` union that Phase 0 shipped. Does not supersede DEC-018 — that document still governs the effective-owner short-circuit for RLS; DEC-037 only adds that the UI label must reflect the **true** platform role, not the effective one.
+
+---
+
 ## DEC-036: Event slugs are unique per organisation; canonical public URL is nested (`/{orgSlug}/{eventSlug}`) — supersedes DEC-022 for event routing
 
 **Decision**: MGT-082 fixes a production bug where creating a second event titled the same as any existing event in the system failed with `duplicate key value violates unique constraint "events_slug_key"`. The fix makes event slugs unique *only within the owning organisation* and moves the canonical public event URL to `/{orgSlug}/{eventSlug}`.

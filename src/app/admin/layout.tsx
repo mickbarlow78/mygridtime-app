@@ -2,10 +2,11 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { headers } from 'next/headers'
 import Link from 'next/link'
-import { signOut } from './actions'
 import { getActiveOrg, getUserOrgs } from '@/lib/utils/active-org'
 import { OrgSelector } from '@/components/admin/OrgSelector'
-import { PAGE_BG, HEADER, HEADER_INNER, CONTAINER_FULL, AUTH_EMAIL, AUTH_LINK, HEADER_NAV_LINK, BTN_PRIMARY } from '@/lib/styles'
+import { UserMenu } from '@/components/admin/UserMenu'
+import { computeUserBadge } from '@/lib/utils/role-badge'
+import { PAGE_BG, HEADER, HEADER_INNER, CONTAINER_FULL, HEADER_NAV_LINK, BTN_PRIMARY } from '@/lib/styles'
 
 /**
  * Admin layout — Server Component.
@@ -17,18 +18,17 @@ import { PAGE_BG, HEADER, HEADER_INNER, CONTAINER_FULL, AUTH_EMAIL, AUTH_LINK, H
  *    (Middleware also enforces this as a first pass.)
  *
  * 2. Authorisation — checks that the authenticated user holds an allowed role
- *    in org_members (owner | admin | editor).
- *    Authenticated users who are not org members, or who hold the viewer role,
- *    are shown an "Access denied" message. They are NOT redirected to login
- *    because they are genuinely signed in — the issue is missing permissions.
+ *    in org_members (owner | editor). Under MGT-084 those are the only two
+ *    org-member roles; the legacy admin role was collapsed into editor and
+ *    viewer rows were removed by the 20260420010000 migration.
+ *    Authenticated users with no qualifying membership are shown an
+ *    "Access denied" message. They are NOT redirected to login because they
+ *    are genuinely signed in — the issue is missing permissions.
  *
  * This single check covers every page inside /admin, so individual pages
  * do not need to repeat the role check (the event editor page retains its
  * own user check only as defence-in-depth).
  */
-
-/** Roles that are permitted to enter the admin area. */
-const ALLOWED_ROLES = ['owner', 'admin', 'editor'] as const
 
 export default async function AdminLayout({
   children,
@@ -51,11 +51,34 @@ export default async function AdminLayout({
 
   const authorized = !!activeOrg
 
+  // Fetch the user's platform_role, subscription_status, and display_name
+  // once for the header badge. The row is guaranteed to exist — signup
+  // inserts it via trigger.
+  const { data: userRow } = await supabase
+    .from('users')
+    .select('platform_role, subscription_status, display_name')
+    .eq('id', user.id)
+    .maybeSingle()
+
+  const platformRole = (userRow?.platform_role ?? null) as 'admin' | 'staff' | 'support' | null
+  const subscriptionStatus = (userRow?.subscription_status ?? 'member') as 'member' | 'subscriber'
+  const displayName = userRow?.display_name ?? null
+
+  // Resolve the active org name for the badge scope label.
+  const activeOrgName =
+    activeOrg && userOrgs.find((o) => o.org_id === activeOrg.org_id)?.org_name
+      ? userOrgs.find((o) => o.org_id === activeOrg.org_id)?.org_name ?? null
+      : null
+
+  const badge = computeUserBadge(
+    { platform_role: platformRole, subscription_status: subscriptionStatus },
+    activeOrg,
+    activeOrgName,
+  )
+
   // First-run onboarding: a newly signed-in user with zero memberships is
   // allowed to reach /admin/orgs/new so they can create their first org.
   // We use the x-pathname header set by middleware to detect the route.
-  // Viewer-only members (memberships exist but none elevated) still see
-  // the access-denied state below — they need to be invited, not to self-serve.
   const pathname = headers().get('x-pathname') ?? ''
   let allowNoOrgOnboarding = false
   if (!authorized && pathname === '/admin/orgs/new') {
@@ -103,7 +126,7 @@ export default async function AdminLayout({
                 Events
               </Link>
             )}
-            {authorized && activeOrg && ['owner', 'admin'].includes(activeOrg.role) && (
+            {authorized && activeOrg && activeOrg.role === 'owner' && (
               <Link
                 href="/admin/orgs/settings"
                 className={HEADER_NAV_LINK}
@@ -120,17 +143,14 @@ export default async function AdminLayout({
                 + New org
               </Link>
             )}
-            <span className={AUTH_EMAIL}>
-              {user.email}
-            </span>
-            <form action={signOut}>
-              <button
-                type="submit"
-                className={AUTH_LINK}
-              >
-                Sign out
-              </button>
-            </form>
+            <UserMenu
+              badge={badge}
+              userEmail={user.email ?? ''}
+              userDisplayName={displayName}
+              subscriptionStatus={subscriptionStatus}
+              userOrgs={userOrgs}
+              activeOrgId={activeOrg?.org_id ?? null}
+            />
           </div>
         </div>
       </header>
@@ -157,8 +177,7 @@ export default async function AdminLayout({
             </Link>
           </div>
         ) : (
-          /* Access denied — shown to authenticated users without an allowed role
-             (viewer-only members fall through to this branch). */
+          /* Access denied — shown to authenticated users without an allowed role. */
           <div className="flex flex-col items-center justify-center py-24 text-center space-y-3">
             <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center mb-2">
               <svg className="w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
