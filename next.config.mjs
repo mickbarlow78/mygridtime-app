@@ -1,10 +1,23 @@
+import { execSync } from 'node:child_process'
 import { withSentryConfig } from '@sentry/nextjs'
+
+let gitCommitSha = ''
+try {
+  gitCommitSha = execSync('git rev-parse --short HEAD', {
+    stdio: ['ignore', 'pipe', 'ignore'],
+  })
+    .toString()
+    .trim()
+} catch {
+  gitCommitSha = ''
+}
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   env: {
     NEXT_PUBLIC_AI_EXTRACTION_READY:
       (process.env.ANTHROPIC_API_KEY?.trim() ?? '') !== '' ? 'true' : 'false',
+    NEXT_PUBLIC_GIT_COMMIT_SHA: gitCommitSha,
   },
   async headers() {
     return [

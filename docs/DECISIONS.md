@@ -1,5 +1,25 @@
 # Decisions
 
+## DEC-038: Build identity is surfaced in the UI as `v<version> | <short-hash>`; hash resolved from Git at build time, never from Netlify deploy IDs or runtime network calls
+
+**Decision**: MGT-092 extends the bottom-right footer badge from `v{APP_VERSION}` to `v{APP_VERSION} | {APP_COMMIT_SHA}`. The short hash is computed once in `next.config.mjs` via `execSync('git rev-parse --short HEAD')` at build-config load time and exposed through the existing Next.js `env` block as `NEXT_PUBLIC_GIT_COMMIT_SHA`. `src/lib/version.ts` reads the baked-in value on both server and client bundles. If the `git` command fails (shallow clone, non-git build context), the exported value falls back to `''` and the badge renders plain `v{APP_VERSION}` — the pipe and hash are omitted rather than showing `unknown`.
+
+**Why not Netlify deploy IDs**: Netlify's deploy ID names the *deploy*, not the *code*. Two deploys of the same commit (rollback, rebuild) get different deploy IDs and identical code. The public UI must identify the code, so a screenshot of any page maps to exactly one GitHub commit and one diff. The Git short-hash is the smallest value that makes that mapping unambiguous.
+
+**Why not a runtime fetch**: A runtime hash lookup would add a network dependency to every page render, would need cache-busting, and would give the wrong answer during deploys (stale JS bundle querying a fresher endpoint, or vice-versa). Build-time injection makes the hash a property of the bundle itself — it cannot drift from the code it identifies.
+
+**Why hide the pipe on fallback (vs "unknown")**: the badge is a silent identity marker, not a diagnostic. If the build context has no Git metadata, the user-facing UI should degrade to the prior behaviour (version only) rather than surface an operational artefact. Operators can still confirm the fallback path via the `NEXT_PUBLIC_GIT_COMMIT_SHA` env at build time.
+
+**Scope in this ticket**:
+- `package.json` version bumped `0.1.1` → `0.1.2` to mark the release that introduces the new identity format.
+- No Git tag created — commit hash is the identity; tagging is a separate concern.
+- No new dependency, no DB migration, no env variable required in Netlify config (the Netlify build image already provides the Git checkout that `git rev-parse` needs).
+
+**Rejected alternatives**:
+- *Read `process.env.COMMIT_REF`* (Netlify-provided): works on Netlify only, would regress if the build moves or runs locally, and couples the identity layer to a single host.
+- *Prebuild script writing a JSON file*: more moving parts (generated file, gitignore entry, import path) for no behavioural gain over `execSync` in `next.config.mjs`.
+- *Fail the build when Git is unavailable*: too brittle for local `next build` in contexts where Git is not installed (e.g., container snapshots); user-facing badge gracefully hiding the hash is the right default.
+
 ## DEC-037: Role model is three orthogonal axes (PLATFORM / ORG / SUBSCRIPTION); platform staff/support are surfaced honestly in the UI, never relabelled as Owner
 
 **Decision**: MGT-084 aligns the role model to the three-axis shape the product has always implied, and makes the shape visible in the header. Each axis is stored and displayed independently:
