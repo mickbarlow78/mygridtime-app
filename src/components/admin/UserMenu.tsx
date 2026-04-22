@@ -172,7 +172,7 @@ export function UserMenu({
                 <Link
                   href="/admin/orgs/new"
                   onClick={() => setOpen(false)}
-                  className="text-gray-700 hover:text-gray-900 underline underline-offset-2"
+                  className="text-gray-700 hover:text-gray-900 underline underline-offset-2 min-h-[40px] py-2 inline-flex items-center sm:min-h-0 sm:py-0 sm:inline"
                 >
                   Create an organisation
                 </Link>
@@ -185,13 +185,13 @@ export function UserMenu({
                       type="button"
                       onClick={() => handleSwitchOrg(o.org_id)}
                       disabled={pending}
-                      className={`w-full text-left text-xs px-2 py-1 rounded transition-colors disabled:opacity-50 ${
+                      className={`w-full text-left text-xs px-2 rounded transition-colors disabled:opacity-50 min-h-[40px] py-2 inline-flex items-center sm:min-h-0 sm:py-1 ${
                         o.org_id === activeOrgId
                           ? 'bg-gray-100 text-gray-900 font-medium'
                           : 'text-gray-700 hover:bg-gray-50'
                       }`}
                     >
-                      <span className="truncate block">{o.org_name}</span>
+                      <span className="truncate block min-w-0 w-full">{o.org_name}</span>
                     </button>
                   </li>
                 ))}
@@ -202,7 +202,7 @@ export function UserMenu({
           <form action={signOut} className="px-4 py-3">
             <button
               type="submit"
-              className="text-xs text-gray-500 hover:text-gray-900 underline underline-offset-2 transition-colors"
+              className="text-xs min-h-[40px] px-3 py-2 inline-flex items-center rounded text-gray-700 hover:bg-gray-50 hover:text-gray-900 transition-colors sm:min-h-0 sm:px-0 sm:py-0 sm:rounded-none sm:text-gray-500 sm:hover:bg-transparent sm:underline sm:underline-offset-2"
             >
               Sign out
             </button>

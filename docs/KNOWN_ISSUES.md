@@ -1,5 +1,17 @@
 # Known Issues
 
+## MGT-095: UserMenu popover tap targets below WCAG 2.5.5 on mobile — RESOLVED 2026-04-22
+
+**Description**: After MGT-094 closed the header-chrome portion of UX Audit 2026-04-22 Critical #2, three interactive items remained inside the UserMenu popover with mobile tap targets below 40px: org-switch `<button>` rows (`py-1` + `text-xs` → ~22–24px), the empty-org "Create an organisation" `<Link>` (inline underlined text, no padding), and the sign-out submit `<button>` (`text-xs ... underline` → ~16px text link). The audit explicitly tracked these under Suggested Improvement #10 ("sign-out button → real button, not underlined text").
+
+**Fix**: [src/components/admin/UserMenu.tsx](../src/components/admin/UserMenu.tsx) — three className edits using the MGT-094 pattern: `min-h-[40px] py-2 inline-flex items-center` on mobile, `sm:min-h-0 sm:py-*` to reset desktop. Sign-out button rewritten to a padded button on mobile (`min-h-[40px] px-3 py-2 rounded text-gray-700 hover:bg-gray-50`) with full `sm:` overrides (`sm:rounded-none sm:text-gray-500 sm:hover:bg-transparent sm:underline sm:underline-offset-2`) restoring the exact pre-change underline-text-link presentation on desktop. Org-switch `<span>` child gained `min-w-0 w-full` so `truncate` still works inside the new `inline-flex` button parent. `<form action={signOut}>` wrapper, `type="submit"`, and `handleSwitchOrg` logic unchanged.
+
+**Verification**: `npm run typecheck` clean; vitest 79/79 green; `npm run build` clean. Browser QA on `npm run dev` (after `.next` wipe + dev restart — the concurrent `npm run build` had corrupted the dev CSS cache, documented dev/build collision first recorded in MGT-090): at 375×812 on `/admin`, popover items all 40px (`MGT-060 Verify Org`, `MGT QA Org B`, `Sign out`), badge pill still 40 (MGT-094 clean), `document.body.scrollWidth === 375`. Same measurements on `/my` at 375. At 1440×900 on `/admin` sign-out computes `color: rgb(107,114,128)` (gray-500), `text-decoration: underline`, `min-height: 0px`, `padding: 0px`, `background-color: transparent` — byte-identical to pre-change. Zero console errors across `/admin` + `/my` at 375 and 1440. "Create an organisation" empty-org branch code-inspection-verified only (dev session has ≥1 org — same limitation documented in MGT-094).
+
+**Status**: RESOLVED (2026-04-22). Deploy impact: code only (1 file, 3 className edits + 1 span child class addition); no schema; no env; no migration.
+
+---
+
 ## MGT-091: UserMenu popover Role row duplicated the badge pill's org suffix — RESOLVED 2026-04-22
 
 **Description**: The popover Role row rendered `"{Role} — {OrgName}"` (e.g. `Staff — MGT QA Org B`), identical to the badge pill text and redundant with the Organisations section listed directly below it. For multi-org users the repetition added no new information.
