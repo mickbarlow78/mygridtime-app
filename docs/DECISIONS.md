@@ -1,5 +1,25 @@
 # Decisions
 
+## DEC-039: Build identity badge is rendered only inside authenticated internal layouts, never from the root layout
+
+**Decision**: MGT-093 moves the `v<version> | <short-hash>` badge from the root `src/app/layout.tsx` into a small reusable component [src/components/BuildIdentityBadge.tsx](../src/components/BuildIdentityBadge.tsx) that is mounted once inside each internal layout — [src/app/admin/layout.tsx](../src/app/admin/layout.tsx) and [src/app/my/layout.tsx](../src/app/my/layout.tsx). The public route group (`src/app/(public)/*`) does not render the badge. Badge markup, classes, aria-label, and the `APP_VERSION` / `APP_COMMIT_SHA` resolution in [src/lib/version.ts](../src/lib/version.ts) are unchanged.
+
+**Why**: DEC-038 keeps the short commit hash in the UI as an identity marker for QA and support. That marker has value on internal surfaces where operators and staff can act on it, but zero value on the consumer-facing pages under `(public)/*` (event listings, timetables, print views, `/privacy`, `/terms`, landing). Leaking the short SHA there exposes an internal build artefact to visitors with no operational benefit — flagged by the 2026-04-22 UX audit (item 22, Quick Win 7).
+
+**Why a per-layout render, not a root-layout route check**: the root layout must not contain routing logic. Pathname sniffing or route-group conditionals in `app/layout.tsx` couple the identity layer to the route shape and create a hidden coupling that future route groups could silently defeat. Mounting the badge from each internal layout expresses the intent declaratively: badge appears where the layout opts in; badge is absent where the layout does not opt in.
+
+**Why a shared component, not inline copies**: two inline copies of the same `<span>` could drift in class list or aria-label under future UX tweaks. A single component keeps the badge format single-sourced so DEC-038's identity contract cannot fracture across layouts.
+
+**Scope**:
+- Auth / invite-accept / notification-unsubscribe routes (no dedicated layout) do not show the badge. This is acceptable — those are transient unauthenticated flows, not staff surfaces.
+- No change to `next.config.mjs` env injection, `package.json` version field, `src/lib/version.ts` resolution, or any migration.
+- No change to badge visual position (`fixed bottom-1.5 right-2 z-50 pointer-events-none`) — `position: fixed` detaches the element from the layout tree, so tree placement does not affect viewport anchoring.
+
+**Rejected alternatives**:
+- *Render in root layout with a pathname-based conditional*: couples identity rendering to route-group shape; root layout should stay free of routing logic.
+- *Render in root layout, hide with CSS on public routes*: brittle selector coupling; the element still reaches the DOM (SEO / view-source still leaks the hash).
+- *Move `APP_COMMIT_SHA` to a non-`NEXT_PUBLIC_` var so it is stripped from the client*: hides the hash everywhere; the goal is to keep it visible to operators, not to remove it from the build.
+
 ## DEC-038: Build identity is surfaced in the UI as `v<version> | <short-hash>`; hash resolved from Git at build time, never from Netlify deploy IDs or runtime network calls
 
 **Decision**: MGT-092 extends the bottom-right footer badge from `v{APP_VERSION}` to `v{APP_VERSION} | {APP_COMMIT_SHA}`. The short hash is computed once in `next.config.mjs` via `execSync('git rev-parse --short HEAD')` at build-config load time and exposed through the existing Next.js `env` block as `NEXT_PUBLIC_GIT_COMMIT_SHA`. `src/lib/version.ts` reads the baked-in value on both server and client bundles. If the `git` command fails (shallow clone, non-git build context), the exported value falls back to `''` and the badge renders plain `v{APP_VERSION}` — the pipe and hash are omitted rather than showing `unknown`.

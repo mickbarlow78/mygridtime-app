@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { getActiveOrg, getUserOrgs } from '@/lib/utils/active-org'
 import { computeUserBadge } from '@/lib/utils/role-badge'
 import { UserMenu } from '@/components/admin/UserMenu'
+import { BuildIdentityBadge } from '@/components/BuildIdentityBadge'
 import { PAGE_BG, HEADER, HEADER_INNER, CONTAINER_FULL, HEADER_NAV_LINK } from '@/lib/styles'
 
 /** Roles that can access /admin. MGT-084 collapsed org_members.role to
@@ -87,6 +88,7 @@ export default async function ConsumerLayout({
       <main className={`${CONTAINER_FULL} py-6`}>
         {children}
       </main>
+      <BuildIdentityBadge />
     </div>
   )
 }

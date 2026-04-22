@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { getActiveOrg, getUserOrgs } from '@/lib/utils/active-org'
 import { OrgSelector } from '@/components/admin/OrgSelector'
 import { UserMenu } from '@/components/admin/UserMenu'
+import { BuildIdentityBadge } from '@/components/BuildIdentityBadge'
 import { computeUserBadge } from '@/lib/utils/role-badge'
 import { PAGE_BG, HEADER, HEADER_INNER, CONTAINER_FULL, HEADER_NAV_LINK, BTN_PRIMARY } from '@/lib/styles'
 
@@ -193,6 +194,7 @@ export default async function AdminLayout({
           </div>
         )}
       </main>
+      <BuildIdentityBadge />
     </div>
   )
 }
