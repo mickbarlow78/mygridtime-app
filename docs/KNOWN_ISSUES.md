@@ -1,6 +1,6 @@
 # Known Issues
 
-## MGT-086: Commit `2723db1` on `main` shipped unresolved merge-conflict markers in `src/app/layout.tsx` — resolved 2026-04-22
+## MGT-086: Commit `2723db1` on `main` shipped unresolved merge-conflict markers in `src/app/layout.tsx` — partially resolved 2026-04-22 (forward-fix landed; editor verification + wording drift still open)
 
 **Description**: The pushed HEAD commit `2723db1` ("A MGT-085: footer version badge from package.json") shipped `src/app/layout.tsx` with unresolved `<<<<<<< HEAD` / `=======` / `>>>>>>> 5f7e536` merge-conflict markers in it. The file was uncompilable; any clean-checkout `npm run build` or `tsc` against that commit would fail. The working tree on the same machine already contained the correct manual resolution using `APP_VERSION` from `@/lib/version` — that fix had simply never been committed.
 
@@ -29,7 +29,31 @@ All eight checks green on the linked remote.
 
 **Cosmetic drift noted, not fixed in this ticket**: the error string at `src/app/admin/orgs/actions.ts:217` still reads "Only owners and admins can update organisation settings." The enforcement logic is correct (`activeOrg.role === 'owner'`); only the copy is stale. Left for a follow-up cosmetic pass so MGT-086 remains the smallest safe change.
 
-**Status**: Resolved (2026-04-22). Deploy impact: code only (1 file — resolved `layout.tsx`); no schema; no env; no migration. `tsc --noEmit` clean; vitest green; `next build` clean; browser-verified on dev server.
+**Status**: **Partially resolved** (2026-04-22). Forward-fix committed (`bfda4c3`); remote DB verification green; UI verification green; owner verification green. **Still open**: behavioural editor verification (tracked as MGT-087 below) and stale wording drift in `orgs/actions.ts:217` (tracked as MGT-088 below). Deploy impact of the landed fix: code only (1 file — resolved `layout.tsx`); no schema; no env; no migration. `tsc --noEmit` clean; vitest green; `next build` clean; browser-verified on dev server.
+
+---
+
+## MGT-087: Behavioural verification of `requireEditor()` still outstanding — open 2026-04-22
+
+**Description**: During MGT-086 the permission helper `requireEditor()` in [src/app/admin/events/actions.ts](../src/app/admin/events/actions.ts) was verified at the code level only. `select user_id, org_id, role from public.org_members where role = 'editor'` returned zero rows on the linked remote `hxxderwxxpfzdxlmsqpl`, and the MGT-086 plan explicitly forbade mutating remote role data just to prove a permission branch. As a result, no end-to-end browser run of "an editor account can create/edit events but cannot change org settings" has ever been recorded post-MGT-084.
+
+**Risk**: code-level verification confirms the CHECK constraint, the RLS policy bodies, and the helper's role list — but does not catch regressions where, for example, a downstream route accidentally calls `requireOwner()` where `requireEditor()` was intended, or where a client form exposes an owner-only control to an editor session. These regressions would only surface in production when a real editor first logs in.
+
+**Planned resolution**: MGT-087 (separate ticket, plan proposed below). Must exercise the editor path via either (a) an existing editor account if one is created during the next inviteMember flow QA, or (b) a local dev fixture that inserts an editor row into the **local** Supabase stack only (never the linked remote). Acceptance: editor can access `/admin/events/*`, cannot access `/admin/orgs/settings` write paths, header badge reads "Editor — {OrgName}", zero RLS errors in the session.
+
+**Status**: Open (2026-04-22). No production impact until an editor is actually invited; this is a verification gap, not a known runtime bug.
+
+---
+
+## MGT-088: Stale wording drift in `orgs/actions.ts` error messages — resolved 2026-04-22
+
+**Description**: [src/app/admin/orgs/actions.ts](../src/app/admin/orgs/actions.ts) returned user-facing error strings of the form `"Only owners and admins can <verb> …"` from inside `requireOwner()`. The enforcement logic was correct post-MGT-084 (`activeOrg.role !== 'owner'` short-circuits the action), but the copy referenced the now-retired `admin` org role. A non-owner who triggered the guard saw a message that implied an `admin` role still existed.
+
+**Scope (wider than the MGT-086 note)**: the original MGT-086 "cosmetic drift" note called out only line 217, but a repo-wide grep before the fix showed the same drift on 8 lines — 217 (`update organisation settings`), 272 (`update branding`), 349 (`view members`), 385 (`change roles`), 453 (`remove members`), 527 (`view invites`), 554 (`invite members`), 667 (`revoke invites`). All 8 were rewritten `"Only owners can <verb> …"` per the MGT-088 KNOWN_ISSUES instruction to "grep for any sibling strings with the same drift before committing".
+
+**Fix**: 8 string-literal edits in `src/app/admin/orgs/actions.ts`. No logic, signature, schema, migration, or RLS change. `npm run typecheck` clean; `npm test` 79/79 green; `npm run build` clean. Repo-wide grep for `owners and admins` across `src/` + `scripts/` now returns zero hits (only historical doc references remain, including this entry).
+
+**Status**: **Resolved** (2026-04-22). Deploy impact: code only (1 file, 8 lines); no schema; no env; no migration. User-visible change: the 8 non-owner guard paths now render "Only owners can …" copy consistent with the post-MGT-084 role model.
 
 ---
 

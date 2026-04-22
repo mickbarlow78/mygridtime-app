@@ -214,7 +214,7 @@ export async function updateOrganisation(input: {
   name: string
 }): Promise<ActionResult> {
   const { supabase, user, activeOrg, authorized } = await requireOwner()
-  if (!authorized) return { success: false, error: 'Only owners and admins can update organisation settings.' }
+  if (!authorized) return { success: false, error: 'Only owners can update organisation settings.' }
 
   const name = input.name.trim()
   if (!name) return { success: false, error: 'Organisation name is required.' }
@@ -269,7 +269,7 @@ export async function updateOrgBranding(input: {
   branding: OrgBranding
 }): Promise<ActionResult> {
   const { supabase, user, activeOrg, authorized } = await requireOwner()
-  if (!authorized) return { success: false, error: 'Only owners and admins can update branding.' }
+  if (!authorized) return { success: false, error: 'Only owners can update branding.' }
 
   const { primaryColor, logoUrl, headerText } = input.branding
 
@@ -346,7 +346,7 @@ export async function listOrgMembers(orgId: string): Promise<ActionResult<Array<
   created_at: string
 }>>> {
   const { supabase, authorized } = await requireOwner()
-  if (!authorized) return { success: false, error: 'Only owners and admins can view members.' }
+  if (!authorized) return { success: false, error: 'Only owners can view members.' }
 
   // Use admin client so the users join returns emails for all members,
   // not just the current user (users_select_own RLS blocks cross-user reads)
@@ -382,7 +382,7 @@ export async function updateMemberRole(input: {
   newRole: 'owner' | 'editor'
 }): Promise<ActionResult> {
   const { supabase, user, activeOrg, authorized } = await requireOwner()
-  if (!authorized) return { success: false, error: 'Only owners and admins can change roles.' }
+  if (!authorized) return { success: false, error: 'Only owners can change roles.' }
 
   // Fetch the member being changed — include email join for audit detail.
   // users RLS is self-only (users_select_own), so the email join may return
@@ -450,7 +450,7 @@ export async function removeMember(input: {
   orgId: string
 }): Promise<ActionResult> {
   const { supabase, user, activeOrg, authorized } = await requireOwner()
-  if (!authorized) return { success: false, error: 'Only owners and admins can remove members.' }
+  if (!authorized) return { success: false, error: 'Only owners can remove members.' }
 
   // Fetch the member being removed — include user_id + email join for audit
   // detail. Captured pre-delete so the detail survives the delete. users RLS
@@ -524,7 +524,7 @@ export async function listOrgInvites(orgId: string): Promise<ActionResult<Array<
   created_at: string
 }>>> {
   const { supabase, authorized } = await requireOwner()
-  if (!authorized) return { success: false, error: 'Only owners and admins can view invites.' }
+  if (!authorized) return { success: false, error: 'Only owners can view invites.' }
 
   const { data, error } = await supabase
     .from('org_invites')
@@ -551,7 +551,7 @@ export async function inviteMember(input: {
 }): Promise<ActionResult> {
   try {
     const { supabase, user, activeOrg, authorized } = await requireOwner()
-    if (!authorized) return { success: false, error: 'Only owners and admins can invite members.' }
+    if (!authorized) return { success: false, error: 'Only owners can invite members.' }
 
     const email = input.email.trim().toLowerCase()
     if (!email) return { success: false, error: 'Email is required.' }
@@ -664,7 +664,7 @@ export async function revokeInvite(input: {
   orgId: string
 }): Promise<ActionResult> {
   const { supabase, user, activeOrg, authorized } = await requireOwner()
-  if (!authorized) return { success: false, error: 'Only owners and admins can revoke invites.' }
+  if (!authorized) return { success: false, error: 'Only owners can revoke invites.' }
 
   // Capture email pre-delete so the audit row records who was invited.
   const { data: inviteRow } = await supabase
