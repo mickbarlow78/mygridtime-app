@@ -36,7 +36,7 @@ export function OrgSelector({ orgs, activeOrgId }: OrgSelectorProps) {
       value={activeOrgId}
       onChange={handleChange}
       disabled={pending}
-      className="text-xs text-gray-700 bg-gray-50 border border-gray-200 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-gray-400 disabled:opacity-50 max-w-[160px] truncate"
+      className="text-xs text-gray-700 bg-gray-50 border border-gray-200 rounded px-2 py-2 sm:py-1 min-h-[40px] sm:min-h-0 focus:outline-none focus:ring-1 focus:ring-gray-400 disabled:opacity-50 max-w-[160px] truncate"
     >
       {orgs.map((org) => (
         <option key={org.org_id} value={org.org_id}>

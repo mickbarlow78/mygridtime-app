@@ -132,7 +132,7 @@ export function UserMenu({
         onClick={() => setOpen((v) => !v)}
         aria-haspopup="menu"
         aria-expanded={open}
-        className={`text-xs font-medium rounded-full px-3 py-1 transition-opacity hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-gray-400 max-w-[240px] truncate ${BADGE_CLASS[classKey]}`}
+        className={`text-xs font-medium rounded-full px-3 py-2 sm:py-1 min-h-[40px] sm:min-h-0 inline-flex items-center transition-opacity hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-gray-400 max-w-[240px] truncate ${BADGE_CLASS[classKey]}`}
       >
         {label}
       </button>

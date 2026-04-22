@@ -106,7 +106,7 @@ export default async function AdminLayout({
       {/* Persistent admin header */}
       <header className={HEADER}>
         <div className={HEADER_INNER}>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 min-w-0">
             <span className="text-sm font-semibold text-gray-900 tracking-tight">
               MyGridTime
             </span>
@@ -117,7 +117,7 @@ export default async function AdminLayout({
               />
             )}
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-4 min-w-0 flex-wrap gap-y-2">
             {authorized && (
               <Link
                 href="/admin"

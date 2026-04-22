@@ -23,7 +23,7 @@ export function cn(...classes: (string | false | null | undefined)[]): string {
 export const PAGE_BG = 'min-h-screen bg-gray-50'
 export const HEADER = 'bg-white border-b border-gray-200'
 export const HEADER_INNER =
-  'max-w-6xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-4'
+  'max-w-6xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-4 flex-wrap gap-y-2'
 
 /** Full-width page container (dashboards, editors, public pages). */
 export const CONTAINER_FULL = 'max-w-6xl mx-auto px-4 sm:px-6'
@@ -120,4 +120,4 @@ export const AUTH_EMAIL = 'text-xs text-gray-400 hidden sm:block'
 export const AUTH_LINK =
   'text-xs text-gray-500 hover:text-gray-900 underline underline-offset-2 transition-colors'
 export const HEADER_NAV_LINK =
-  'text-xs text-gray-400 hover:text-gray-600 transition-colors'
+  'text-xs text-gray-400 hover:text-gray-600 transition-colors min-h-[40px] px-2 py-2 inline-flex items-center sm:min-h-0 sm:px-0 sm:py-0 sm:inline'
