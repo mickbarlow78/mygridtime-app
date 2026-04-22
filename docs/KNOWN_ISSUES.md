@@ -1,5 +1,38 @@
 # Known Issues
 
+## MGT-086: Commit `2723db1` on `main` shipped unresolved merge-conflict markers in `src/app/layout.tsx` — resolved 2026-04-22
+
+**Description**: The pushed HEAD commit `2723db1` ("A MGT-085: footer version badge from package.json") shipped `src/app/layout.tsx` with unresolved `<<<<<<< HEAD` / `=======` / `>>>>>>> 5f7e536` merge-conflict markers in it. The file was uncompilable; any clean-checkout `npm run build` or `tsc` against that commit would fail. The working tree on the same machine already contained the correct manual resolution using `APP_VERSION` from `@/lib/version` — that fix had simply never been committed.
+
+**Secondary discrepancy**: the MGT-085 paragraph in PROJECT_STATUS.md claimed browser verification had observed the badge reading `v0.1.0`, but `package.json.version` was `0.1.1` at the time of the MGT-085 push. Either the doc paragraph was written against an older package version, or the earlier browser verification was not against a fresh rebuild. User decision on MGT-086: keep `package.json.version = "0.1.1"` and reconcile the doc to match reality.
+
+**Root cause**: merge conflict in `layout.tsx` was resolved interactively in the editor but only the `package.json` and sibling file were staged for `2723db1`; `layout.tsx` was committed with the conflict markers still in place. No pre-commit hook caught it. The local dev server kept compiling fine because it was already rendering the resolved working-tree copy before HEAD advanced.
+
+**Fix (forward-only)**: Working tree `src/app/layout.tsx` already matched the intended final state (single clean resolution using `APP_VERSION`). MGT-086 staged and committed that file as a forward-fix — no amend of `2723db1`, no force-push. The broken commit stays in history; the immediately-following MGT-086 commit is the first compilable HEAD on `main` after the break.
+
+**Remote DB verification (read-only)**: Because MGT-086 co-audits the shipped state of MGT-084 (roles & permissions foundation), 8 read-only queries were run via `supabase db query --linked` against `hxxderwxxpfzdxlmsqpl`:
+
+1. both migrations present (`20260420010000_mgt_084_roles`, `20260420010001_mgt_084_rls_cleanup`).
+2. `org_members.role` CHECK constraint allows only `owner` and `editor`.
+3. zero `admin` or `viewer` rows in `org_members`.
+4. `org_invites.role` CHECK allows only `editor`.
+5. `users.platform_role` CHECK allows `admin | staff | support | null`.
+6. `users.subscription_status` column exists, values `member | subscriber`.
+7. at least one rewritten policy body matches DEC-037 (`IN ('owner','editor')`).
+8. no surviving `'admin'` or `'viewer'` org-role literals in any `pg_policy` body.
+
+All eight checks green on the linked remote.
+
+**UI verification**: Fresh `npm run dev` after `.next` wipe. `/admin/orgs/settings` loaded; MemberManager rendered members + pending-invites; invite form has **no** role picker (only two `<select>` elements on the page — the org switcher and the existing-member role editor); header badge shows "Staff — {OrgName}" per DEC-037; org switcher A↔B re-seeded every field on the settings page with no manual refresh; footer badge displayed `v0.1.1` on `/admin`, `/my`, and public `/mgt-060-verify-org/mgt-082-qa-duplicate-test`; zero console errors.
+
+**Explicitly gapped (by design, not a regression)**: behavioural editor-role verification was **not** performed. `select ... from public.org_members where role = 'editor'` returned zero rows on the linked remote, and the MGT-086 plan forbids mutating remote role data just to prove a permission branch. Editor behaviour is verified at the code level only (`requireEditor()` admits `'owner' | 'editor'`); first end-to-end editor flow will land alongside the next ticket that legitimately invites an editor.
+
+**Cosmetic drift noted, not fixed in this ticket**: the error string at `src/app/admin/orgs/actions.ts:217` still reads "Only owners and admins can update organisation settings." The enforcement logic is correct (`activeOrg.role === 'owner'`); only the copy is stale. Left for a follow-up cosmetic pass so MGT-086 remains the smallest safe change.
+
+**Status**: Resolved (2026-04-22). Deploy impact: code only (1 file — resolved `layout.tsx`); no schema; no env; no migration. `tsc --noEmit` clean; vitest green; `next build` clean; browser-verified on dev server.
+
+---
+
 ## MGT-083: Top-bar org switcher did not refresh the Organisation settings page — resolved 2026-04-20
 
 **Description**: When an owner belonging to 2+ organisations changed the active org via the top-bar `<OrgSelector>` dropdown, the `/admin` layout updated correctly (title, dropdown selection), but `/admin/orgs/settings` continued to display the previous org's name, slug, branding, members, invites, extraction log, and audit log until a manual browser refresh. Silently stale settings on a mutable page is dangerous — an owner could edit Org B believing they were editing Org A (or vice versa).
