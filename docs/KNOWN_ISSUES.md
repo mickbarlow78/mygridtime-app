@@ -1,5 +1,17 @@
 # Known Issues
 
+## MGT-090: Subscription row rendered for admin / internal users in UserMenu popover — RESOLVED 2026-04-22
+
+**Description**: The header user-menu popover rendered two identity rows (`Role`, `Subscription`) for every user, including platform admin / staff / support and org owner / editor. For internal users the `Subscription: Member` row was misleading — per the MGT-084 three-axis role model, `users.subscription_status` is a consumer-facing rail that only carries meaning for orgless users (badge kind `subscription`).
+
+**Fix**: [src/components/admin/UserMenu.tsx:155-162](../src/components/admin/UserMenu.tsx) — wrapped the Subscription `<div>` in `{badge.kind === 'subscription' && (…)}`. Single-conditional render change; no prop, type, or server-action surface touched.
+
+**Verification**: `tsc --noEmit` clean; vitest 79/79 green; `next build` clean. Browser QA on a freshly rebuilt dev server (`.next` wiped after build/dev cache collision): `/admin` popover shows `Role: Staff — MGT-060 Verify Org` with no Subscription row; org switch A→B updates `Role` to `Staff — MGT QA Org B` and Subscription row stays hidden; `/my` popover identical; zero console errors. Platform-admin / org-owner / org-editor / orgless-subscriber badge branches verified by code inspection only — not safely reachable from the available dev session without remote mutation.
+
+**Status**: RESOLVED (2026-04-22). Deploy impact: code only (1 file, ~7 lines); no schema; no env; no migration.
+
+---
+
 ## MGT-086: Commit `2723db1` on `main` shipped unresolved merge-conflict markers in `src/app/layout.tsx` — partially resolved 2026-04-22 (forward-fix landed; editor verification + wording drift still open)
 
 **Description**: The pushed HEAD commit `2723db1` ("A MGT-085: footer version badge from package.json") shipped `src/app/layout.tsx` with unresolved `<<<<<<< HEAD` / `=======` / `>>>>>>> 5f7e536` merge-conflict markers in it. The file was uncompilable; any clean-checkout `npm run build` or `tsc` against that commit would fail. The working tree on the same machine already contained the correct manual resolution using `APP_VERSION` from `@/lib/version` — that fix had simply never been committed.

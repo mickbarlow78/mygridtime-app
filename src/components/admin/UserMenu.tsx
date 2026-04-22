@@ -152,12 +152,14 @@ export function UserMenu({
               <dt className="text-gray-500">Role</dt>
               <dd className="text-gray-900 font-medium text-right truncate">{roleLineText(badge)}</dd>
             </div>
-            <div className="flex justify-between gap-3">
-              <dt className="text-gray-500">Subscription</dt>
-              <dd className="text-gray-900 font-medium">
-                {subscriptionStatus === 'subscriber' ? 'Subscriber' : 'Member'}
-              </dd>
-            </div>
+            {badge.kind === 'subscription' && (
+              <div className="flex justify-between gap-3">
+                <dt className="text-gray-500">Subscription</dt>
+                <dd className="text-gray-900 font-medium">
+                  {subscriptionStatus === 'subscriber' ? 'Subscriber' : 'Member'}
+                </dd>
+              </div>
+            )}
           </dl>
 
           <div className="px-4 py-3 border-b border-gray-100">
