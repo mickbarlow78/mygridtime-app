@@ -1,5 +1,17 @@
 # Known Issues
 
+## MGT-091: UserMenu popover Role row duplicated the badge pill's org suffix — RESOLVED 2026-04-22
+
+**Description**: The popover Role row rendered `"{Role} — {OrgName}"` (e.g. `Staff — MGT QA Org B`), identical to the badge pill text and redundant with the Organisations section listed directly below it. For multi-org users the repetition added no new information.
+
+**Fix**: [src/components/admin/UserMenu.tsx:65-76](../src/components/admin/UserMenu.tsx) `roleLineText()` — dropped the `— ${orgName}` suffix from the `platform` and `org` branches. Badge pill (`badgeLabel()`, lines 43-63) intentionally unchanged — it keeps the org suffix as the header's "acting as" cue. `admin` and `subscription` branches untouched.
+
+**Verification**: `tsc --noEmit` clean; vitest 79/79 green; `next build` clean. Browser QA on the running dev server: `/admin` pill reads `Staff — MGT QA Org B` with Role row `Staff`; org switch A↔B updates the pill to `Staff — MGT-060 Verify Org` and the Role row stays `Staff`; `/my` shows the same shape; Subscription row still hidden (MGT-090 preserved); zero console errors. `admin` / `org-owner` / `org-editor` / `orgless-subscriber` branches code-verified only via the discriminated-union narrow.
+
+**Status**: RESOLVED (2026-04-22). Deploy impact: code only (1 file, ~4 lines); no schema; no env; no migration.
+
+---
+
 ## MGT-090: Subscription row rendered for admin / internal users in UserMenu popover — RESOLVED 2026-04-22
 
 **Description**: The header user-menu popover rendered two identity rows (`Role`, `Subscription`) for every user, including platform admin / staff / support and org owner / editor. For internal users the `Subscription: Member` row was misleading — per the MGT-084 three-axis role model, `users.subscription_status` is a consumer-facing rail that only carries meaning for orgless users (badge kind `subscription`).

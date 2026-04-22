@@ -67,9 +67,9 @@ function roleLineText(badge: UserBadge): string {
     case 'admin':
       return 'Admin'
     case 'platform':
-      return `${badge.role === 'staff' ? 'Staff' : 'Support'} — ${badge.orgName || 'Org'}`
+      return badge.role === 'staff' ? 'Staff' : 'Support'
     case 'org':
-      return `${badge.role === 'owner' ? 'Owner' : 'Editor'} — ${badge.orgName || 'Org'}`
+      return badge.role === 'owner' ? 'Owner' : 'Editor'
     case 'subscription':
       return '—'
   }
