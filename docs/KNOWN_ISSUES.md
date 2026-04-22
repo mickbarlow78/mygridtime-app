@@ -33,7 +33,7 @@ All eight checks green on the linked remote.
 
 ---
 
-## MGT-087: Behavioural verification of `requireEditor()` still outstanding — open 2026-04-22
+## MGT-087: Behavioural verification of `requireEditor()` — BLOCKED (external image pull) 2026-04-22
 
 **Description**: During MGT-086 the permission helper `requireEditor()` in [src/app/admin/events/actions.ts](../src/app/admin/events/actions.ts) was verified at the code level only. `select user_id, org_id, role from public.org_members where role = 'editor'` returned zero rows on the linked remote `hxxderwxxpfzdxlmsqpl`, and the MGT-086 plan explicitly forbade mutating remote role data just to prove a permission branch. As a result, no end-to-end browser run of "an editor account can create/edit events but cannot change org settings" has ever been recorded post-MGT-084.
 
@@ -41,7 +41,9 @@ All eight checks green on the linked remote.
 
 **Planned resolution**: MGT-087 (separate ticket, plan proposed below). Must exercise the editor path via either (a) an existing editor account if one is created during the next inviteMember flow QA, or (b) a local dev fixture that inserts an editor row into the **local** Supabase stack only (never the linked remote). Acceptance: editor can access `/admin/events/*`, cannot access `/admin/orgs/settings` write paths, header badge reads "Editor — {OrgName}", zero RLS errors in the session.
 
-**Status**: Open (2026-04-22). No production impact until an editor is actually invited; this is a verification gap, not a known runtime bug.
+**External block (2026-04-22, parked by MGT-089)**: Local option (b) — verifying the editor path against a local Supabase stack — is currently unreachable. `supabase start` fails because the Supabase Storage container image `public.ecr.aws/supabase/storage-api:v1.48.20` cannot be pulled: the transport path is AWS **CloudFront** fronting **public ECR**, and the pull is failing outside this repo and outside our AWS account (not a code, config, or credentials issue on our side). Effect: the planned local-only editor fixture (insert a fake editor row into the **local** Supabase DB only, never the linked remote) cannot be exercised until Storage boots. Repo state during the blocked attempts: no code changed, working tree stayed clean, no migrations attempted, no mutation run against the linked remote `hxxderwxxpfzdxlmsqpl`. Parking, not re-scoping: MGT-087 is paused as-is and will resume when either (i) the external `public.ecr.aws` pull succeeds again, or (ii) option (a) occurs naturally — an editor account is invited and accepted during a future `inviteMember` QA pass under a different ticket. Workarounds considered and explicitly **not** attempted (each is a re-scope that must come back as a separate, user-authorised ticket): pinning an older Storage image, mirroring the image to a private registry, or inserting a synthetic editor row on the linked remote.
+
+**Status**: **BLOCKED (external)** (2026-04-22). Parked by MGT-089. No production impact; verification debt only. Parent MGT-086 remains partially open until this clears.
 
 ---
 
@@ -54,6 +56,22 @@ All eight checks green on the linked remote.
 **Fix**: 8 string-literal edits in `src/app/admin/orgs/actions.ts`. No logic, signature, schema, migration, or RLS change. `npm run typecheck` clean; `npm test` 79/79 green; `npm run build` clean. Repo-wide grep for `owners and admins` across `src/` + `scripts/` now returns zero hits (only historical doc references remain, including this entry).
 
 **Status**: **Resolved** (2026-04-22). Deploy impact: code only (1 file, 8 lines); no schema; no env; no migration. User-visible change: the 8 non-owner guard paths now render "Only owners can …" copy consistent with the post-MGT-084 role model.
+
+---
+
+## MGT-089: Park MGT-087 due to external AWS CloudFront / public ECR pull failure — resolved 2026-04-22 (docs-only)
+
+**Description**: MGT-087 (behavioural verification of `requireEditor()`) cannot progress because the local Supabase stack needed for the planned editor-fixture verification fails to start — the Supabase Storage container image `public.ecr.aws/supabase/storage-api:v1.48.20` cannot be pulled. The transport path is AWS CloudFront fronting public ECR and the failure is outside this repo and outside our AWS account. MGT-089 exists to formally record that external block, park MGT-087 cleanly, and keep `docs/KNOWN_ISSUES.md` and `docs/PROJECT_STATUS.md` consistent with code. It does **not** fix MGT-087 and does **not** substitute a synthetic workaround.
+
+**Scope**: docs only — `docs/KNOWN_ISSUES.md` (MGT-087 heading + external-block paragraph + updated Status line, plus this MGT-089 entry) and `docs/PROJECT_STATUS.md` (In Progress bullet for MGT-086 rewritten to reference the block and the parking; new MGT-089 entry at the top of Recent Changes). Zero `src/`, zero `supabase/`, zero `scripts/`, zero `package.json`, zero migrations, zero DB mutation, zero env change.
+
+**Why it's its own ticket**: anti-drift. The block state had to be written down the moment it was known; leaving the parent MGT-086 "partially open" indefinitely with no paper trail in `docs/` is exactly the silent drift `docs/CLAUDE_SETUP.md` forbids. MGT-089 is the paper trail.
+
+**Not attempted (by design, each requires its own user-authorised ticket)**: pinning an older Supabase Storage image; mirroring the image to a private registry; inserting a synthetic editor row on the linked remote `hxxderwxxpfzdxlmsqpl`. Each is a re-scope of MGT-087, not a part of MGT-089.
+
+**Exit criteria for MGT-087 (not MGT-089)**: the MGT-087 status line flips back to open / in-progress once either (i) the `public.ecr.aws/supabase/storage-api:v1.48.20` pull works again, or (ii) an editor user is legitimately created via `inviteMember` during a later ticket's QA. Until then the ticket remains BLOCKED (external).
+
+**Status**: **Resolved** (2026-04-22). Docs-only. Deploy impact: code no, db no, env no, migration no, deploy no, manual verify no. Follow-up: user to nominate the next product ticket — MGT-089 deliberately does not pick one to avoid silent scope drift (see `docs/PROJECT_STATUS.md` "In Progress" note).
 
 ---
 
