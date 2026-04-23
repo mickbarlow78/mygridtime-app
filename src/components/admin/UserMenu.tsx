@@ -164,17 +164,17 @@ export function UserMenu({
 
           <div className="px-4 py-3 border-b border-gray-100">
             <p className="text-[11px] uppercase tracking-wide text-gray-400 mb-2">
-              Organisations
+              Championships
             </p>
             {userOrgs.length === 0 ? (
               <div className="text-xs text-gray-500 space-y-2">
-                <p>You do not belong to any organisation yet.</p>
+                <p>You do not belong to any championship yet.</p>
                 <Link
                   href="/admin/orgs/new"
                   onClick={() => setOpen(false)}
                   className="text-gray-700 hover:text-gray-900 underline underline-offset-2 min-h-[40px] py-2 inline-flex items-center sm:min-h-0 sm:py-0 sm:inline"
                 >
-                  Create an organisation
+                  Create a championship
                 </Link>
               </div>
             ) : (

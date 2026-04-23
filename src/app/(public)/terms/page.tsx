@@ -29,7 +29,7 @@ export default function TermsPage() {
             <h2 className="text-lg font-semibold text-gray-900 mb-3">Description of Service</h2>
             <p className="text-gray-600 leading-relaxed">
               MyGridTime is a timetable management platform for motorsport events. The service allows
-              organisations to create, edit, publish, and share event timetables. Consumers can view
+              championships to create, edit, publish, and share event timetables. Consumers can view
               published timetables and receive optional email notifications about changes.
             </p>
           </section>
@@ -39,7 +39,7 @@ export default function TermsPage() {
             <ul className="list-disc pl-5 text-gray-600 space-y-2">
               <li>You must provide a valid email address to create an account.</li>
               <li>You are responsible for maintaining the security of your account.</li>
-              <li>Organisation administrators are responsible for managing member access and permissions within their organisations.</li>
+              <li>Championship administrators are responsible for managing member access and permissions within their championships.</li>
               <li>You must not use the service for any unlawful purpose.</li>
             </ul>
           </section>
@@ -48,7 +48,7 @@ export default function TermsPage() {
             <h2 className="text-lg font-semibold text-gray-900 mb-3">User Content</h2>
             <p className="text-gray-600 leading-relaxed">
               You retain ownership of the content you create on MyGridTime, including event details,
-              timetable entries, and organisation information. By publishing a timetable, you make it
+              timetable entries, and championship information. By publishing a timetable, you make it
               publicly accessible via its unique URL.
             </p>
           </section>

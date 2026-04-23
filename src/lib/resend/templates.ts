@@ -191,7 +191,7 @@ export function orgInviteHtml(data: InviteEmailData): string {
       <h1>You're invited</h1>
       <p class="meta">${escHtml(data.inviterEmail)} has invited you to join <strong>${escHtml(data.orgName)}</strong> as ${escHtml(data.role)}.</p>
       <p style="font-size:15px;line-height:1.6;margin:0 0 28px;color:#374151;">
-        Click the button below to accept the invitation and join the organisation.
+        Click the button below to accept the invitation and join the championship.
       </p>
       <a href="${escHtml(data.acceptUrl)}" class="cta">Accept invitation</a>
     </div>

@@ -59,13 +59,13 @@ export default function NewOrgPage() {
       <div className={BREADCRUMB}>
         <Link href="/admin" className={BREADCRUMB_LINK}>Timetables</Link>
         <span className={BREADCRUMB_SEP}>/</span>
-        <span className={BREADCRUMB_CURRENT}>New organisation</span>
+        <span className={BREADCRUMB_CURRENT}>New championship</span>
       </div>
 
       <div>
-        <h1 className={H1}>Create organisation</h1>
+        <h1 className={H1}>Create championship</h1>
         <p className={SUBTITLE}>
-          You will be the owner of this organisation.
+          You will be the owner of this championship.
         </p>
       </div>
 
@@ -128,7 +128,7 @@ export default function NewOrgPage() {
             disabled={submitting}
             className={BTN_PRIMARY}
           >
-            {submitting ? 'Creating…' : 'Create organisation'}
+            {submitting ? 'Creating…' : 'Create championship'}
           </button>
           <Link
             href="/admin"

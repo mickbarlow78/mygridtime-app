@@ -55,7 +55,7 @@ export async function createOrganisation(input: {
       .replace(/-{2,}/g, '-')
       .replace(/^-+|-+$/g, '')
 
-    if (!name) return { success: false, error: 'Organisation name is required.' }
+    if (!name) return { success: false, error: 'Championship name is required.' }
     if (!slug) return { success: false, error: 'Slug is required.' }
     if (slug.length < 2) return { success: false, error: 'Slug must be at least 2 characters.' }
 
@@ -119,7 +119,7 @@ export async function createOrganisation(input: {
       if (orgError) {
         Sentry.captureException(orgError, { tags: { action: 'createOrganisation.insertOrg' } })
       }
-      return { success: false, error: 'Could not create the organisation. Please retry.' }
+      return { success: false, error: 'Could not create the championship. Please retry.' }
     }
 
     // Insert owner membership via admin client (bypasses RLS)
@@ -131,7 +131,7 @@ export async function createOrganisation(input: {
       // Clean up the org if membership insert fails
       await admin.from('organisations').delete().eq('id', org.id)
       Sentry.captureException(memberError, { tags: { action: 'createOrganisation.insertMember' } })
-      return { success: false, error: 'Could not create the organisation. Please retry.' }
+      return { success: false, error: 'Could not create the championship. Please retry.' }
     }
 
     // Audit row — written via the authenticated client after the owner
@@ -161,7 +161,7 @@ export async function createOrganisation(input: {
   } catch (err) {
     // Catch any unexpected exception so the server action never crashes the page
     Sentry.captureException(err, { tags: { action: 'createOrganisation' } })
-    return { success: false, error: 'Could not create the organisation. Please retry.' }
+    return { success: false, error: 'Could not create the championship. Please retry.' }
   }
 }
 
@@ -180,7 +180,7 @@ export async function switchOrg(orgId: string): Promise<ActionResult> {
     .eq('org_id', orgId)
     .maybeSingle()
 
-  if (!membership) return { success: false, error: 'You are not a member of this organisation.' }
+  if (!membership) return { success: false, error: 'You are not a member of this championship.' }
 
   setActiveOrgId(orgId)
   revalidatePath('/admin', 'layout')
@@ -214,10 +214,10 @@ export async function updateOrganisation(input: {
   name: string
 }): Promise<ActionResult> {
   const { supabase, user, activeOrg, authorized } = await requireOwner()
-  if (!authorized) return { success: false, error: 'Only owners can update organisation settings.' }
+  if (!authorized) return { success: false, error: 'Only owners can update championship settings.' }
 
   const name = input.name.trim()
-  if (!name) return { success: false, error: 'Organisation name is required.' }
+  if (!name) return { success: false, error: 'Championship name is required.' }
 
   // Pre-fetch current name so the audit row captures the diff and can be
   // suppressed on a no-op save, consistent with event.updated / event_day.label_updated.
@@ -234,7 +234,7 @@ export async function updateOrganisation(input: {
 
   if (error) {
     Sentry.captureException(error, { tags: { action: 'updateOrganisation.update' } })
-    return { success: false, error: 'Could not update the organisation. Please retry.' }
+    return { success: false, error: 'Could not update the championship. Please retry.' }
   }
 
   const previousName = current?.name ?? null
@@ -475,7 +475,7 @@ export async function removeMember(input: {
   if (targetUserId === user.id) {
     return {
       success: false,
-      error: 'You cannot remove yourself from this organisation. Ask another owner to remove you, or switch organisations first.',
+      error: 'You cannot remove yourself from this championship. Ask another owner to remove you, or switch championships first.',
     }
   }
 
@@ -584,7 +584,7 @@ export async function inviteMember(input: {
         .maybeSingle()
 
       if (existingMember) {
-        return { success: false, error: 'This user is already a member of the organisation.' }
+        return { success: false, error: 'This user is already a member of the championship.' }
       }
     }
 
@@ -776,7 +776,7 @@ export async function acceptInvite(token: string): Promise<ActionResult<{ orgId:
 
   if (memberError) {
     Sentry.captureException(memberError, { tags: { action: 'acceptInvite.insertMember' } })
-    return { success: false, error: 'Could not add you to the organisation. Please try again.' }
+    return { success: false, error: 'Could not add you to the championship. Please try again.' }
   }
 
   // Mark invite as accepted. Error-check the update — if this fails, the
@@ -793,7 +793,7 @@ export async function acceptInvite(token: string): Promise<ActionResult<{ orgId:
     Sentry.captureException(markError, { tags: { action: 'acceptInvite.markAccepted' } })
     return {
       success: false,
-      error: 'You have been added to the organisation, but the invite could not be marked as accepted. Please refresh and try again.',
+      error: 'You have been added to the championship, but the invite could not be marked as accepted. Please refresh and try again.',
     }
   }
 

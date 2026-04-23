@@ -33,7 +33,7 @@ export default function PrivacyPage() {
                 through our authentication provider (Supabase Auth). We support magic link and OAuth sign-in methods.
               </li>
               <li>
-                <strong>Organisation and event data:</strong> Information you provide when creating organisations,
+                <strong>Championship and event data:</strong> Information you provide when creating championships,
                 events, and timetables, including event names, venues, dates, and timetable entries.
               </li>
               <li>

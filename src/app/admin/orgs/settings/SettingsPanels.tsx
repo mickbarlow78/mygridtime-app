@@ -50,7 +50,7 @@ export function SettingsPanels({
     <>
       {/* Org name form */}
       <section>
-        <h2 className={`${H2} mb-3`}>Organisation name</h2>
+        <h2 className={`${H2} mb-3`}>Championship name</h2>
         <OrgNameForm orgId={orgId} currentName={orgName} onSaved={bumpRefresh} />
       </section>
 
@@ -62,7 +62,7 @@ export function SettingsPanels({
             <p className="text-sm font-mono text-gray-600">{orgSlug}</p>
             <p className={HELP_TEXT}>
               The slug cannot be changed after creation. It forms the public
-              organisation URL below and shares the top-level URL space with
+              championship URL below and shares the top-level URL space with
               individual event slugs.
             </p>
           </div>
@@ -104,7 +104,7 @@ export function SettingsPanels({
       <section>
         <h2 className={`${H2} mb-3`}>Extraction log</h2>
         <p className="text-sm text-gray-500 mb-3">
-          AI extraction attempts for this organisation. Mock extractions are not logged.
+          AI extraction attempts for this championship. Mock extractions are not logged.
         </p>
         <ExtractionLogView
           entries={initialExtractionEntries}

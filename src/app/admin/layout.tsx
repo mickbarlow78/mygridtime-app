@@ -131,7 +131,7 @@ export default async function AdminLayout({
               <Link
                 href="/admin/orgs/settings"
                 className={HEADER_NAV_LINK}
-                title="Organisation settings"
+                title="Championship settings"
               >
                 Settings
               </Link>
@@ -141,7 +141,7 @@ export default async function AdminLayout({
                 href="/admin/orgs/new"
                 className={HEADER_NAV_LINK}
               >
-                + New org
+                + New championship
               </Link>
             )}
             <UserMenu
@@ -170,11 +170,11 @@ export default async function AdminLayout({
             <h1 className="text-base font-semibold text-gray-900">Welcome to MyGridTime</h1>
             <p className="text-sm text-gray-500 max-w-sm">
               You are signed in as <span className="font-medium text-gray-700">{user.email}</span>,
-              but you do not belong to any organisation yet. Create one to start building timetables,
-              or ask an existing organisation admin to invite you.
+              but you do not belong to any championship yet. Create one to start building timetables,
+              or ask an existing championship admin to invite you.
             </p>
             <Link href="/admin/orgs/new" className={BTN_PRIMARY}>
-              Create your first organisation
+              Create your first championship
             </Link>
           </div>
         ) : (
@@ -188,7 +188,7 @@ export default async function AdminLayout({
             <h1 className="text-base font-semibold text-gray-900">Access denied</h1>
             <p className="text-sm text-gray-500 max-w-sm">
               <span className="font-medium text-gray-700">{user.email}</span> does not
-              have permission to access the admin area. Contact your organisation
+              have permission to access the admin area. Contact your championship
               administrator to request access.
             </p>
           </div>

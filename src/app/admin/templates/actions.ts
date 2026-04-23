@@ -69,7 +69,7 @@ async function computeEventSlug(
     return {
       ok: false,
       error:
-        'An event with this title already exists in this organisation. Please choose a different title.',
+        'An event with this title already exists in this championship. Please choose a different title.',
     }
   }
   return { ok: true, slug }

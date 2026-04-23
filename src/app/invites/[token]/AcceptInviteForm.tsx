@@ -44,9 +44,9 @@ export function AcceptInviteForm({ token }: AcceptInviteFormProps) {
           </div>
 
           <div>
-            <h1 className="text-lg font-semibold text-gray-900">Organisation invite</h1>
+            <h1 className="text-lg font-semibold text-gray-900">Championship invite</h1>
             <p className="text-sm text-gray-500 mt-1">
-              You have been invited to join an organisation on MyGridTime.
+              You have been invited to join a championship on MyGridTime.
             </p>
           </div>
 

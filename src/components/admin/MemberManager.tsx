@@ -249,7 +249,7 @@ export function MemberManager({ orgId, currentUserId, initialMembers, initialInv
                   disabled={pending || isSelf}
                   aria-disabled={isSelf}
                   className="text-xs text-red-500 hover:text-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                  title={isSelf ? 'You cannot remove yourself from this organisation.' : 'Remove member'}
+                  title={isSelf ? 'You cannot remove yourself from this championship.' : 'Remove member'}
                 >
                   Remove
                 </button>
@@ -259,7 +259,7 @@ export function MemberManager({ orgId, currentUserId, initialMembers, initialInv
           })}
           {members.length === 0 && (
             <p className="px-4 py-6 text-sm text-gray-400 text-center">
-              No members yet. Use the form below to invite people to this organisation.
+              No members yet. Use the form below to invite people to this championship.
             </p>
           )}
         </div>
@@ -342,7 +342,7 @@ export function MemberManager({ orgId, currentUserId, initialMembers, initialInv
       <ConfirmDialog
         open={!!removeTarget}
         title="Remove member"
-        description={`Remove ${removeTarget?.email ?? ''} from this organisation? They will lose access immediately.`}
+        description={`Remove ${removeTarget?.email ?? ''} from this championship? They will lose access immediately.`}
         confirmLabel="Remove"
         confirmDestructive
         onConfirm={confirmRemove}

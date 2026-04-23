@@ -62,13 +62,13 @@ export default async function OrgSettingsPage() {
       <div className={BREADCRUMB}>
         <Link href="/admin" className={BREADCRUMB_LINK}>Timetables</Link>
         <span className={BREADCRUMB_SEP}>/</span>
-        <span className={BREADCRUMB_CURRENT}>Organisation settings</span>
+        <span className={BREADCRUMB_CURRENT}>Championship settings</span>
       </div>
 
       <div>
         <h1 className={H1}>{org.name}</h1>
         <p className={SUBTITLE}>
-          Manage organisation details and members.
+          Manage championship details and members.
         </p>
       </div>
 

@@ -3,6 +3,7 @@
 import { useState, useTransition, useMemo, useEffect, useCallback } from 'react'
 import { loadAuditLog } from '@/app/admin/audit/actions'
 import type { AuditLogEntry } from '@/lib/audit'
+import { CollapsiblePanel } from '@/components/ui/CollapsiblePanel'
 
 interface OrgAuditLogViewProps {
   entries: AuditLogEntry[]
@@ -27,8 +28,8 @@ interface OrgAuditLogViewProps {
 // ── Labels ──────────────────────────────────────────────────────────────────
 
 const actionLabels: Record<string, string> = {
-  'organisation.created':          'Organisation created',
-  'organisation.updated':          'Organisation renamed',
+  'organisation.created':          'Championship created',
+  'organisation.updated':          'Championship renamed',
   'organisation.branding_updated': 'Branding updated',
   'org_member.invited':            'Invite sent',
   'org_member.invite_revoked':     'Invite revoked',
@@ -39,8 +40,8 @@ const actionLabels: Record<string, string> = {
 
 const filterOptions: { value: string; label: string }[] = [
   { value: '',                               label: 'All actions' },
-  { value: 'organisation.created',           label: 'Organisation created' },
-  { value: 'organisation.updated',           label: 'Organisation renamed' },
+  { value: 'organisation.created',           label: 'Championship created' },
+  { value: 'organisation.updated',           label: 'Championship renamed' },
   { value: 'organisation.branding_updated',  label: 'Branding updated' },
   { value: 'org_member.invited',             label: 'Invite sent' },
   { value: 'org_member.invite_revoked',      label: 'Invite revoked' },
@@ -378,26 +379,13 @@ export function OrgAuditLogView({
   const controlsDisabled = loadingAll && !allLoaded
 
   return (
-    <div className="border border-gray-200 rounded-lg overflow-hidden">
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        aria-expanded={open}
-        className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 hover:bg-gray-100 transition-colors text-left"
-      >
-        <span className="text-sm font-medium text-gray-700">
-          Audit log
-          {allEntries.length > 0 && (
-            <span className="ml-2 text-xs text-gray-400">
-              {allEntries.length} entries{!allLoaded ? '+' : ''}
-            </span>
-          )}
-        </span>
-        <span className="text-gray-400 text-xs">{open ? '▲' : '▼'}</span>
-      </button>
-
-      {open && (
-        <div>
+    <CollapsiblePanel
+      title="Audit log"
+      count={allEntries.length}
+      open={open}
+      onOpenChange={setOpen}
+    >
+      <div>
           {allEntries.length > 0 && (
             <div className="px-4 py-2 border-b border-gray-100 bg-gray-50/50 space-y-2">
               <div className="flex flex-wrap gap-2">
@@ -523,7 +511,6 @@ export function OrgAuditLogView({
             )}
           </div>
         </div>
-      )}
-    </div>
+    </CollapsiblePanel>
   )
 }

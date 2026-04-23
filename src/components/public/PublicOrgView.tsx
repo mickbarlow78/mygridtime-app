@@ -70,7 +70,7 @@ export function PublicOrgView({ org, events, user }: Props) {
                 {displayName}
               </h1>
               <p className="mt-1 text-sm text-gray-500">
-                Published timetables from this organisation.
+                Published timetables from this championship.
               </p>
             </div>
           </div>

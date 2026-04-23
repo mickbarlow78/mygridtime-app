@@ -45,7 +45,7 @@ export function PublicOrgUrlField({ publicUrl }: PublicOrgUrlFieldProps) {
         </button>
       </div>
       <p className={HELP_TEXT}>
-        Lists only this organisation&rsquo;s published events. Per-event URLs remain at <code className="font-mono">/{'{event-slug}'}</code>.
+        Lists only this championship&rsquo;s published events. Per-event URLs remain at <code className="font-mono">/{'{event-slug}'}</code>.
       </p>
     </div>
   )
