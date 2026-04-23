@@ -45,6 +45,7 @@ export function CollapsiblePanel({
         onClick={handleToggle}
         aria-expanded={open}
         aria-controls={bodyId}
+        data-testid="collapsible-header"
         className={cn(
           'w-full flex items-center justify-between px-4 py-3 bg-gray-50 hover:bg-gray-100 transition-colors text-left',
           TAP_TARGET,
@@ -78,7 +79,7 @@ export function CollapsiblePanel({
         </span>
       </button>
 
-      <div id={bodyId} hidden={!open}>
+      <div id={bodyId} hidden={!open} data-testid="collapsible-body">
         {children}
       </div>
     </div>
