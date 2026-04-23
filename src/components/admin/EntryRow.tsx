@@ -175,7 +175,7 @@ export function EntryRow({
             {...listeners}
             type="button"
             aria-label="Drag to reorder"
-            className="p-0.5 text-base text-gray-300 hover:text-gray-500 cursor-grab active:cursor-grabbing shrink-0 select-none leading-none md:p-0 md:mt-2"
+            className="min-h-[40px] min-w-[40px] inline-flex items-center justify-center text-base text-gray-300 hover:text-gray-500 cursor-grab active:cursor-grabbing shrink-0 select-none leading-none md:min-h-0 md:min-w-0 md:p-0 md:mt-2"
           >
             ⠿
           </button>
@@ -188,7 +188,7 @@ export function EntryRow({
             aria-label={entry.is_break ? 'Marked as break, click to mark as race' : 'Marked as race, click to mark as break'}
             title={entry.is_break ? 'Click to mark as race' : 'Click to mark as break'}
             className={cn(
-              'shrink-0 text-[11px] font-medium px-1.5 py-1 rounded border transition-colors leading-none md:text-[10px] md:px-1.5 md:py-0.5 md:mt-2',
+              'shrink-0 min-h-[40px] inline-flex items-center text-[11px] font-medium px-2.5 py-1 rounded border transition-colors leading-none md:min-h-0 md:inline md:text-[10px] md:px-1.5 md:py-0.5 md:mt-2',
               entry.is_break
                 ? 'text-blue-700 bg-blue-50 border-blue-200 hover:bg-blue-100'
                 : 'text-gray-400 bg-white border-gray-200 hover:text-gray-600 hover:border-gray-300',
@@ -206,7 +206,7 @@ export function EntryRow({
               onClick={onRevertRow}
               aria-label="Revert all changes on this row"
               title="Revert all changes"
-              className="w-8 h-8 flex items-center justify-center text-amber-400 hover:text-amber-600 transition-colors text-base leading-none md:w-5 md:h-5 md:text-sm md:text-gray-300 md:group-hover/row:text-amber-400"
+              className="w-10 h-10 flex items-center justify-center text-amber-400 hover:text-amber-600 transition-colors text-base leading-none md:w-5 md:h-5 md:text-sm md:text-gray-300 md:group-hover/row:text-amber-400"
             >
               ↩
             </button>
@@ -217,7 +217,7 @@ export function EntryRow({
               onClick={onDuplicate}
               aria-label="Duplicate this entry"
               title="Duplicate row"
-              className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-gray-600 transition-colors text-base leading-none md:w-5 md:h-5 md:text-sm md:text-gray-200 md:group-hover/row:text-gray-400 md:hover:text-gray-600"
+              className="w-10 h-10 flex items-center justify-center text-gray-400 hover:text-gray-600 transition-colors text-base leading-none md:w-5 md:h-5 md:text-sm md:text-gray-200 md:group-hover/row:text-gray-400 md:hover:text-gray-600"
             >
               ⧉
             </button>
@@ -226,7 +226,7 @@ export function EntryRow({
             type="button"
             onClick={onDelete}
             aria-label="Delete entry"
-            className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-red-500 transition-colors text-base leading-none md:w-5 md:h-5 md:text-sm md:text-gray-200 md:group-hover/row:text-gray-400"
+            className="w-10 h-10 flex items-center justify-center text-gray-400 hover:text-red-500 transition-colors text-base leading-none md:w-5 md:h-5 md:text-sm md:text-gray-200 md:group-hover/row:text-gray-400"
           >
             ✕
           </button>

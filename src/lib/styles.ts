@@ -121,3 +121,14 @@ export const AUTH_LINK =
   'text-xs text-gray-500 hover:text-gray-900 underline underline-offset-2 transition-colors'
 export const HEADER_NAV_LINK =
   'text-xs text-gray-400 hover:text-gray-600 transition-colors min-h-[40px] px-2 py-2 inline-flex items-center sm:min-h-0 sm:px-0 sm:py-0 sm:inline'
+
+// ---------------------------------------------------------------------------
+// Mobile tap-target helper (WCAG 2.5.5, MGT-094 / MGT-095 / MGT-101)
+// ---------------------------------------------------------------------------
+
+/**
+ * Mobile-only tap-target enlargement: ensures a control is at least 40px tall
+ * on mobile while leaving desktop sizing untouched. Append after the base
+ * button class via `cn(BTN_*, TAP_TARGET)`.
+ */
+export const TAP_TARGET = 'min-h-[40px] inline-flex items-center sm:min-h-0'

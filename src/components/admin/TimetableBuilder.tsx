@@ -8,7 +8,7 @@ import type { EntryDraft, EntryValidationError, EntryChangeInfo } from './EntryR
 import type { DayClipboard } from './EventEditor'
 import type { EventDay } from '@/lib/types/database'
 import { formatDate } from '@/lib/utils/slug'
-import { cn, TAB_ACTIVE, TAB_INACTIVE, BTN_SECONDARY_SM, LABEL_COMPACT } from '@/lib/styles'
+import { cn, TAB_ACTIVE, TAB_INACTIVE, BTN_SECONDARY_SM, LABEL_COMPACT, TAP_TARGET } from '@/lib/styles'
 import { FIELD_LIMITS } from '@/lib/constants/field-limits'
 import { CharCounter } from '@/components/ui/CharCounter'
 
@@ -162,6 +162,7 @@ export function TimetableBuilder({
               onDoubleClick={() => { setEditingLabelDayId(day.id); setLabelDraft(day.label ?? ''); setLabelError(null) }}
               className={cn(
                 day.id === activeDayId ? TAB_ACTIVE : TAB_INACTIVE,
+                TAP_TARGET,
                 'whitespace-nowrap',
                 validationErrors[day.id]?.length > 0 && 'text-red-600',
               )}
@@ -199,7 +200,7 @@ export function TimetableBuilder({
         <button
           type="button"
           onClick={() => setShowAddDay(true)}
-          className="px-3 py-2 text-sm text-gray-400 hover:text-gray-600 transition-colors whitespace-nowrap"
+          className={cn('px-3 py-2 text-sm text-gray-400 hover:text-gray-600 transition-colors whitespace-nowrap', TAP_TARGET)}
           title="Add a day"
         >
           + Day
@@ -249,7 +250,7 @@ export function TimetableBuilder({
               <button
                 type="button"
                 onClick={() => setRemovingDayId(activeDay.id)}
-                className="text-xs text-red-400 hover:text-red-600 transition-colors mr-auto md:hidden"
+                className={cn('text-xs text-red-400 hover:text-red-600 transition-colors mr-auto md:hidden', TAP_TARGET)}
               >
                 Remove this day
               </button>
@@ -258,7 +259,7 @@ export function TimetableBuilder({
               type="button"
               onClick={handleCopyClick}
               disabled={activeDayEntries.length === 0}
-              className={cn(BTN_SECONDARY_SM, 'py-2 md:py-1.5', activeDayEntries.length === 0 && 'opacity-40 cursor-not-allowed')}
+              className={cn(BTN_SECONDARY_SM, TAP_TARGET, 'py-2 md:py-1.5', activeDayEntries.length === 0 && 'opacity-40 cursor-not-allowed')}
             >
               {copyFlash ? 'Copied' : 'Copy day'}
             </button>
@@ -267,7 +268,7 @@ export function TimetableBuilder({
                 type="button"
                 onClick={handlePasteClick}
                 title={clipboard.sourceDayLabel ? `From "${clipboard.sourceDayLabel}"` : undefined}
-                className={cn(BTN_SECONDARY_SM, 'py-2 md:py-1.5')}
+                className={cn(BTN_SECONDARY_SM, TAP_TARGET, 'py-2 md:py-1.5')}
               >
                 Paste ({clipboard.entries.length} {clipboard.entries.length === 1 ? 'entry' : 'entries'})
               </button>

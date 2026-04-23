@@ -1,5 +1,26 @@
 # Known Issues
 
+## MGT-101: Editor / timetable mobile tap targets below WCAG 2.5.5 — RESOLVED 2026-04-23
+
+**Description**: UX Audit 2026-04-22 Suggested Improvement #10 (MEDIUM, residual scope deferred from MGT-094 / MGT-095). Mobile tap targets on the event-editor surface were below the WCAG 2.5.5 minimum of 44×44 (project minimum 40px):
+- `EntryRow.tsx`: drag handle (~24px), Break/Race pill (~24px), revert ↩ / duplicate ⧉ / delete ✕ icon buttons (32px square via `w-8 h-8`).
+- `EventActionsBar.tsx`: Save changes / Publish / View public page / Unpublish / Archive / Duplicate / Save as Template (≈28-30px via `BTN_PRIMARY_SM` / `BTN_SECONDARY_SM`).
+- `TimetableBuilder.tsx`: day tab buttons + "+ Day" (~36px), "Remove this day" mobile inline link (~16px), "Copy day" / "Paste …" (~30px).
+
+**Fix**: Class-only edits, reusing the established mobile-only enlargement pattern from MGT-094 / MGT-095 (`min-h-[40px] inline-flex items-center` + `sm:min-h-0` desktop reset).
+- New shared constant `TAP_TARGET` added to [src/lib/styles.ts](../src/lib/styles.ts) so the pattern stops being copy-pasted across components.
+- [src/components/admin/EntryRow.tsx](../src/components/admin/EntryRow.tsx): drag handle gained `min-h-[40px] min-w-[40px] inline-flex items-center justify-center` (mobile) + `md:min-h-0 md:min-w-0 md:p-0 md:mt-2` (desktop reset); Break/Race pill gained `min-h-[40px] inline-flex items-center px-2.5 py-1` (mobile) + `md:min-h-0 md:inline md:text-[10px] md:px-1.5 md:py-0.5 md:mt-2` (desktop preserves the original tight pill); revert / duplicate / delete bumped from `w-8 h-8` to `w-10 h-10` mobile, `md:w-5 md:h-5` desktop unchanged.
+- [src/components/admin/EventActionsBar.tsx](../src/components/admin/EventActionsBar.tsx): every action button + the View public anchor wrapped via `cn(BTN_*_SM, TAP_TARGET, …)`. `BTN_PRIMARY_SM` / `BTN_SECONDARY_SM` themselves untouched (still reused unmodified by `/admin` events list, /admin/events/new, etc.).
+- [src/components/admin/TimetableBuilder.tsx](../src/components/admin/TimetableBuilder.tsx): day tab buttons (TAB_ACTIVE / TAB_INACTIVE call site), "+ Day", mobile-only "Remove this day", "Copy day", "Paste (N entries)" all gained `TAP_TARGET`. `TAB_ACTIVE` / `TAB_INACTIVE` constants untouched.
+
+**Out of scope (deferred to separate MEDIUM/LOW tickets)**: collapsible-panel unification (Suggested #7); button-casing pass (Suggested #8); event-editor action-bar hierarchy redesign (Suggested #9); `?template=` empty-state visibility (Suggested #11). No behaviour, server-action, schema, RLS, migration, env, or routing changes; `BTN_PRIMARY_SM` / `BTN_SECONDARY_SM` / `TAB_ACTIVE` / `TAB_INACTIVE` not modified globally to avoid bleed into surfaces this ticket did not audit.
+
+**Verification**: `npm run typecheck` clean; vitest 79/79 green; `npm run build` clean. Browser verification on the running dev server as `mickbarlow@kiontechnology.co.uk` (platform Staff, `MGT-060 Verify Org`) at `/admin/events/04438ed1-74fb-44d7-8dbc-3566912dd654`. At 375×812 mobile: every measured control reports `getBoundingClientRect().height === 40` — drag handle 40 (also `width === 40`), Break/Race pill 40, ⧉ duplicate 40, ✕ delete 40, day tab buttons (`Practice day` / `Race day`) 40 each, `+ Day` 40, `Remove this day` mobile button 40 (desktop sibling reports 0 height — `hidden md:block` still hides as expected), `Copy day` 40, EventActionsBar `Save changes` / `Publish` / `Archive` / `Duplicate` / `Save as Template` 40 each; `document.body.scrollWidth === window.innerWidth === 375` (no overflow regression vs MGT-094 baseline). At 1440×900 desktop (regression check): EventActionsBar buttons 28-30px (BTN_*_SM unchanged), Break/Race pill 16px (md:py-0.5 md:text-[10px]), drag handle 16px, duplicate / delete 20px (md:w-5 md:h-5), day tabs 38px (TAB_ACTIVE/INACTIVE py-2 text-sm) — all byte-identical to pre-change. Zero console errors at both widths. Screenshot at 375 confirms generous tap-area spacing on every timetable row icon and the day-tab strip.
+
+**Status**: RESOLVED (2026-04-23). Deploy impact: code only (4 files, ~25 className edits + 1 new exported constant); no schema; no RLS; no env; no migration; no new DEC.
+
+---
+
 ## MGT-100: Timetable entry row headers + accessibility labels — RESOLVED 2026-04-23
 
 **Description**: UX Audit 2026-04-22 Critical #5 and Suggested Improvement #6 (MEDIUM). The `/admin/events/[id]` Timetable editor rendered 5 adjacent inputs per row (Title, Start, End, Category, Notes) with placeholder-only labelling. A desktop column header row already existed in `DayTab.tsx` but was styled at `text-[10px] text-gray-400` (easy to miss — consistent with the audit's "user relies on position memory" finding). None of the 5 `<input>` elements in `EntryRow.tsx` carried an `aria-label`, so screen readers announced empty names for the two `type="time"` inputs (no placeholder) and relied on placeholder text elsewhere.

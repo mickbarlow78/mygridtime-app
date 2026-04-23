@@ -1,7 +1,7 @@
 'use client'
 
 import { StatusBadge } from '@/components/ui/StatusBadge'
-import { cn, CARD, BTN_PRIMARY_SM, BTN_SECONDARY_SM, SUCCESS_BANNER } from '@/lib/styles'
+import { cn, CARD, BTN_PRIMARY_SM, BTN_SECONDARY_SM, SUCCESS_BANNER, TAP_TARGET } from '@/lib/styles'
 import type { Event } from '@/lib/types/database'
 
 interface EventActionsBarProps {
@@ -89,7 +89,7 @@ export function EventActionsBar({
             onClick={onSave}
             disabled={!canSave}
             aria-busy={saving}
-            className={cn(BTN_PRIMARY_SM, 'disabled:opacity-50 disabled:cursor-not-allowed')}
+            className={cn(BTN_PRIMARY_SM, TAP_TARGET, 'disabled:opacity-50 disabled:cursor-not-allowed')}
           >
             {saving ? 'Saving…' : 'Save changes'}
           </button>
@@ -100,7 +100,7 @@ export function EventActionsBar({
           <button
             type="button"
             onClick={onPublish}
-            className={cn(BTN_PRIMARY_SM, 'bg-green-600 hover:bg-green-700')}
+            className={cn(BTN_PRIMARY_SM, TAP_TARGET, 'bg-green-600 hover:bg-green-700')}
           >
             Publish
           </button>
@@ -110,7 +110,7 @@ export function EventActionsBar({
             href={publicHref}
             target="_blank"
             rel="noreferrer"
-            className={BTN_PRIMARY_SM}
+            className={cn(BTN_PRIMARY_SM, TAP_TARGET)}
           >
             View public page
           </a>
@@ -118,19 +118,19 @@ export function EventActionsBar({
 
         {/* Secondary cluster */}
         {status === 'published' && (
-          <button type="button" onClick={onUnpublish} className={BTN_SECONDARY_SM}>
+          <button type="button" onClick={onUnpublish} className={cn(BTN_SECONDARY_SM, TAP_TARGET)}>
             Unpublish
           </button>
         )}
         {status !== 'archived' && (
-          <button type="button" onClick={onArchive} className={BTN_SECONDARY_SM}>
+          <button type="button" onClick={onArchive} className={cn(BTN_SECONDARY_SM, TAP_TARGET)}>
             Archive
           </button>
         )}
-        <button type="button" onClick={onDuplicate} className={BTN_SECONDARY_SM}>
+        <button type="button" onClick={onDuplicate} className={cn(BTN_SECONDARY_SM, TAP_TARGET)}>
           Duplicate
         </button>
-        <button type="button" onClick={onSaveTemplate} className={BTN_SECONDARY_SM}>
+        <button type="button" onClick={onSaveTemplate} className={cn(BTN_SECONDARY_SM, TAP_TARGET)}>
           Save as Template
         </button>
       </div>
