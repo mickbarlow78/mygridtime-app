@@ -18,6 +18,7 @@ interface SettingsPanelsProps {
   orgName: string
   publicOrgUrl: string
   orgBranding: OrgBranding | null
+  currentUserId: string
   initialMembers: Member[]
   initialInvites: Invite[]
   membersLoadError: string | null
@@ -33,6 +34,7 @@ export function SettingsPanels({
   orgName,
   publicOrgUrl,
   orgBranding,
+  currentUserId,
   initialMembers,
   initialInvites,
   membersLoadError,
@@ -91,6 +93,7 @@ export function SettingsPanels({
         )}
         <MemberManager
           orgId={orgId}
+          currentUserId={currentUserId}
           initialMembers={initialMembers}
           initialInvites={initialInvites}
           onSaved={bumpRefresh}

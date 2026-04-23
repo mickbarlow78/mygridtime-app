@@ -469,6 +469,16 @@ export async function removeMember(input: {
   const targetUserId = member.user_id
   const targetEmail = (member.users as unknown as { email: string } | null)?.email ?? null
 
+  // MGT-098: prevent acting user from removing their own membership row. Fires
+  // before the last-owner check so a sole-owner self-remove attempt surfaces
+  // the self-specific copy rather than the generic "only owner" message.
+  if (targetUserId === user.id) {
+    return {
+      success: false,
+      error: 'You cannot remove yourself from this organisation. Ask another owner to remove you, or switch organisations first.',
+    }
+  }
+
   // Prevent removing last owner
   if (previousRole === 'owner') {
     const { count } = await supabase

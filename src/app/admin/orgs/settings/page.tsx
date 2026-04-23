@@ -79,6 +79,7 @@ export default async function OrgSettingsPage() {
         orgName={org.name}
         publicOrgUrl={`${getServerAppUrl()}/${org.slug}`}
         orgBranding={(org.branding ?? null) as OrgBranding | null}
+        currentUserId={user.id}
         initialMembers={initialMembers}
         initialInvites={initialInvites}
         membersLoadError={loadError}

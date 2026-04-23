@@ -16,6 +16,7 @@ import { CharCounter } from '@/components/ui/CharCounter'
 
 interface MemberManagerProps {
   orgId: string
+  currentUserId: string
   initialMembers: Member[]
   initialInvites: Invite[]
   onSaved?: () => void
@@ -41,7 +42,7 @@ export type Invite = {
 // constraints now prevent any other value from reappearing.
 const SELECTABLE_ROLES = ['owner', 'editor'] as const
 
-export function MemberManager({ orgId, initialMembers, initialInvites, onSaved }: MemberManagerProps) {
+export function MemberManager({ orgId, currentUserId, initialMembers, initialInvites, onSaved }: MemberManagerProps) {
   // Initialise from server-fetched props so the list is visible immediately
   // on first paint. No empty state flash while the first async load completes.
   const [members, setMembers] = useState<Member[]>(initialMembers)
@@ -219,7 +220,11 @@ export function MemberManager({ orgId, initialMembers, initialInvites, onSaved }
       <div>
         <h3 className={`${H2} mb-3`}>Members</h3>
         <div className={LIST_CARD}>
-          {members.map((member) => (
+          {members.map((member) => {
+            // MGT-098: acting user cannot remove their own membership row.
+            // Server action enforces the same rule as defence in depth.
+            const isSelf = member.user_id === currentUserId
+            return (
             <div key={member.id} className={LIST_ROW}>
               <div className="flex-1 min-w-0">
                 <p className="text-sm text-gray-900 truncate">{member.email}</p>
@@ -241,15 +246,17 @@ export function MemberManager({ orgId, initialMembers, initialInvites, onSaved }
                 </select>
                 <button
                   onClick={() => handleRemove(member.id, member.email)}
-                  disabled={pending}
-                  className="text-xs text-red-500 hover:text-red-700 disabled:opacity-50 transition-colors"
-                  title="Remove member"
+                  disabled={pending || isSelf}
+                  aria-disabled={isSelf}
+                  className="text-xs text-red-500 hover:text-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  title={isSelf ? 'You cannot remove yourself from this organisation.' : 'Remove member'}
                 >
                   Remove
                 </button>
               </div>
             </div>
-          ))}
+          )
+          })}
           {members.length === 0 && (
             <p className="px-4 py-6 text-sm text-gray-400 text-center">
               No members yet. Use the form below to invite people to this organisation.
