@@ -2,6 +2,7 @@
 
 import { useState, useTransition, useEffect, useCallback, useMemo } from 'react'
 import { loadAllNotificationLog, type NotificationLogEntry } from '@/app/admin/events/actions'
+import { CollapsiblePanel } from '@/components/ui/CollapsiblePanel'
 
 interface NotificationLogViewProps {
   entries: NotificationLogEntry[]
@@ -263,26 +264,13 @@ export function NotificationLogView({
   }
 
   return (
-    <div className="border border-gray-200 rounded-lg overflow-hidden">
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        aria-expanded={open}
-        className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 hover:bg-gray-100 transition-colors text-left"
-      >
-        <span className="text-sm font-medium text-gray-700">
-          Notification history
-          {allEntries.length > 0 && (
-            <span className="ml-2 text-xs text-gray-400">
-              {allEntries.length} entries{!allLoaded ? '+' : ''}
-            </span>
-          )}
-        </span>
-        <span className="text-gray-400 text-xs">{open ? '▲' : '▼'}</span>
-      </button>
-
-      {open && (
-        <div>
+    <CollapsiblePanel
+      title="Notification history"
+      count={allEntries.length}
+      open={open}
+      onOpenChange={setOpen}
+    >
+      <div>
           {allEntries.length > 0 && (
             <div className="px-4 py-2 border-b border-gray-100 bg-gray-50/50 space-y-2">
               <div className="flex flex-wrap gap-2">
@@ -498,7 +486,6 @@ export function NotificationLogView({
             )}
           </div>
         </div>
-      )}
-    </div>
+    </CollapsiblePanel>
   )
 }

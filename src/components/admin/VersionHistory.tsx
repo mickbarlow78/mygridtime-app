@@ -7,13 +7,13 @@ import { TimetableDay } from '@/components/public/TimetableDay'
 import type { PublicEntry } from '@/components/public/TimetableDay'
 import { formatDate } from '@/lib/utils/slug'
 import { cn } from '@/lib/styles'
+import { CollapsiblePanel } from '@/components/ui/CollapsiblePanel'
 
 interface VersionHistoryProps {
   versions: VersionSummary[]
 }
 
 export function VersionHistory({ versions }: VersionHistoryProps) {
-  const [expanded, setExpanded] = useState(false)
   const [viewingSnapshot, setViewingSnapshot] = useState<{
     version: number
     published_at: string
@@ -71,28 +71,8 @@ export function VersionHistory({ versions }: VersionHistoryProps) {
   }
 
   return (
-    <div className="border border-gray-200 rounded-lg bg-white">
-      {/* Collapsible header */}
-      <button
-        type="button"
-        onClick={() => setExpanded(!expanded)}
-        aria-expanded={expanded}
-        className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
-      >
-        <span>Version History ({versions.length})</span>
-        <svg
-          className={`w-4 h-4 text-gray-400 transition-transform ${expanded ? 'rotate-180' : ''}`}
-          fill="none"
-          viewBox="0 0 24 24"
-          strokeWidth={1.5}
-          stroke="currentColor"
-        >
-          <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
-        </svg>
-      </button>
-
-      {expanded && (
-        <div className="border-t border-gray-200">
+    <CollapsiblePanel title="Version history" count={versions.length}>
+      <div>
           {/* Inline error banner */}
           {loadError && (
             <div
@@ -247,7 +227,6 @@ export function VersionHistory({ versions }: VersionHistoryProps) {
             </div>
           )}
         </div>
-      )}
-    </div>
+    </CollapsiblePanel>
   )
 }

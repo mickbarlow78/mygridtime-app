@@ -7,6 +7,7 @@ import {
   type ExtractionLogEntry,
   type ExtractionStatus,
 } from '@/app/admin/extractions/actions'
+import { CollapsiblePanel } from '@/components/ui/CollapsiblePanel'
 
 interface ExtractionLogViewProps {
   entries: ExtractionLogEntry[]
@@ -258,26 +259,13 @@ export function ExtractionLogView({
   const controlsDisabled = loadingAll && !allLoaded
 
   return (
-    <div className="border border-gray-200 rounded-lg overflow-hidden">
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        aria-expanded={open}
-        className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 hover:bg-gray-100 transition-colors text-left"
-      >
-        <span className="text-sm font-medium text-gray-700">
-          Extraction log
-          {allEntries.length > 0 && (
-            <span className="ml-2 text-xs text-gray-400">
-              {allEntries.length} entries{!allLoaded ? '+' : ''}
-            </span>
-          )}
-        </span>
-        <span className="text-gray-400 text-xs">{open ? '▲' : '▼'}</span>
-      </button>
-
-      {open && (
-        <div>
+    <CollapsiblePanel
+      title="Extraction log"
+      count={allEntries.length}
+      open={open}
+      onOpenChange={setOpen}
+    >
+      <div>
           <div className="px-4 py-3 border-b border-gray-100 bg-white grid grid-cols-4 gap-2">
             <div>
               <div className="text-[10px] uppercase tracking-wide text-gray-400">Attempts</div>
@@ -586,7 +574,6 @@ export function ExtractionLogView({
             )}
           </div>
         </div>
-      )}
-    </div>
+    </CollapsiblePanel>
   )
 }

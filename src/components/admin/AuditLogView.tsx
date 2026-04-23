@@ -3,6 +3,7 @@
 import { useState, useTransition, useMemo, useEffect, useCallback } from 'react'
 import type { AuditLog } from '@/lib/types/database'
 import { loadAllAuditLog, type AuditLogEntry } from '@/app/admin/events/actions'
+import { CollapsiblePanel } from '@/components/ui/CollapsiblePanel'
 
 interface AuditLogViewProps {
   entries: (AuditLog & { user_email?: string | null })[]
@@ -357,26 +358,13 @@ export function AuditLogView({ entries: initialEntries, eventId, initialHasMore,
   const controlsDisabled = loadingAll && !allLoaded
 
   return (
-    <div className="border border-gray-200 rounded-lg overflow-hidden">
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        aria-expanded={open}
-        className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 hover:bg-gray-100 transition-colors text-left"
-      >
-        <span className="text-sm font-medium text-gray-700">
-          Audit log
-          {allEntries.length > 0 && (
-            <span className="ml-2 text-xs text-gray-400">
-              {allEntries.length} entries{!allLoaded ? '+' : ''}
-            </span>
-          )}
-        </span>
-        <span className="text-gray-400 text-xs">{open ? '▲' : '▼'}</span>
-      </button>
-
-      {open && (
-        <div>
+    <CollapsiblePanel
+      title="Audit log"
+      count={allEntries.length}
+      open={open}
+      onOpenChange={setOpen}
+    >
+      <div>
           {/* Filter bar */}
           {allEntries.length > 0 && (
             <div className="px-4 py-2 border-b border-gray-100 bg-gray-50/50 space-y-2">
@@ -509,7 +497,6 @@ export function AuditLogView({ entries: initialEntries, eventId, initialHasMore,
             )}
           </div>
         </div>
-      )}
-    </div>
+    </CollapsiblePanel>
   )
 }
