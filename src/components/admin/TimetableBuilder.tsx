@@ -8,7 +8,7 @@ import type { EntryDraft, EntryValidationError, EntryChangeInfo } from './EntryR
 import type { DayClipboard } from './EventEditor'
 import type { EventDay } from '@/lib/types/database'
 import { formatDate } from '@/lib/utils/slug'
-import { cn, TAB_ACTIVE, TAB_INACTIVE, BTN_PRIMARY, BTN_SECONDARY_SM, LABEL_COMPACT, SUCCESS_BANNER } from '@/lib/styles'
+import { cn, TAB_ACTIVE, TAB_INACTIVE, BTN_SECONDARY_SM, LABEL_COMPACT } from '@/lib/styles'
 import { FIELD_LIMITS } from '@/lib/constants/field-limits'
 import { CharCounter } from '@/components/ui/CharCounter'
 
@@ -17,36 +17,30 @@ interface TimetableBuilderProps {
   days: EventDay[]
   dayEntries: Record<string, EntryDraft[]>
   validationErrors: Record<string, EntryValidationError[]>
-  saving: boolean
-  saveError: string | null
-  saveSuccess: boolean
   entryChangeInfos?: Record<string, EntryChangeInfo>
   onDaysChange: (days: EventDay[]) => void
   onEntriesChange: (dayId: string, entries: EntryDraft[]) => void
   onDeleteEntry: (dayId: string, localId: string) => void
   onRevertEntry?: (dayId: string, localId: string) => void
   onRevertEntryField?: (dayId: string, localId: string, field: string) => void
-  onSave: () => void
   clipboard: DayClipboard | null
   onCopyDay: (dayId: string) => void
   onPasteDay: (dayId: string, mode: 'append' | 'replace') => void
 }
 
+// MGT-096: TimetableBuilder no longer owns a save trigger. The single
+// "Save changes" CTA in EventActionsBar commits metadata + timetable together.
 export function TimetableBuilder({
   eventId,
   days,
   dayEntries,
   validationErrors,
-  saving,
-  saveError,
-  saveSuccess,
   entryChangeInfos,
   onDaysChange,
   onEntriesChange,
   onDeleteEntry,
   onRevertEntry,
   onRevertEntryField,
-  onSave,
   clipboard,
   onCopyDay,
   onPasteDay,
@@ -297,19 +291,7 @@ export function TimetableBuilder({
         </p>
       )}
 
-      {/* Save timetable */}
-      <div className="flex flex-wrap items-center gap-3 pt-2 border-t border-gray-100 md:gap-4">
-        <button
-          type="button"
-          onClick={onSave}
-          disabled={saving}
-          className={BTN_PRIMARY}
-        >
-          {saving ? 'Saving…' : 'Save timetable'}
-        </button>
-        {saveSuccess && !saving && <p className={SUCCESS_BANNER} role="status">Timetable saved.</p>}
-        {saveError && <p className="text-sm text-red-600">{saveError}</p>}
-      </div>
+      {/* MGT-096: Save timetable button removed — unified Save lives in EventActionsBar. */}
 
       {/* Add Day dialog */}
       <ConfirmDialog

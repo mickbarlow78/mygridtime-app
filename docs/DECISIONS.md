@@ -1,5 +1,27 @@
 # Decisions
 
+## DEC-040: Event editor commits through a single unified Save action; metadata save runs before timetable save, and the unified review listing drives notify semantics
+
+**Decision**: MGT-096 collapses the event editor's two independent primary Save buttons (`Save details` on the Event details card and `Save timetable` inside the TimetableBuilder) into one `Save changes` button in `EventActionsBar`. A new `reviewMode` value `'unified'` renders a single ReviewModal pass that lists metadata cards first, then timetable cards, under a generic `Review changes` title. `runUnifiedSave()` orchestrates the commit: `performMetaSave()` runs first; on failure the timetable save is skipped and the metadata error is surfaced; on success `performTimetableSave()` runs with the rejection sets and notify flag, and any failure thereafter surfaces the explicit error `"Timetable save failed after saving details. Retry the save to complete."`. The `Unsaved changes` pill and the `Save changes` button remain governed by `metaDirty || timetableDirty`. The notify checkbox in the review footer is shown only when the review contains at least one non-`meta-field` card AND `status === 'published'` AND `notification_emails.trim()` is non-empty — unified reviews containing only metadata cards suppress the notify footer, preserving DEC-002 (only timetable saves can trigger notifications).
+
+**Why**: UX Audit 2026-04-22 Critical #4 and Suggested Improvement #2 (HIGH) identified the two-button model as the editor's single largest daily friction — a classic "did I save everything?" pitfall that also split audit-log history, doubled the success-banner surface, and allowed partial-connectivity failures to leave the editor in divergent state. One primary action per screen is the standard heuristic; a single ReviewModal pass keeps the commit atomic from the user's perspective. The fixed metadata-first ordering preserves DEC-002 (notify is timetable-only): if metadata fails, we never attempt to send a notification on behalf of a half-saved edit; if the review is metadata-only, the notify footer is suppressed because there is no timetable change to notify about.
+
+**Why not an async-parallel commit**: metadata and timetable writes go to different tables and surface different audit entries. Running them in parallel would complicate the partial-failure story (both failed, only one failed, which one rolls back) and break the DEC-002 guarantee that notifications correspond specifically to timetable content. Sequential commit with metadata-first is simple, explicit, and matches the mental model that metadata is the smaller, faster write.
+
+**Why the `<form onSubmit>` was retargeted**: the Event details card still wraps its inputs in a `<form>` so native Enter-to-submit works. After MGT-096 the only save entry point is `handleUnifiedSave`, so `<form onSubmit>` routes there — Enter in any metadata input commits the full editor, not just the metadata half.
+
+**Scope boundary**: lifecycle actions (Publish / Unpublish / Archive / Duplicate / Save as Template) remain on ConfirmDialog and are explicitly **not** part of the unified save. The day-label `onBlur` auto-save inside TimetableBuilder is day-structure metadata, not entry content, and is explicitly left in place — rolling it into the unified save would break the existing UX. Branding, MemberManager, and invite forms are orthogonal surfaces (single form, single save each) and are out of scope.
+
+**Alternatives considered**:
+1. *Auto-save* — rejected for the same reason MGT-002 introduced the Review modal: users want to review a diff before committing, and silent auto-save removes that affordance. The unified button preserves the review gate.
+2. *Keep both buttons plus add a third "Save all"* — adds a third primary action, worsens the "one primary per screen" problem, and leaves the original ambiguity intact.
+3. *Parallel commit* — see above.
+4. *Mode-agnostic `handleAcceptCard` / `handleRejectCard` branching on `reviewMode`* — rejected in favour of branching on `card.kind`. The discriminated-union narrow already identifies the target rejection set per card; keying on `reviewMode` would have duplicated the branch logic and been brittle when reviewModes are added or repurposed later.
+
+**References**: DEC-002 (notify semantics); DEC-017 (unified save modal for timetable, superseded in scope — the modal stays but now carries both domains); UX Audit 2026-04-22 Critical #4 + Suggested Improvement #2.
+
+---
+
 ## DEC-039: Build identity badge is rendered only inside authenticated internal layouts, never from the root layout
 
 **Decision**: MGT-093 moves the `v<version> | <short-hash>` badge from the root `src/app/layout.tsx` into a small reusable component [src/components/BuildIdentityBadge.tsx](../src/components/BuildIdentityBadge.tsx) that is mounted once inside each internal layout — [src/app/admin/layout.tsx](../src/app/admin/layout.tsx) and [src/app/my/layout.tsx](../src/app/my/layout.tsx). The public route group (`src/app/(public)/*`) does not render the badge. Badge markup, classes, aria-label, and the `APP_VERSION` / `APP_COMMIT_SHA` resolution in [src/lib/version.ts](../src/lib/version.ts) are unchanged.

@@ -1,7 +1,7 @@
 'use client'
 
 import { StatusBadge } from '@/components/ui/StatusBadge'
-import { cn, CARD, BTN_PRIMARY_SM, BTN_SECONDARY_SM } from '@/lib/styles'
+import { cn, CARD, BTN_PRIMARY_SM, BTN_SECONDARY_SM, SUCCESS_BANNER } from '@/lib/styles'
 import type { Event } from '@/lib/types/database'
 
 interface EventActionsBarProps {
@@ -9,6 +9,12 @@ interface EventActionsBarProps {
   /** Absolute or relative public URL for the event, or null when no slug exists yet. */
   publicHref: string | null
   isDirty?: boolean
+  /** MGT-096: unified save. When `onSave` is provided, the action bar renders
+   *  a single primary "Save changes" button and its status slot. */
+  onSave?: () => void
+  saving?: boolean
+  saveSuccess?: boolean
+  saveError?: string | null
   onPublish: () => void
   onUnpublish: () => void
   onArchive: () => void
@@ -26,17 +32,26 @@ const STATUS_HINT: Record<Event['status'], string> = {
  * Lifecycle action strip for the event editor. Sits above the Event details
  * card and owns the publish / unpublish / archive / duplicate / template
  * actions so the details card itself is only about editing metadata.
+ *
+ * MGT-096: also owns the single unified "Save changes" button when `onSave` is
+ * passed — the editor's sole save entry point for metadata + timetable combined.
  */
 export function EventActionsBar({
   status,
   publicHref,
   isDirty,
+  onSave,
+  saving = false,
+  saveSuccess = false,
+  saveError = null,
   onPublish,
   onUnpublish,
   onArchive,
   onDuplicate,
   onSaveTemplate,
 }: EventActionsBarProps) {
+  const canSave = !!onSave && !!isDirty && !saving
+
   return (
     <section
       className={cn(
@@ -56,10 +71,31 @@ export function EventActionsBar({
             Unsaved changes
           </span>
         )}
+        {saveSuccess && !isDirty && (
+          <span className={cn(SUCCESS_BANNER, 'py-0.5')} role="status" aria-live="polite">
+            Changes saved.
+          </span>
+        )}
+        {saveError && (
+          <span className="text-xs text-red-600" role="alert">{saveError}</span>
+        )}
       </div>
 
       <div className="flex items-center gap-2 flex-wrap">
-        {/* Primary slot */}
+        {/* Unified save — primary entry point for metadata + timetable commit. */}
+        {onSave && (
+          <button
+            type="button"
+            onClick={onSave}
+            disabled={!canSave}
+            aria-busy={saving}
+            className={cn(BTN_PRIMARY_SM, 'disabled:opacity-50 disabled:cursor-not-allowed')}
+          >
+            {saving ? 'Saving…' : 'Save changes'}
+          </button>
+        )}
+
+        {/* Publish / view public — status-dependent primary slot */}
         {status === 'draft' && (
           <button
             type="button"

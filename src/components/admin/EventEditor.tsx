@@ -9,7 +9,7 @@ import { NotificationLogView } from './NotificationLogView'
 import { EventActionsBar } from './EventActionsBar'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { ReviewModal, type ReviewCard, type ChangeCard } from '@/components/ui/ReviewModal'
-import { cn, CARD, CARD_PADDING, H2, HELP_TEXT, INPUT, LABEL_COMPACT, BTN_PRIMARY, SUCCESS_BANNER, ERROR_BANNER } from '@/lib/styles'
+import { cn, CARD, CARD_PADDING, H2, HELP_TEXT, INPUT, LABEL_COMPACT, ERROR_BANNER } from '@/lib/styles'
 import {
   updateEventMetadata,
   publishEvent,
@@ -408,9 +408,13 @@ export function EventEditor({ event, days: initialDays, entries: initialEntries,
   const [rejectedEditedIds,     setRejectedEditedIds]     = useState<Set<string>>(new Set())
 
   // ── Review modal state ──────────────────────────────────────────────────
+  // MGT-096: 'unified' mode lists metadata + timetable cards together so a
+  // single Save CTA commits both domains in one review pass.
   const [reviewOpen,   setReviewOpen]   = useState(false)
-  const [reviewMode,   setReviewMode]   = useState<'metadata' | 'timetable' | null>(null)
+  const [reviewMode,   setReviewMode]   = useState<'metadata' | 'timetable' | 'unified' | null>(null)
   const [reviewSaving, setReviewSaving] = useState(false)
+  const [unifiedError, setUnifiedError] = useState<string | null>(null)
+  const [unifiedSuccess, setUnifiedSuccess] = useState(false)
 
   // ── Dialog state ─────────────────────────────────────────────────────────
   type DialogKind = 'publish' | 'unpublish' | 'archive' | 'duplicate' | 'saveTemplate'
@@ -449,10 +453,19 @@ export function EventEditor({ event, days: initialDays, entries: initialEntries,
     if (reviewMode === null) return []
     if (reviewMode === 'metadata')
       return computeMetaCards(savedMeta, currentMeta, rejectedMetaFields)
-    return computeTimetableCards(
-      savedDayEntries, dayEntries, deletedEntryIds,
-      rejectedAddedLocalIds, rejectedEditedIds, days
-    )
+    if (reviewMode === 'timetable')
+      return computeTimetableCards(
+        savedDayEntries, dayEntries, deletedEntryIds,
+        rejectedAddedLocalIds, rejectedEditedIds, days
+      )
+    // unified — metadata cards first, then timetable cards
+    return [
+      ...computeMetaCards(savedMeta, currentMeta, rejectedMetaFields),
+      ...computeTimetableCards(
+        savedDayEntries, dayEntries, deletedEntryIds,
+        rejectedAddedLocalIds, rejectedEditedIds, days
+      ),
+    ]
   }, [reviewMode, savedMeta, currentMeta, rejectedMetaFields,
       savedDayEntries, dayEntries, deletedEntryIds, rejectedAddedLocalIds, rejectedEditedIds, days])
 
@@ -537,39 +550,6 @@ export function EventEditor({ event, days: initialDays, entries: initialEntries,
   }
 
   // ---------------------------------------------------------------------------
-  // Metadata save → open review
-  // ---------------------------------------------------------------------------
-
-  async function handleSaveMetadata(e: React.FormEvent) {
-    e.preventDefault()
-    // Guard against concurrent submissions — a metadata save is already in flight
-    if (reviewSaving) return
-    if (!title.trim())          { setMetaError('Title is required.');                        return }
-    if (!startDate || !endDate) { setMetaError('Start and end dates are required.');         return }
-    if (endDate < startDate)    { setMetaError('End date must be on or after start date.'); return }
-
-    setMetaError(null)
-    setMetaSuccess(false)
-
-    const cards = computeMetaCards(savedMeta, currentMeta, rejectedMetaFields)
-    if (cards.length === 0) {
-      // No reviewable field changes — save directly (covers notification_emails-only edits)
-      setReviewMode('metadata')
-      setReviewSaving(true)
-      try {
-        await performMetaSave(rejectedMetaFields)
-      } finally {
-        setReviewSaving(false)
-        setReviewMode(null)
-      }
-      return
-    }
-
-    setReviewMode('metadata')
-    setReviewOpen(true)
-  }
-
-  // ---------------------------------------------------------------------------
   // Status actions
   // ---------------------------------------------------------------------------
 
@@ -620,33 +600,115 @@ export function EventEditor({ event, days: initialDays, entries: initialEntries,
   }
 
   // ---------------------------------------------------------------------------
-  // Timetable save → open review
+  // MGT-096: Unified save — single commit entry point for metadata + timetable
   // ---------------------------------------------------------------------------
 
-  function handleSaveTimetable() {
-    const validation = validateTimetable(days, dayEntries)
-    setValidationErrors(validation.entryErrors)
-    setGlobalValidationErrors(validation.globalErrors)
+  async function runUnifiedSave(
+    rejectedMeta: Set<string>,
+    rejAddedLocalIds: Set<string>,
+    rejEditedIds: Set<string>,
+    notify: boolean,
+  ): Promise<void> {
+    setUnifiedError(null)
+    setUnifiedSuccess(false)
 
-    const hasHardErrors = Object.values(validation.entryErrors).some((errs) =>
-      errs.some((e) => e.fields.length > 0)
-    ) || validation.globalErrors.length > 0
-    if (hasHardErrors) { setTimetableError('Fix the highlighted errors before saving.'); return }
-
-    setTimetableError(null)
-    setTimetableSuccess(false)
-
-    const cards = computeTimetableCards(
+    const metaCards = computeMetaCards(savedMeta, currentMeta, rejectedMeta)
+    const tableCards = computeTimetableCards(
       savedDayEntries, dayEntries, deletedEntryIds,
-      rejectedAddedLocalIds, rejectedEditedIds, days
+      rejAddedLocalIds, rejEditedIds, days,
     )
-    if (cards.length === 0) {
-      setTimetableSuccess(true)
-      setTimeout(() => setTimetableSuccess(false), 3000)
+    const emailsChanged = notificationEmails !== savedNotificationEmails
+
+    const metaHasWork = metaCards.length > 0 || emailsChanged
+    const tableHasWork = tableCards.length > 0
+
+    let metaOk = true
+    if (metaHasWork) {
+      metaOk = await performMetaSave(rejectedMeta)
+      if (!metaOk) {
+        setUnifiedError(metaError ?? 'Details save failed.')
+        return
+      }
+    }
+
+    if (tableHasWork) {
+      const tableOk = await performTimetableSave(rejAddedLocalIds, rejEditedIds, notify)
+      if (!tableOk) {
+        setUnifiedError(
+          metaHasWork
+            ? 'Timetable save failed after saving details. Retry the save to complete.'
+            : (timetableError ?? 'Timetable save failed.'),
+        )
+        return
+      }
+    }
+
+    setUnifiedSuccess(true)
+    setTimeout(() => setUnifiedSuccess(false), 3000)
+  }
+
+  /**
+   * MGT-096: the single Save CTA handler. Validates both domains, then either
+   * opens the unified review modal or direct-saves when there are no
+   * reviewable change cards (e.g. notification_emails-only edit).
+   */
+  async function handleUnifiedSave(e?: React.FormEvent): Promise<void> {
+    e?.preventDefault()
+    if (reviewSaving) return
+
+    // Metadata validation gates (lifted from handleSaveMetadata)
+    if (!title.trim())          { setMetaError('Title is required.');                        setUnifiedError('Title is required.');                        return }
+    if (!startDate || !endDate) { setMetaError('Start and end dates are required.');         setUnifiedError('Start and end dates are required.');         return }
+    if (endDate < startDate)    { setMetaError('End date must be on or after start date.'); setUnifiedError('End date must be on or after start date.'); return }
+
+    setMetaError(null)
+
+    // Timetable validation gate — only when the timetable is actually dirty;
+    // a pure metadata save should never block on timetable validation.
+    if (timetableDirty) {
+      const validation = validateTimetable(days, dayEntries)
+      setValidationErrors(validation.entryErrors)
+      setGlobalValidationErrors(validation.globalErrors)
+      const hasHardErrors = Object.values(validation.entryErrors).some((errs) =>
+        errs.some((err) => err.fields.length > 0)
+      ) || validation.globalErrors.length > 0
+      if (hasHardErrors) {
+        setTimetableError('Fix the highlighted errors before saving.')
+        setUnifiedError('Fix the highlighted timetable errors before saving.')
+        document.getElementById('timetable-section')?.scrollIntoView({ behavior: 'smooth' })
+        return
+      }
+    }
+    setTimetableError(null)
+
+    // Compute cards across both domains
+    const metaCards = computeMetaCards(savedMeta, currentMeta, rejectedMetaFields)
+    const tableCards = computeTimetableCards(
+      savedDayEntries, dayEntries, deletedEntryIds,
+      rejectedAddedLocalIds, rejectedEditedIds, days,
+    )
+    const emailsChanged = notificationEmails !== savedNotificationEmails
+
+    // No reviewable cards — direct commit (covers notification_emails-only edits).
+    if (metaCards.length === 0 && tableCards.length === 0) {
+      if (!emailsChanged) {
+        // Nothing to save — treat as a no-op success.
+        setUnifiedSuccess(true)
+        setTimeout(() => setUnifiedSuccess(false), 3000)
+        return
+      }
+      setReviewMode('unified')
+      setReviewSaving(true)
+      try {
+        await runUnifiedSave(rejectedMetaFields, rejectedAddedLocalIds, rejectedEditedIds, false)
+      } finally {
+        setReviewSaving(false)
+        setReviewMode(null)
+      }
       return
     }
 
-    setReviewMode('timetable')
+    setReviewMode('unified')
     setReviewOpen(true)
   }
 
@@ -657,34 +719,33 @@ export function EventEditor({ event, days: initialDays, entries: initialEntries,
   function handleAcceptCard(cardId: string) {
     const card = reviewCards.find((c) => c.id === cardId)
     if (!card) return
-    if (reviewMode === 'metadata') {
+    // Branch by card.kind so the handler works for metadata, timetable, and
+    // unified (mixed) review modes.
+    if (card.kind === 'meta-field') {
       setRejectedMetaFields((prev) => { const s = new Set(prev); s.delete(cardId); return s })
-    } else {
-      if (card.kind === 'entry-added')
-        setRejectedAddedLocalIds((prev) => { const s = new Set(prev); s.delete(cardId); return s })
-      else if (card.kind === 'entry-edited')
-        setRejectedEditedIds((prev) => { const s = new Set(prev); s.delete(cardId); return s })
-      // entry-removed / entry-reordered cannot be un-rejected (immediate revert)
+    } else if (card.kind === 'entry-added') {
+      setRejectedAddedLocalIds((prev) => { const s = new Set(prev); s.delete(cardId); return s })
+    } else if (card.kind === 'entry-edited') {
+      setRejectedEditedIds((prev) => { const s = new Set(prev); s.delete(cardId); return s })
     }
+    // entry-removed / entry-reordered cannot be un-rejected (immediate revert)
   }
 
   function handleRejectCard(cardId: string) {
     const card = reviewCards.find((c) => c.id === cardId)
     if (!card) return
-    if (reviewMode === 'metadata') {
+    if (card.kind === 'meta-field') {
       setRejectedMetaFields((prev) => new Set(Array.from(prev).concat(cardId)))
-    } else {
-      if (card.kind === 'entry-added') {
-        setRejectedAddedLocalIds((prev) => new Set(Array.from(prev).concat(cardId)))
-      } else if (card.kind === 'entry-edited') {
-        setRejectedEditedIds((prev) => new Set(Array.from(prev).concat(cardId)))
-      } else if (card.kind === 'entry-removed') {
-        // Immediate effect: restore the deleted entry
-        handleRestoreDeletedEntry(cardId)
-      } else if (card.kind === 'entry-reordered') {
-        // Immediate effect: revert sort order to saved
-        handleRevertReorder()
-      }
+    } else if (card.kind === 'entry-added') {
+      setRejectedAddedLocalIds((prev) => new Set(Array.from(prev).concat(cardId)))
+    } else if (card.kind === 'entry-edited') {
+      setRejectedEditedIds((prev) => new Set(Array.from(prev).concat(cardId)))
+    } else if (card.kind === 'entry-removed') {
+      // Immediate effect: restore the deleted entry
+      handleRestoreDeletedEntry(cardId)
+    } else if (card.kind === 'entry-reordered') {
+      // Immediate effect: revert sort order to saved
+      handleRevertReorder()
     }
   }
 
@@ -894,6 +955,8 @@ export function EventEditor({ event, days: initialDays, entries: initialEntries,
       await performMetaSave(new Set())  // empty rejections = save everything
     } else if (reviewMode === 'timetable') {
       await performTimetableSave(new Set(), new Set(), notify)
+    } else if (reviewMode === 'unified') {
+      await runUnifiedSave(new Set(), new Set(), new Set(), notify)
     }
     setReviewSaving(false)
     setReviewMode(null)
@@ -906,6 +969,8 @@ export function EventEditor({ event, days: initialDays, entries: initialEntries,
       await performMetaSave(rejectedMetaFields)
     } else if (reviewMode === 'timetable') {
       await performTimetableSave(rejectedAddedLocalIds, rejectedEditedIds, notify)
+    } else if (reviewMode === 'unified') {
+      await runUnifiedSave(rejectedMetaFields, rejectedAddedLocalIds, rejectedEditedIds, notify)
     }
     setReviewSaving(false)
     setReviewMode(null)
@@ -922,21 +987,28 @@ export function EventEditor({ event, days: initialDays, entries: initialEntries,
     setReviewSaving(true)
     setReviewOpen(false)
 
+    // Compute new rejection sets based on the card's domain — works for
+    // metadata, timetable, and unified modes.
+    let newRejMeta = rejectedMetaFields
+    let newRejAdded  = rejectedAddedLocalIds
+    let newRejEdited = rejectedEditedIds
+    if (card?.kind === 'meta-field') {
+      newRejMeta = new Set(Array.from(rejectedMetaFields).filter((id) => id !== cardId))
+      setRejectedMetaFields(newRejMeta)
+    } else if (card?.kind === 'entry-added') {
+      newRejAdded = new Set(Array.from(rejectedAddedLocalIds).filter((id) => id !== cardId))
+      setRejectedAddedLocalIds(newRejAdded)
+    } else if (card?.kind === 'entry-edited') {
+      newRejEdited = new Set(Array.from(rejectedEditedIds).filter((id) => id !== cardId))
+      setRejectedEditedIds(newRejEdited)
+    }
+
     if (reviewMode === 'metadata') {
-      const newRejected = new Set(Array.from(rejectedMetaFields).filter((id) => id !== cardId))
-      setRejectedMetaFields(newRejected)
-      await performMetaSave(newRejected)
+      await performMetaSave(newRejMeta)
     } else if (reviewMode === 'timetable') {
-      let newRejAdded  = rejectedAddedLocalIds
-      let newRejEdited = rejectedEditedIds
-      if (card?.kind === 'entry-added') {
-        newRejAdded = new Set(Array.from(rejectedAddedLocalIds).filter((id) => id !== cardId))
-        setRejectedAddedLocalIds(newRejAdded)
-      } else if (card?.kind === 'entry-edited') {
-        newRejEdited = new Set(Array.from(rejectedEditedIds).filter((id) => id !== cardId))
-        setRejectedEditedIds(newRejEdited)
-      }
       await performTimetableSave(newRejAdded, newRejEdited, notify)
+    } else if (reviewMode === 'unified') {
+      await runUnifiedSave(newRejMeta, newRejAdded, newRejEdited, notify)
     }
 
     setReviewSaving(false)
@@ -1097,10 +1169,17 @@ export function EventEditor({ event, days: initialDays, entries: initialEntries,
       </nav>
 
       {/* ── Lifecycle actions ───────────────────────────────────────────────── */}
+      {/* MGT-096: EventActionsBar now owns the single unified "Save changes"
+          CTA. `onSave={handleUnifiedSave}` is the only save entry point for
+          metadata + timetable combined. */}
       <EventActionsBar
         status={status}
         publicHref={event.slug ? publicUrl : null}
         isDirty={isDirty}
+        onSave={() => { void handleUnifiedSave() }}
+        saving={reviewSaving}
+        saveSuccess={unifiedSuccess}
+        saveError={unifiedError}
         onPublish={() => { setDialog('publish'); setDialogError(null); setPublishAck(false); setNotifyOnPublish(false) }}
         onUnpublish={() => { setDialog('unpublish'); setDialogError(null) }}
         onArchive={() => { setDialog('archive'); setDialogError(null) }}
@@ -1120,7 +1199,7 @@ export function EventEditor({ event, days: initialDays, entries: initialEntries,
           <h2 className={H2}>Event details</h2>
         </div>
 
-        <form onSubmit={handleSaveMetadata} className={`${CARD_PADDING} grid grid-cols-1 md:grid-cols-12 gap-3`}>
+        <form onSubmit={handleUnifiedSave} className={`${CARD_PADDING} grid grid-cols-1 md:grid-cols-12 gap-3`}>
           {/* Title */}
           <div className="md:col-span-7">
             <MetaFieldLabel label="Title *" field="title" current={title} max={FIELD_LIMITS.event.title} />
@@ -1233,17 +1312,14 @@ export function EventEditor({ event, days: initialDays, entries: initialEntries,
             </div>
           )}
 
-          {/* Save row */}
-          <div className="md:col-span-12 flex items-center gap-4">
-            <button type="submit"
-              disabled={reviewSaving && reviewMode === 'metadata'}
-              aria-busy={reviewSaving && reviewMode === 'metadata'}
-              className={`${BTN_PRIMARY} disabled:opacity-50 disabled:cursor-not-allowed`}>
-              {reviewSaving && reviewMode === 'metadata' ? 'Saving…' : 'Save details'}
-            </button>
-            {metaSuccess && <p className={SUCCESS_BANNER} role="status">Details saved.</p>}
-            {metaError   && <p className="text-sm text-red-600">{metaError}</p>}
-          </div>
+          {/* MGT-096: per-section Save removed — single "Save changes" CTA lives
+              in EventActionsBar. Inline metaError still surfaces during
+              unified-save validation so the message appears near the form. */}
+          {metaError && (
+            <div className="md:col-span-12">
+              <p className="text-sm text-red-600" role="alert">{metaError}</p>
+            </div>
+          )}
         </form>
       </section>
 
@@ -1268,20 +1344,21 @@ export function EventEditor({ event, days: initialDays, entries: initialEntries,
             days={days}
             dayEntries={dayEntries}
             validationErrors={validationErrors}
-            saving={reviewSaving && reviewMode === 'timetable'}
-            saveError={timetableError}
-            saveSuccess={timetableSuccess}
             entryChangeInfos={entryChangeInfos}
             onDaysChange={setDays}
             onEntriesChange={handleEntriesChange}
             onDeleteEntry={handleDeleteEntry}
             onRevertEntry={handleRevertEntry}
             onRevertEntryField={handleRevertEntryField}
-            onSave={handleSaveTimetable}
             clipboard={clipboard}
             onCopyDay={handleCopyDay}
             onPasteDay={handlePasteDay}
           />
+          {/* Timetable-specific error surfaces below the builder (the same
+              message is also mirrored in the unified status slot). */}
+          {timetableError && (
+            <p className="mt-3 text-sm text-red-600" role="alert">{timetableError}</p>
+          )}
         </div>
       </section>
 
@@ -1310,9 +1387,16 @@ export function EventEditor({ event, days: initialDays, entries: initialEntries,
       </div>
 
       {/* ── Review modal ──────────────────────────────────────────────────────── */}
+      {/* MGT-096: `unified` mode lists metadata + timetable cards in one pass.
+          The notify checkbox appears when the review contains at least one
+          timetable card (meta-only unified reviews suppress notify per DEC-002). */}
       <ReviewModal
         open={reviewOpen}
-        title={reviewMode === 'metadata' ? 'Review details changes' : 'Review timetable changes'}
+        title={
+          reviewMode === 'metadata' ? 'Review details changes'
+          : reviewMode === 'timetable' ? 'Review timetable changes'
+          : 'Review changes'
+        }
         cards={reviewCards}
         saving={reviewSaving}
         onAccept={handleAcceptCard}
@@ -1321,10 +1405,24 @@ export function EventEditor({ event, days: initialDays, entries: initialEntries,
         onConfirmSave={handleConfirmSave}
         onAcceptAndSave={handleAcceptAndSave}
         onCancel={handleCancelReview}
-        notifyChoiceApplicable={reviewMode === 'timetable' && status === 'published' && !!notificationEmails.trim()}
-        footerExtra={reviewMode === 'timetable' && status === 'published' && !notificationEmails.trim() ? (
-          <p className="text-sm text-gray-400">No notification email addresses set for this event.</p>
-        ) : undefined}
+        notifyChoiceApplicable={
+          status === 'published'
+          && !!notificationEmails.trim()
+          && (
+            reviewMode === 'timetable'
+            || (reviewMode === 'unified' && reviewCards.some((c) => c.kind !== 'meta-field'))
+          )
+        }
+        footerExtra={
+          status === 'published'
+          && !notificationEmails.trim()
+          && (
+            reviewMode === 'timetable'
+            || (reviewMode === 'unified' && reviewCards.some((c) => c.kind !== 'meta-field'))
+          )
+            ? <p className="text-sm text-gray-400">No notification email addresses set for this event.</p>
+            : undefined
+        }
       />
 
       {/* ── Status dialogs ────────────────────────────────────────────────────── */}
