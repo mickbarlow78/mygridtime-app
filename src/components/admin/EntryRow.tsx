@@ -264,6 +264,7 @@ export function EntryRow({
             value={entry.title}
             onChange={(e) => upd({ title: e.target.value })}
             placeholder="Title *"
+            aria-label="Title"
             maxLength={FIELD_LIMITS.entry.title}
             className={fieldClass(baseInput, 'title', changeInfo, errFields)}
           />
@@ -281,6 +282,7 @@ export function EntryRow({
             type="time"
             value={entry.start_time}
             onChange={(e) => upd({ start_time: e.target.value })}
+            aria-label="Start time"
             className={fieldClass(baseInput, 'start_time', changeInfo, errFields)}
           />
         </FieldWrapper>
@@ -297,6 +299,7 @@ export function EntryRow({
             type="time"
             value={entry.end_time}
             onChange={(e) => upd({ end_time: e.target.value })}
+            aria-label="End time"
             className={fieldClass(baseInput, 'end_time', changeInfo, errFields)}
           />
         </FieldWrapper>
@@ -316,6 +319,7 @@ export function EntryRow({
             value={entry.category}
             onChange={(e) => upd({ category: e.target.value })}
             placeholder="Category"
+            aria-label="Category"
             maxLength={FIELD_LIMITS.entry.category}
             className={fieldClass(baseInput, 'category', changeInfo, errFields)}
           />
@@ -336,6 +340,7 @@ export function EntryRow({
             value={entry.notes}
             onChange={(e) => upd({ notes: e.target.value })}
             placeholder="Notes"
+            aria-label="Notes"
             maxLength={FIELD_LIMITS.entry.notes}
             className={fieldClass(baseInput, 'notes', changeInfo, errFields)}
           />
