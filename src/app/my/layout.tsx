@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { getActiveOrg, getUserOrgs } from '@/lib/utils/active-org'
 import { computeUserBadge } from '@/lib/utils/role-badge'
+import { OrgSelector } from '@/components/admin/OrgSelector'
 import { UserMenu } from '@/components/admin/UserMenu'
 import { BuildIdentityBadge } from '@/components/BuildIdentityBadge'
 import { PAGE_BG, HEADER, HEADER_INNER, CONTAINER_FULL, HEADER_NAV_LINK } from '@/lib/styles'
@@ -62,12 +63,18 @@ export default async function ConsumerLayout({
     <div className={PAGE_BG}>
       <header className={HEADER}>
         <div className={HEADER_INNER}>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 min-w-0">
             <Link href="/my" className="text-sm font-semibold text-gray-900 tracking-tight">
               MyGridTime
             </Link>
+            {userOrgs.length > 1 && activeOrg && (
+              <OrgSelector
+                orgs={userOrgs.map((o) => ({ org_id: o.org_id, org_name: o.org_name }))}
+                activeOrgId={activeOrg.org_id}
+              />
+            )}
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-4 min-w-0 flex-wrap gap-y-2">
             {hasElevatedRole && (
               <Link href="/admin" className={HEADER_NAV_LINK}>
                 Manage events
