@@ -57,7 +57,7 @@ export default function NewOrgPage() {
     <div className={`${CONTAINER_NARROW} space-y-6`}>
       {/* Breadcrumb */}
       <div className={BREADCRUMB}>
-        <Link href="/admin" className={BREADCRUMB_LINK}>Events</Link>
+        <Link href="/admin" className={BREADCRUMB_LINK}>Timetables</Link>
         <span className={BREADCRUMB_SEP}>/</span>
         <span className={BREADCRUMB_CURRENT}>New organisation</span>
       </div>

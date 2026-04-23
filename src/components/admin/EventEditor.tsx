@@ -105,7 +105,7 @@ function validateTimetable(
   const globalErrors: string[] = []
   const entryErrors: Record<string, EntryValidationError[]> = {}
 
-  if (days.length === 0) globalErrors.push('Event must have at least one day.')
+  if (days.length === 0) globalErrors.push('Timetable must have at least one day.')
 
   for (const day of days) {
     const entries = dayEntries[day.id] ?? []
@@ -1196,7 +1196,7 @@ export function EventEditor({ event, days: initialDays, entries: initialEntries,
       {/* ── Event metadata ──────────────────────────────────────────────────── */}
       <section id="event-details" className={`${CARD} overflow-hidden`}>
         <div className="px-6 py-3 border-b border-gray-100">
-          <h2 className={H2}>Event details</h2>
+          <h2 className={H2}>Timetable details</h2>
         </div>
 
         <form onSubmit={handleUnifiedSave} className={`${CARD_PADDING} grid grid-cols-1 md:grid-cols-12 gap-3`}>
@@ -1420,7 +1420,7 @@ export function EventEditor({ event, days: initialDays, entries: initialEntries,
             reviewMode === 'timetable'
             || (reviewMode === 'unified' && reviewCards.some((c) => c.kind !== 'meta-field'))
           )
-            ? <p className="text-sm text-gray-400">No notification email addresses set for this event.</p>
+            ? <p className="text-sm text-gray-400">No notification email addresses set for this timetable.</p>
             : undefined
         }
       />
@@ -1482,7 +1482,7 @@ export function EventEditor({ event, days: initialDays, entries: initialEntries,
             Notify attendees about this publish
           </label>
         ) : (
-          <p className="text-sm text-gray-400">No notification email addresses set for this event.</p>
+          <p className="text-sm text-gray-400">No notification email addresses set for this timetable.</p>
         )}
         {dialogError && <p className="text-sm text-red-600">{dialogError}</p>}
       </ConfirmDialog>

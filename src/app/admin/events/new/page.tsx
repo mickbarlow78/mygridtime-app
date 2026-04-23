@@ -194,13 +194,13 @@ export default function NewEventPage() {
     <div className={`${CONTAINER_FORM} space-y-6`}>
       {/* Breadcrumb */}
       <div className={BREADCRUMB}>
-        <Link href="/admin" className={BREADCRUMB_LINK}>Events</Link>
+        <Link href="/admin" className={BREADCRUMB_LINK}>Timetables</Link>
         <span className={BREADCRUMB_SEP}>/</span>
-        <span className={BREADCRUMB_CURRENT}>New event</span>
+        <span className={BREADCRUMB_CURRENT}>New timetable</span>
       </div>
 
       <div>
-        <h1 className={H1}>Create event</h1>
+        <h1 className={H1}>Create timetable</h1>
         <p className={SUBTITLE}>
           Days will be automatically created from your date range. You can add or remove days in the editor.
         </p>
@@ -275,7 +275,7 @@ export default function NewEventPage() {
             <p className={ERROR_BANNER} role="alert">{AI_EXTRACTION_BLOCKED_MSG}</p>
           )}
           <div>
-            <label htmlFor="ex-file" className={LABEL}>Upload a schedule</label>
+            <label htmlFor="ex-file" className={LABEL}>Upload a timetable</label>
             <p className={HELP_TEXT}>
               PDF, PNG, or JPG. Up to 10 MB. We&apos;ll extract a draft event you can review and edit
               before saving. Nothing is saved until you confirm.
@@ -436,7 +436,7 @@ export default function NewEventPage() {
               disabled={submitting || (mode === 'template' && !selectedTemplateId) || Boolean(preselectedTemplate && templatesError)}
               className={BTN_PRIMARY}
             >
-              {submitting ? 'Creating…' : mode === 'template' ? 'Create from template' : 'Create event'}
+              {submitting ? 'Creating…' : mode === 'template' ? 'Create from template' : 'Create timetable'}
             </button>
             <Link
               href="/admin"

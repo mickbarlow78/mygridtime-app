@@ -178,7 +178,7 @@ export default async function LandingPage() {
                   className="border-t border-b border-gray-200 text-left"
                   style={{ borderTopColor: branding?.primaryColor ?? undefined }}
                 >
-                  <th className="py-2.5 pr-6 pl-4 font-semibold text-gray-700 whitespace-nowrap">Event</th>
+                  <th className="py-2.5 pr-6 pl-4 font-semibold text-gray-700 whitespace-nowrap">Timetable</th>
                   <th className="py-2.5 pr-6 font-semibold text-gray-700 whitespace-nowrap">Organisation</th>
                   <th className="py-2.5 pr-6 font-semibold text-gray-700 whitespace-nowrap">Venue</th>
                   <th className="py-2.5 pr-6 font-semibold text-gray-700 whitespace-nowrap">Start</th>

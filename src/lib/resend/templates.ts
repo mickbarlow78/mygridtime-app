@@ -66,12 +66,12 @@ export function eventPublishedHtml(data: EventEmailData): string {
       <h1>${escHtml(data.eventTitle)}</h1>
       <p class="meta">${escHtml(meta)}</p>
       <p style="font-size:15px;line-height:1.6;margin:0 0 28px;color:#374151;">
-        The timetable for this event has been published and is now publicly accessible.
+        Your timetable has been published and is now publicly accessible.
       </p>
       <a href="${escHtml(data.publicUrl)}" class="cta">View timetable</a>
     </div>
     <div class="footer">
-      You received this email because your address is on the notification list for this event.<br />
+      You received this email because your address is on the notification list for this timetable.<br />
       <a href="${escHtml(data.publicUrl)}" style="color:#6b7280;">${escHtml(data.publicUrl)}</a>${unsubLine}
     </div>
   </div>
@@ -87,7 +87,7 @@ export function eventPublishedText(data: EventEmailData): string {
     `${data.eventTitle}`,
     meta,
     ``,
-    `The timetable for this event has been published and is now publicly accessible.`,
+    `Your timetable has been published and is now publicly accessible.`,
     ``,
     `View timetable: ${data.publicUrl}`,
   ]
@@ -127,12 +127,12 @@ export function timetableUpdatedHtml(data: EventEmailData): string {
       <h1>${escHtml(data.eventTitle)}</h1>
       <p class="meta">${escHtml(meta)}</p>
       <p style="font-size:15px;line-height:1.6;margin:0 0 28px;color:#374151;">
-        The timetable for this event has been updated. Please check the latest schedule before the event.
+        Your timetable has been updated. Please check the latest version.
       </p>
       <a href="${escHtml(data.publicUrl)}" class="cta">View updated timetable</a>
     </div>
     <div class="footer">
-      You received this email because your address is on the notification list for this event.<br />
+      You received this email because your address is on the notification list for this timetable.<br />
       <a href="${escHtml(data.publicUrl)}" style="color:#6b7280;">${escHtml(data.publicUrl)}</a>${unsubLine}
     </div>
   </div>
@@ -148,7 +148,7 @@ export function timetableUpdatedText(data: EventEmailData): string {
     `${data.eventTitle}`,
     meta,
     ``,
-    `The timetable for this event has been updated. Please check the latest schedule before the event.`,
+    `Your timetable has been updated. Please check the latest version.`,
     ``,
     `View updated timetable: ${data.publicUrl}`,
   ]

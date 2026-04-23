@@ -77,7 +77,7 @@ export default async function ConsumerLayout({
           <div className="flex items-center gap-4 min-w-0 flex-wrap gap-y-2">
             {hasElevatedRole && (
               <Link href="/admin" className={HEADER_NAV_LINK}>
-                Manage events
+                Manage timetables
               </Link>
             )}
             <UserMenu

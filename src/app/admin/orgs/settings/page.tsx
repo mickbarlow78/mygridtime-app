@@ -60,7 +60,7 @@ export default async function OrgSettingsPage() {
     <div className={`${CONTAINER_FORM} space-y-8`}>
       {/* Breadcrumb */}
       <div className={BREADCRUMB}>
-        <Link href="/admin" className={BREADCRUMB_LINK}>Events</Link>
+        <Link href="/admin" className={BREADCRUMB_LINK}>Timetables</Link>
         <span className={BREADCRUMB_SEP}>/</span>
         <span className={BREADCRUMB_CURRENT}>Organisation settings</span>
       </div>

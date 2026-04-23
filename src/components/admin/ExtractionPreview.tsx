@@ -129,10 +129,10 @@ export function ExtractionPreview({ initialEvent, submitting, error, onConfirm, 
   return (
     <div className="space-y-5">
       <div className={`${CARD} ${CARD_PADDING}`}>
-        <h2 className={`${H2} mb-3`}>Event details</h2>
+        <h2 className={`${H2} mb-3`}>Timetable details</h2>
         <p className={`${HELP_TEXT} mb-4`}>
           Review and edit — you can change any field before creating. Nothing is saved until you click{' '}
-          <span className="font-medium text-gray-600">Create event</span>.
+          <span className="font-medium text-gray-600">Create timetable</span>.
         </p>
 
         <div className="space-y-4">
@@ -337,7 +337,7 @@ export function ExtractionPreview({ initialEvent, submitting, error, onConfirm, 
           disabled={submitting}
           className={BTN_PRIMARY}
         >
-          {submitting ? 'Creating…' : 'Create event'}
+          {submitting ? 'Creating…' : 'Create timetable'}
         </button>
         <button
           type="button"

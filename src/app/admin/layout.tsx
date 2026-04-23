@@ -122,9 +122,9 @@ export default async function AdminLayout({
               <Link
                 href="/admin"
                 className={HEADER_NAV_LINK}
-                title="Events dashboard"
+                title="Timetables dashboard"
               >
-                Events
+                Timetables
               </Link>
             )}
             {authorized && activeOrg && activeOrg.role === 'owner' && (

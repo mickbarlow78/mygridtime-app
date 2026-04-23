@@ -54,23 +54,23 @@ export default async function AdminDashboardPage({ searchParams }: PageProps) {
     })
   }
 
-  const loadError = eventsError ? 'Could not load events. Please retry.' : null
+  const loadError = eventsError ? 'Could not load timetables. Please retry.' : null
 
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className={H1}>Events</h1>
+          <h1 className={H1}>Timetables</h1>
           <p className={SUBTITLE}>
-            Manage your race event timetables.
+            Manage your timetables.
           </p>
         </div>
         <Link
           href="/admin/events/new"
           className={`inline-flex items-center ${BTN_PRIMARY} whitespace-nowrap`}
         >
-          + Create event
+          + Create timetable
         </Link>
       </div>
 
@@ -97,13 +97,13 @@ export default async function AdminDashboardPage({ searchParams }: PageProps) {
       {/* Events list */}
       {!events || events.length === 0 ? (
         <div className="text-center py-16 text-gray-400">
-          <p className="text-base mb-2">No events found.</p>
+          <p className="text-base mb-2">No timetables found.</p>
           {activeFilter === 'all' ? (
             <Link
               href="/admin/events/new"
               className="text-sm text-gray-900 underline underline-offset-2 hover:text-gray-600"
             >
-              Create your first event →
+              Create your first timetable →
             </Link>
           ) : (
             <Link
