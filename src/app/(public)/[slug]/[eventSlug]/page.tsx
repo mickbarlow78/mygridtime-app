@@ -66,7 +66,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const { data: event } = await supabase
     .from('events')
     .select('title, venue, start_date, end_date')
-    .eq('org_id', championship.id)
+    .eq('championship_id', championship.id)
     .eq('slug', params.eventSlug)
     .eq('status', 'published')
     .is('deleted_at', null)
@@ -101,8 +101,8 @@ export default async function PublicEventPage({ params, searchParams }: PageProp
 
   const { data: event } = await supabase
     .from('events')
-    .select('id, title, venue, start_date, end_date, slug, org_id, branding')
-    .eq('org_id', championship.id)
+    .select('id, title, venue, start_date, end_date, slug, championship_id, branding')
+    .eq('championship_id', championship.id)
     .eq('slug', params.eventSlug)
     .eq('status', 'published')
     .is('deleted_at', null)
@@ -110,21 +110,21 @@ export default async function PublicEventPage({ params, searchParams }: PageProp
 
   if (!event) notFound()
 
-  // Fetch org branding via admin client (anon users cannot read organisations).
-  let orgBranding: Json | null = null
+  // Fetch championship branding via admin client (anon users cannot read championships).
+  let championshipBranding: Json | null = null
   try {
     const admin = createAdminClient()
-    const { data: orgRow } = await admin
-      .from('organisations')
+    const { data: championshipRow } = await admin
+      .from('championships')
       .select('branding')
-      .eq('id', event.org_id)
+      .eq('id', event.championship_id)
       .maybeSingle()
-    orgBranding = orgRow?.branding ?? null
+    championshipBranding = championshipRow?.branding ?? null
   } catch {
     // Admin client unavailable — fall back to event-level branding only.
   }
 
-  const branding = resolveEffectiveBranding(event.branding, orgBranding)
+  const branding = resolveEffectiveBranding(event.branding, championshipBranding)
 
   const { data: days } = await supabase
     .from('event_days')

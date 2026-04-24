@@ -67,8 +67,8 @@ export default async function AdminLayout({
 
   // Resolve the active championship name for the badge scope label.
   const activeChampionshipName =
-    activeChampionship && userChampionships.find((o) => o.org_id === activeChampionship.org_id)?.org_name
-      ? userChampionships.find((o) => o.org_id === activeChampionship.org_id)?.org_name ?? null
+    activeChampionship && userChampionships.find((o) => o.championship_id === activeChampionship.championship_id)?.championship_name
+      ? userChampionships.find((o) => o.championship_id === activeChampionship.championship_id)?.championship_name ?? null
       : null
 
   const badge = computeUserBadge(
@@ -84,8 +84,8 @@ export default async function AdminLayout({
   let allowNoChampionshipOnboarding = false
   if (!authorized && pathname === '/admin/championships/new') {
     const { count } = await supabase
-      .from('org_members')
-      .select('org_id', { count: 'exact', head: true })
+      .from('championship_members')
+      .select('championship_id', { count: 'exact', head: true })
       .eq('user_id', user.id)
     allowNoChampionshipOnboarding = (count ?? 0) === 0
   }
@@ -95,8 +95,8 @@ export default async function AdminLayout({
   let hasZeroMemberships = false
   if (!authorized && !allowNoChampionshipOnboarding) {
     const { count } = await supabase
-      .from('org_members')
-      .select('org_id', { count: 'exact', head: true })
+      .from('championship_members')
+      .select('championship_id', { count: 'exact', head: true })
       .eq('user_id', user.id)
     hasZeroMemberships = (count ?? 0) === 0
   }
@@ -112,8 +112,8 @@ export default async function AdminLayout({
             </span>
             {authorized && userChampionships.length > 1 && activeChampionship && (
               <ChampionshipSelector
-                championships={userChampionships.map((o) => ({ org_id: o.org_id, org_name: o.org_name }))}
-                activeChampionshipId={activeChampionship.org_id}
+                championships={userChampionships.map((o) => ({ championship_id: o.championship_id, championship_name: o.championship_name }))}
+                activeChampionshipId={activeChampionship.championship_id}
               />
             )}
           </div>
@@ -150,7 +150,7 @@ export default async function AdminLayout({
               userDisplayName={displayName}
               subscriptionStatus={subscriptionStatus}
               userChampionships={userChampionships}
-              activeChampionshipId={activeChampionship?.org_id ?? null}
+              activeChampionshipId={activeChampionship?.championship_id ?? null}
             />
           </div>
         </div>

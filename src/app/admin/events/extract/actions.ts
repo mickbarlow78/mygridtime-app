@@ -80,7 +80,7 @@ const GENERIC_EXTRACT_ERROR = 'Could not process that upload. Please retry.'
 
 const RATE_LIMIT_ERROR = 'Daily extraction limit reached. Please try again tomorrow.'
 
-const EXTRACTIONS_PER_ORG_PER_DAY = 20
+const EXTRACTIONS_PER_CHAMPIONSHIP_PER_DAY = 20
 
 const STORAGE_BUCKET = 'event-extractions'
 
@@ -170,7 +170,7 @@ export async function extractEventFromUpload(
 
   const { user } = await requireUser()
   const admin = createAdminClient()
-  const orgId = membership.org_id
+  const championshipId = membership.championship_id
   const mime = file.type as ExtractSupportedMime
 
   // 1. Rate-limit pre-flight (rolling 24h window).
@@ -178,7 +178,7 @@ export async function extractEventFromUpload(
   const { count: recentCount, error: countErr } = await admin
     .from('ai_extraction_log')
     .select('id', { count: 'exact', head: true })
-    .eq('org_id', orgId)
+    .eq('championship_id', championshipId)
     .eq('status', 'success')
     .gte('created_at', since)
 
@@ -187,9 +187,9 @@ export async function extractEventFromUpload(
     return { success: false, error: GENERIC_EXTRACT_ERROR }
   }
 
-  if ((recentCount ?? 0) >= EXTRACTIONS_PER_ORG_PER_DAY) {
+  if ((recentCount ?? 0) >= EXTRACTIONS_PER_CHAMPIONSHIP_PER_DAY) {
     await admin.from('ai_extraction_log').insert({
-      org_id: orgId,
+      championship_id: championshipId,
       user_id: user.id,
       source_mime: file.type,
       source_bytes: file.size,
@@ -201,7 +201,7 @@ export async function extractEventFromUpload(
   // 2. Upload to private bucket for audit/replay.
   const extractionId = crypto.randomUUID()
   const ts = Date.now()
-  const storagePath = `${orgId}/${extractionId}/${ts}.${extForMime(file.type)}`
+  const storagePath = `${championshipId}/${extractionId}/${ts}.${extForMime(file.type)}`
   const bytes = Buffer.from(await file.arrayBuffer())
 
   const { error: uploadErr } = await admin.storage
@@ -211,7 +211,7 @@ export async function extractEventFromUpload(
   if (uploadErr) {
     Sentry.captureException(uploadErr, { tags: { action: 'extractEventFromUpload.storageUpload' } })
     await admin.from('ai_extraction_log').insert({
-      org_id: orgId,
+      championship_id: championshipId,
       user_id: user.id,
       source_mime: file.type,
       source_bytes: file.size,
@@ -228,7 +228,7 @@ export async function extractEventFromUpload(
     // 5. Success log row — same id as the meta.extraction_id we return.
     const { error: logErr } = await admin.from('ai_extraction_log').insert({
       id: extractionId,
-      org_id: orgId,
+      championship_id: championshipId,
       user_id: user.id,
       source_mime: file.type,
       source_bytes: file.size,
@@ -269,7 +269,7 @@ export async function extractEventFromUpload(
     })
     await admin.from('ai_extraction_log').insert({
       id: extractionId,
-      org_id: orgId,
+      championship_id: championshipId,
       user_id: user.id,
       source_mime: file.type,
       source_bytes: file.size,
@@ -315,10 +315,10 @@ export async function saveExtractedEventContent(
     }
   }
 
-  // Ownership check — the event must belong to the caller's org.
+  // Ownership check — the event must belong to the caller's championship.
   const { data: eventRow, error: fetchErr } = await supabase
     .from('events')
-    .select('id, org_id, title, start_date, end_date')
+    .select('id, championship_id, title, start_date, end_date')
     .eq('id', eventId)
     .single()
 
@@ -330,7 +330,7 @@ export async function saveExtractedEventContent(
     return { success: false, error: 'Could not save the extracted content. Please retry.' }
   }
 
-  if (eventRow.org_id !== membership.org_id) {
+  if (eventRow.championship_id !== membership.championship_id) {
     return { success: false, error: 'You do not have permission to save this event.' }
   }
 

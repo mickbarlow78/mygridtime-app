@@ -108,7 +108,7 @@ export function SettingsPanels({
         </p>
         <ExtractionLogView
           entries={initialExtractionEntries}
-          orgId={championshipId}
+          championshipId={championshipId}
           initialHasMore={false}
           initialLoadError={initialExtractionLoadError}
           refreshSignal={refreshSignal}

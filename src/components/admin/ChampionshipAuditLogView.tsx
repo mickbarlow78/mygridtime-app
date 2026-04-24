@@ -28,9 +28,9 @@ interface ChampionshipAuditLogViewProps {
 // ── Labels ──────────────────────────────────────────────────────────────────
 
 const actionLabels: Record<string, string> = {
-  'organisation.created':          'Championship created',
-  'organisation.updated':          'Championship renamed',
-  'organisation.branding_updated': 'Branding updated',
+  'championship.created':          'Championship created',
+  'championship.updated':          'Championship renamed',
+  'championship.branding_updated': 'Branding updated',
   'org_member.invited':            'Invite sent',
   'org_member.invite_revoked':     'Invite revoked',
   'org_member.invite_accepted':    'Invite accepted',
@@ -40,9 +40,9 @@ const actionLabels: Record<string, string> = {
 
 const filterOptions: { value: string; label: string }[] = [
   { value: '',                               label: 'All actions' },
-  { value: 'organisation.created',           label: 'Championship created' },
-  { value: 'organisation.updated',           label: 'Championship renamed' },
-  { value: 'organisation.branding_updated',  label: 'Branding updated' },
+  { value: 'championship.created',           label: 'Championship created' },
+  { value: 'championship.updated',           label: 'Championship renamed' },
+  { value: 'championship.branding_updated',  label: 'Branding updated' },
   { value: 'org_member.invited',             label: 'Invite sent' },
   { value: 'org_member.invite_revoked',      label: 'Invite revoked' },
   { value: 'org_member.invite_accepted',     label: 'Invite accepted' },
@@ -71,7 +71,7 @@ type MemberInvitedDetail   = { email?: string; role?: string }
 type MemberRoleDetail      = { target_email?: string | null; changes?: { role?: { from?: string; to?: string } } }
 type MemberRemovedDetail   = { target_email?: string | null; previous_role?: string }
 type MemberInviteIdDetail  = { email?: string | null; invite_id?: string }
-type OrgCreatedDetail      = { name?: string; slug?: string }
+type ChampionshipCreatedDetail = { name?: string; slug?: string }
 
 // ── Formatting helpers ───────────────────────────────────────────────────────
 
@@ -114,13 +114,13 @@ function formatDetailForCsv(action: string, detail: unknown): string {
   if (typeof detail !== 'object' || detail === null) return ''
   const d = detail as Record<string, unknown>
 
-  if (action === 'organisation.created') {
-    const { name, slug } = d as OrgCreatedDetail
+  if (action === 'championship.created') {
+    const { name, slug } = d as ChampionshipCreatedDetail
     if (!name) return ''
     return slug ? `Created "${name}" (slug: ${slug})` : `Created "${name}"`
   }
 
-  if (action === 'organisation.updated' && isMetaChanges(detail)) {
+  if (action === 'championship.updated' && isMetaChanges(detail)) {
     const parts = Object.entries(detail.changes).map(([field, change]) => {
       const label = metaFieldLabels[field] ?? field
       return `${label}: ${fmtVal(change.from)} -> ${fmtVal(change.to)}`
@@ -128,7 +128,7 @@ function formatDetailForCsv(action: string, detail: unknown): string {
     return parts.join('; ')
   }
 
-  if (action === 'organisation.branding_updated' && isMetaChanges(detail)) {
+  if (action === 'championship.branding_updated' && isMetaChanges(detail)) {
     const parts = Object.entries(detail.changes).map(([field, change]) => {
       const label = metaFieldLabels[field] ?? field
       if (field === 'logoUrl') return `${label}: ${logoUrlSummary(change.from, change.to)}`
@@ -218,9 +218,9 @@ function MetaDiff({ changes }: { changes: Record<string, FieldChange> }) {
   )
 }
 
-function OrganisationCreatedSummary({ detail }: { detail: unknown }) {
+function ChampionshipCreatedSummary({ detail }: { detail: unknown }) {
   if (typeof detail !== 'object' || detail === null) return null
-  const { name } = detail as OrgCreatedDetail
+  const { name } = detail as ChampionshipCreatedDetail
   if (!name) return null
   return (
     <p className="mt-1 text-xs text-gray-500">
@@ -373,7 +373,7 @@ export function ChampionshipAuditLogView({
   function handleExportCsv() {
     const csv = entriesToCsv(filteredEntries)
     const date = new Date().toISOString().slice(0, 10)
-    downloadCsv(csv, `org-audit-log-${date}.csv`)
+    downloadCsv(csv, `championship-audit-log-${date}.csv`)
   }
 
   const controlsDisabled = loadingAll && !allLoaded
@@ -480,9 +480,9 @@ export function ChampionshipAuditLogView({
             ) : (
               filteredEntries.map((entry) => {
                 const detail = entry.detail
-                const isOrgMetaDiff =
-                  (entry.action === 'organisation.updated' ||
-                   entry.action === 'organisation.branding_updated') &&
+                const isChampionshipMetaDiff =
+                  (entry.action === 'championship.updated' ||
+                   entry.action === 'championship.branding_updated') &&
                   isMetaChanges(detail)
                 const isMemberAction = entry.action.startsWith('org_member.')
 
@@ -502,8 +502,8 @@ export function ChampionshipAuditLogView({
                       </p>
                     </div>
 
-                    {entry.action === 'organisation.created' && <OrganisationCreatedSummary detail={detail} />}
-                    {isOrgMetaDiff && <MetaDiff changes={(detail as MetaChangesDetail).changes} />}
+                    {entry.action === 'championship.created' && <ChampionshipCreatedSummary detail={detail} />}
+                    {isChampionshipMetaDiff && <MetaDiff changes={(detail as MetaChangesDetail).changes} />}
                     {isMemberAction && <MemberActionSummary action={entry.action} detail={detail} />}
                   </div>
                 )

@@ -66,20 +66,20 @@ export async function sendEventNotification(
   debugLog('sendEventNotification', 'ENTER type:', type, '| eventId:', eventId)
   // ── 1. Fetch event (slug, title, venue, dates, recipients) ───────────────
   //
-  // MGT-082: canonical public URL is nested under the org slug, so the
-  // owning organisation's slug must be joined in here. The join is `!inner`
-  // so an event with a missing/invalid org is skipped rather than sent with
+  // MGT-082: canonical public URL is nested under the championship slug, so the
+  // owning championship's slug must be joined in here. The join is `!inner`
+  // so an event with a missing/invalid championship is skipped rather than sent with
   // a broken link.
   const { data: event } = await supabase
     .from('events')
-    .select('slug, title, venue, start_date, end_date, notification_emails, organisations!inner(slug)')
+    .select('slug, title, venue, start_date, end_date, notification_emails, championships!inner(slug)')
     .eq('id', eventId)
     .maybeSingle()
 
   if (!event) return
-  const orgRow = (event as typeof event & { organisations: { slug: string } | { slug: string }[] }).organisations
-  const orgSlug = Array.isArray(orgRow) ? orgRow[0]?.slug : orgRow?.slug
-  if (!orgSlug) return
+  const championshipRow = (event as typeof event & { championships: { slug: string } | { slug: string }[] }).championships
+  const championshipSlug = Array.isArray(championshipRow) ? championshipRow[0]?.slug : championshipRow?.slug
+  if (!championshipSlug) return
 
   // ── 2. Normalise recipients to lowercase, skip if none ──────────────────
   const rawRecipients = event.notification_emails ?? []
@@ -132,7 +132,7 @@ export async function sendEventNotification(
       : `${formatDate(event.start_date)} – ${formatDate(event.end_date)}`
 
   const appUrl = getServerAppUrl()
-  const publicUrl = `${appUrl}/${orgSlug}/${event.slug}`
+  const publicUrl = `${appUrl}/${championshipSlug}/${event.slug}`
 
   const subject =
     type === 'event.published'

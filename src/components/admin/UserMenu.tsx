@@ -180,18 +180,18 @@ export function UserMenu({
             ) : (
               <ul className="space-y-1">
                 {userChampionships.map((o) => (
-                  <li key={o.org_id}>
+                  <li key={o.championship_id}>
                     <button
                       type="button"
-                      onClick={() => handleSwitchChampionship(o.org_id)}
+                      onClick={() => handleSwitchChampionship(o.championship_id)}
                       disabled={pending}
                       className={`w-full text-left text-xs px-2 rounded transition-colors disabled:opacity-50 min-h-[40px] py-2 inline-flex items-center sm:min-h-0 sm:py-1 ${
-                        o.org_id === activeChampionshipId
+                        o.championship_id === activeChampionshipId
                           ? 'bg-gray-100 text-gray-900 font-medium'
                           : 'text-gray-700 hover:bg-gray-50'
                       }`}
                     >
-                      <span className="truncate block min-w-0 w-full">{o.org_name}</span>
+                      <span className="truncate block min-w-0 w-full">{o.championship_name}</span>
                     </button>
                   </li>
                 ))}

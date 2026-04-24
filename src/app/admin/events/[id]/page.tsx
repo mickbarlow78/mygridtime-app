@@ -29,7 +29,7 @@ export default async function EventEditorPage({ params }: PageProps) {
 
   if (!user) redirect('/auth/login')
 
-  // Fetch event (RLS ensures the user can only see events in their org)
+  // Fetch event (RLS ensures the user can only see events in their championship)
   const { data: event, error: eventError } = await supabase
     .from('events')
     .select('*')
@@ -39,21 +39,21 @@ export default async function EventEditorPage({ params }: PageProps) {
 
   if (eventError || !event) notFound()
 
-  // MGT-082: load the owning organisation's slug so the editor can render
-  // the canonical public URL (`/{orgSlug}/{eventSlug}`). Anon/authed RLS
-  // does not grant SELECT on organisations, so the admin client is used —
+  // MGT-082: load the owning championship's slug so the editor can render
+  // the canonical public URL (`/{championshipSlug}/{eventSlug}`). Anon/authed RLS
+  // does not grant SELECT on championships, so the admin client is used —
   // same pattern as the public pages.
-  let orgSlug = ''
+  let championshipSlug = ''
   try {
     const admin = createAdminClient()
-    const { data: orgRow } = await admin
-      .from('organisations')
+    const { data: championshipRow } = await admin
+      .from('championships')
       .select('slug')
-      .eq('id', event.org_id)
+      .eq('id', event.championship_id)
       .maybeSingle()
-    orgSlug = orgRow?.slug ?? ''
+    championshipSlug = championshipRow?.slug ?? ''
   } catch (err) {
-    Sentry.captureException(err, { tags: { action: 'eventEditorPage.resolveOrgSlug' } })
+    Sentry.captureException(err, { tags: { action: 'eventEditorPage.resolveChampionshipSlug' } })
   }
 
   // Fetch event days, sorted
@@ -195,7 +195,7 @@ export default async function EventEditorPage({ params }: PageProps) {
     id: string
     user_id: string | null
     event_id: string | null
-    org_id: string | null
+    championship_id: string | null
     action: string
     detail: unknown
     actor_context: unknown
@@ -209,7 +209,7 @@ export default async function EventEditorPage({ params }: PageProps) {
       id: raw.id,
       user_id: raw.user_id,
       event_id: raw.event_id,
-      org_id: raw.org_id,
+      championship_id: raw.championship_id,
       action: raw.action,
       detail: raw.detail as import('@/lib/types/database').Json | null,
       actor_context: raw.actor_context as import('@/lib/types/database').Json | null,
@@ -277,7 +277,7 @@ export default async function EventEditorPage({ params }: PageProps) {
         versions={versions}
         versionsLoadError={versionsLoadError}
         unsubscribedEmails={unsubscribedEmails}
-        orgSlug={orgSlug}
+        championshipSlug={championshipSlug}
       />
     </div>
   )

@@ -2,6 +2,8 @@ import { cookies } from 'next/headers'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Database, ChampionshipMemberRole, PlatformRole } from '@/lib/types/database'
 
+// Cookie name preserved for backwards compatibility — renaming would log
+// existing sessions out of the currently-active championship.
 const CHAMPIONSHIP_COOKIE = 'mgt-org-id'
 
 /** Allowed roles for admin access (matches layout + requireEditor). */
@@ -39,7 +41,7 @@ export function setActiveChampionshipId(championshipId: string): void {
 /**
  * `via` records HOW the caller reached the active championship.
  *
- *   - 'membership' — the caller has a real org_members row (the normal case).
+ *   - 'membership' — the caller has a real championship_members row (the normal case).
  *   - 'platform'   — the caller is platform staff reaching the championship
  *                    via the Phase A compatibility shortcut (treated as
  *                    effective owner for permission evaluation). They are NOT
@@ -50,7 +52,7 @@ export function setActiveChampionshipId(championshipId: string): void {
  * `platform_role` is set only when `via === 'platform'`.
  */
 export interface ActiveChampionship {
-  org_id: string
+  championship_id: string
   role: ChampionshipMemberRole
   via: 'platform' | 'membership'
   platform_role?: PlatformRole | null
@@ -96,14 +98,14 @@ export async function getActiveChampionship(
     // 1. Prefer the cookie-selected championship if it exists at all.
     if (cookieChampionshipId) {
       const { data: cookieChampionship } = await supabase
-        .from('organisations')
+        .from('championships')
         .select('id')
         .eq('id', cookieChampionshipId)
         .maybeSingle()
 
       if (cookieChampionship) {
         return {
-          org_id: cookieChampionship.id,
+          championship_id: cookieChampionship.id,
           role: 'owner',
           via: 'platform',
           platform_role: platformRole,
@@ -116,17 +118,17 @@ export async function getActiveChampionship(
     //    to avoid ambiguity downstream — the platform route is the stronger
     //    claim and is what we want audit_context to record.
     const { data: memberFallback } = await supabase
-      .from('org_members')
-      .select('org_id')
+      .from('championship_members')
+      .select('championship_id')
       .eq('user_id', userId)
       .in('role', ALLOWED_ROLES)
       .limit(1)
       .maybeSingle()
 
     if (memberFallback) {
-      setActiveChampionshipId(memberFallback.org_id)
+      setActiveChampionshipId(memberFallback.championship_id)
       return {
-        org_id: memberFallback.org_id,
+        championship_id: memberFallback.championship_id,
         role: 'owner',
         via: 'platform',
         platform_role: platformRole,
@@ -136,7 +138,7 @@ export async function getActiveChampionship(
     // 3. Last-resort fallback: oldest championship in the system. Platform
     //    staff are cross-championship and do not require championship membership.
     const { data: anyChampionship } = await supabase
-      .from('organisations')
+      .from('championships')
       .select('id')
       .order('created_at', { ascending: true })
       .limit(1)
@@ -145,7 +147,7 @@ export async function getActiveChampionship(
     if (anyChampionship) {
       setActiveChampionshipId(anyChampionship.id)
       return {
-        org_id: anyChampionship.id,
+        championship_id: anyChampionship.id,
         role: 'owner',
         via: 'platform',
         platform_role: platformRole,
@@ -159,22 +161,22 @@ export async function getActiveChampionship(
   // If cookie is set, verify membership
   if (cookieChampionshipId) {
     const { data: match } = await supabase
-      .from('org_members')
-      .select('org_id, role')
+      .from('championship_members')
+      .select('championship_id, role')
       .eq('user_id', userId)
-      .eq('org_id', cookieChampionshipId)
+      .eq('championship_id', cookieChampionshipId)
       .in('role', ALLOWED_ROLES)
       .maybeSingle()
 
     if (match) {
-      return { org_id: match.org_id, role: match.role, via: 'membership' }
+      return { championship_id: match.championship_id, role: match.role, via: 'membership' }
     }
   }
 
   // Fallback: first qualifying membership
   const { data: fallback } = await supabase
-    .from('org_members')
-    .select('org_id, role')
+    .from('championship_members')
+    .select('championship_id, role')
     .eq('user_id', userId)
     .in('role', ALLOWED_ROLES)
     .limit(1)
@@ -183,15 +185,15 @@ export async function getActiveChampionship(
   if (!fallback) return null
 
   // Set cookie to the fallback championship so subsequent requests skip the fallback
-  setActiveChampionshipId(fallback.org_id)
+  setActiveChampionshipId(fallback.championship_id)
 
-  return { org_id: fallback.org_id, role: fallback.role, via: 'membership' }
+  return { championship_id: fallback.championship_id, role: fallback.role, via: 'membership' }
 }
 
 export interface UserChampionship {
-  org_id: string
-  org_name: string
-  org_slug: string
+  championship_id: string
+  championship_name: string
+  championship_slug: string
   role: ChampionshipMemberRole
 }
 
@@ -204,18 +206,18 @@ export async function getUserChampionships(
   userId: string
 ): Promise<UserChampionship[]> {
   const { data } = await supabase
-    .from('org_members')
-    .select('org_id, role, organisations(name, slug)')
+    .from('championship_members')
+    .select('championship_id, role, championships(name, slug)')
     .eq('user_id', userId)
 
   if (!data) return []
 
   return data.map((row) => {
-    const championship = row.organisations as unknown as { name: string; slug: string } | null
+    const championship = row.championships as unknown as { name: string; slug: string } | null
     return {
-      org_id: row.org_id,
-      org_name: championship?.name ?? '',
-      org_slug: championship?.slug ?? '',
+      championship_id: row.championship_id,
+      championship_name: championship?.name ?? '',
+      championship_slug: championship?.slug ?? '',
       role: row.role,
     }
   })

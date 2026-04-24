@@ -1,5 +1,20 @@
 # Known Issues
 
+## MGT-107-residual: `get_user_org_role()` SQL function name retained after tenant-rename Phase 4 — OPEN
+
+**Description**: MGT-107 renamed the tenant tables, `org_id` FK column, and the `organisation.*` audit-action row values to their `championship` equivalents, but deliberately did **not** rename the `get_user_org_role(p_org_id uuid)` SQL helper function (or its parameter). The function is called by ~70 policy predicates across 11 migrations and is also declared in the hand-written `Functions` entry in [src/lib/types/database.ts](../src/lib/types/database.ts:584). Renaming it requires dropping and recreating every dependent RLS policy in a single transaction — a scope multiplier that would have blown past the risk budget for MGT-107.
+
+**Impact**: zero user-facing impact. The helper name is purely internal — never shown in UI, never reachable via API, never returned in error messages. The only surface where the stale name bleeds through is grep output inside migrations and the `database.ts` function declaration.
+
+**Planned resolution**: separate RLS-layer ticket (unsched as of 2026-04-24) whose sole scope is the function + parameter rename and the full policy-body rebuild. Until then, expect `get_user_org_role` / `p_org_id` to still appear in:
+- Every `supabase/migrations/*.sql` with RLS policy bodies on tenant-scoped tables.
+- [src/lib/types/database.ts](../src/lib/types/database.ts:584) Functions block.
+- Comments / doc strings referencing the helper.
+
+**Status**: OPEN — intentional deferral logged at MGT-107 EXEC gate; DEC-041 Phase 4 bullet references this residual.
+
+---
+
 ## MGT-101: Editor / timetable mobile tap targets below WCAG 2.5.5 — RESOLVED 2026-04-23
 
 **Description**: UX Audit 2026-04-22 Suggested Improvement #10 (MEDIUM, residual scope deferred from MGT-094 / MGT-095). Mobile tap targets on the event-editor surface were below the WCAG 2.5.5 minimum of 44×44 (project minimum 40px):

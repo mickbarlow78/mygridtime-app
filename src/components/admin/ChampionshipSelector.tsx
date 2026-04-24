@@ -5,8 +5,8 @@ import { useTransition } from 'react'
 import { switchChampionship } from '@/app/admin/championships/actions'
 
 interface ChampionshipOption {
-  org_id: string
-  org_name: string
+  championship_id: string
+  championship_name: string
 }
 
 interface ChampionshipSelectorProps {
@@ -39,8 +39,8 @@ export function ChampionshipSelector({ championships, activeChampionshipId }: Ch
       className="text-xs text-gray-700 bg-gray-50 border border-gray-200 rounded px-2 py-2 sm:py-1 min-h-[40px] sm:min-h-0 focus:outline-none focus:ring-1 focus:ring-gray-400 disabled:opacity-50 max-w-[160px] truncate"
     >
       {championships.map((championship) => (
-        <option key={championship.org_id} value={championship.org_id}>
-          {championship.org_name}
+        <option key={championship.championship_id} value={championship.championship_id}>
+          {championship.championship_name}
         </option>
       ))}
     </select>

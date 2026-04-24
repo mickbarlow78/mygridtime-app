@@ -32,9 +32,9 @@ export default async function ChampionshipSettingsPage() {
 
   // Fetch championship details (include branding for the BrandingForm initial values)
   const { data: championship } = await supabase
-    .from('organisations')
+    .from('championships')
     .select('id, name, slug, branding')
-    .eq('id', activeChampionship.org_id)
+    .eq('id', activeChampionship.championship_id)
     .single()
 
   if (!championship) redirect('/admin')

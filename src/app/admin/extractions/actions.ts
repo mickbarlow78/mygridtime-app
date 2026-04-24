@@ -16,7 +16,7 @@ export type ExtractionStatus =
 
 export interface ExtractionLogEntry {
   id: string
-  org_id: string
+  championship_id: string
   user_id: string | null
   event_id: string | null
   source_mime: string
@@ -42,12 +42,12 @@ export interface LoadExtractionLogResult {
 const CAP = 2000
 
 /**
- * Loads ai_extraction_log rows for an org, newest first. Mirrors the
+ * Loads ai_extraction_log rows for a championship, newest first. Mirrors the
  * shape of loadAuditLog() (DEC-026). RLS (`ai_extraction_log_select_members`)
  * is the real access gate — this action only requires an authenticated user.
  */
 export async function loadExtractionLog(
-  orgId: string,
+  championshipId: string,
 ): Promise<ActionResult<LoadExtractionLogResult>> {
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -56,9 +56,9 @@ export async function loadExtractionLog(
   const { data: rows, error } = await supabase
     .from('ai_extraction_log')
     .select(
-      'id, org_id, user_id, event_id, source_mime, source_bytes, source_path, model, tokens_input, tokens_output, status, error_code, created_at, users:user_id ( email ), events:event_id ( id, title, slug, deleted_at )',
+      'id, championship_id, user_id, event_id, source_mime, source_bytes, source_path, model, tokens_input, tokens_output, status, error_code, created_at, users:user_id ( email ), events:event_id ( id, title, slug, deleted_at )',
     )
-    .eq('org_id', orgId)
+    .eq('championship_id', championshipId)
     .order('created_at', { ascending: false })
     .limit(CAP + 1)
 
@@ -71,7 +71,7 @@ export async function loadExtractionLog(
 
   type Raw = {
     id: string
-    org_id: string
+    championship_id: string
     user_id: string | null
     event_id: string | null
     source_mime: string
@@ -91,7 +91,7 @@ export async function loadExtractionLog(
     const raw = row as unknown as Raw
     return {
       id: raw.id,
-      org_id: raw.org_id,
+      championship_id: raw.championship_id,
       user_id: raw.user_id,
       event_id: raw.event_id,
       source_mime: raw.source_mime,

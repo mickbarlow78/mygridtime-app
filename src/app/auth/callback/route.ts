@@ -105,7 +105,7 @@ export async function GET(request: NextRequest) {
     const { data: { user } } = await supabase.auth.getUser()
     if (user) {
       const { data: memberships } = await supabase
-        .from('org_members')
+        .from('championship_members')
         .select('role')
         .eq('user_id', user.id)
 

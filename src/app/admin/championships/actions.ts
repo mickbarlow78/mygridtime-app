@@ -38,7 +38,7 @@ async function requireUser() {
 
 /**
  * Creates a new championship and makes the current user its owner.
- * Uses the admin client to insert the initial org_members row (bypasses RLS).
+ * Uses the admin client to insert the initial championship_members row (bypasses RLS).
  */
 export async function createChampionship(input: {
   name: string
@@ -70,12 +70,12 @@ export async function createChampionship(input: {
 
     // Detect whether this will be the user's first championship BEFORE the
     // new membership row is inserted. Uses the authenticated client — the
-    // user can always see their own org_members rows under RLS. A failure
+    // user can always see their own championship_members rows under RLS. A failure
     // here must not block creation; default to false (subsequent-championship
     // behaviour) so we never route a returning user to the first-run path.
     let isFirstChampionship = false
     const { count: priorMembershipCount, error: priorCountError } = await supabase
-      .from('org_members')
+      .from('championship_members')
       .select('id', { count: 'exact', head: true })
       .eq('user_id', user.id)
 
@@ -89,7 +89,7 @@ export async function createChampionship(input: {
 
     // Check slug uniqueness across championships via admin client
     const { data: existingChampionship } = await admin
-      .from('organisations')
+      .from('championships')
       .select('id')
       .eq('slug', slug)
       .maybeSingle()
@@ -111,7 +111,7 @@ export async function createChampionship(input: {
 
     // Insert championship via admin client (bypasses RLS)
     const { data: championship, error: championshipError } = await admin
-      .from('organisations')
+      .from('championships')
       .insert({ name, slug })
       .select('id')
       .single()
@@ -125,12 +125,12 @@ export async function createChampionship(input: {
 
     // Insert owner membership via admin client (bypasses RLS)
     const { error: memberError } = await admin
-      .from('org_members')
-      .insert({ org_id: championship.id, user_id: user.id, role: 'owner' })
+      .from('championship_members')
+      .insert({ championship_id: championship.id, user_id: user.id, role: 'owner' })
 
     if (memberError) {
       // Clean up the championship if membership insert fails
-      await admin.from('organisations').delete().eq('id', championship.id)
+      await admin.from('championships').delete().eq('id', championship.id)
       Sentry.captureException(memberError, { tags: { action: 'createOrganisation.insertMember' } })
       return { success: false, error: 'Could not create the championship. Please retry.' }
     }
@@ -142,7 +142,7 @@ export async function createChampionship(input: {
       supabase,
       user.id,
       { championshipId: championship.id },
-      'organisation.created',
+      'championship.created',
       { org_id: championship.id, name, slug },
       { via: 'membership' },
     )
@@ -175,10 +175,10 @@ export async function switchChampionship(championshipId: string): Promise<Action
 
   // Verify the user is a member of this championship
   const { data: membership } = await supabase
-    .from('org_members')
-    .select('org_id')
+    .from('championship_members')
+    .select('championship_id')
     .eq('user_id', user.id)
-    .eq('org_id', championshipId)
+    .eq('championship_id', championshipId)
     .maybeSingle()
 
   if (!membership) return { success: false, error: 'You are not a member of this championship.' }
@@ -223,18 +223,18 @@ export async function updateChampionship(input: {
   // Pre-fetch current name so the audit row captures the diff and can be
   // suppressed on a no-op save, consistent with event.updated / event_day.label_updated.
   const { data: current } = await supabase
-    .from('organisations')
+    .from('championships')
     .select('name')
     .eq('id', input.championshipId)
     .maybeSingle()
 
   const { error } = await supabase
-    .from('organisations')
+    .from('championships')
     .update({ name })
     .eq('id', input.championshipId)
 
   if (error) {
-    Sentry.captureException(error, { tags: { action: 'updateOrganisation.update' } })
+    Sentry.captureException(error, { tags: { action: 'updateChampionship.update' } })
     return { success: false, error: 'Could not update the championship. Please retry.' }
   }
 
@@ -244,7 +244,7 @@ export async function updateChampionship(input: {
       supabase,
       user.id,
       { championshipId: input.championshipId },
-      'organisation.updated',
+      'championship.updated',
       { changes: { name: { from: previousName, to: name } } },
       makeActorContext(activeChampionship),
     )
@@ -281,7 +281,7 @@ export async function updateChampionshipBranding(input: {
   // Pre-fetch current branding so the audit row captures a per-field diff
   // and can be suppressed on a no-op save.
   const { data: currentRow } = await supabase
-    .from('organisations')
+    .from('championships')
     .select('branding')
     .eq('id', input.championshipId)
     .maybeSingle()
@@ -296,12 +296,12 @@ export async function updateChampionshipBranding(input: {
   const brandingValue = Object.keys(stored).length > 0 ? stored : null
 
   const { error } = await supabase
-    .from('organisations')
+    .from('championships')
     .update({ branding: brandingValue })
     .eq('id', input.championshipId)
 
   if (error) {
-    Sentry.captureException(error, { tags: { action: 'updateOrgBranding.update' } })
+    Sentry.captureException(error, { tags: { action: 'updateChampionshipBranding.update' } })
     return { success: false, error: 'Could not save branding. Please retry.' }
   }
 
@@ -322,7 +322,7 @@ export async function updateChampionshipBranding(input: {
       supabase,
       user.id,
       { championshipId: input.championshipId },
-      'organisation.branding_updated',
+      'championship.branding_updated',
       { changes },
       makeActorContext(activeChampionship),
     )
@@ -353,13 +353,13 @@ export async function listChampionshipMembers(championshipId: string): Promise<A
   // not just the current user (users_select_own RLS blocks cross-user reads)
   const admin = createAdminClient()
   const { data, error } = await admin
-    .from('org_members')
-    .select('id, user_id, role, created_at, users!org_members_user_id_fkey(email)')
-    .eq('org_id', championshipId)
+    .from('championship_members')
+    .select('id, user_id, role, created_at, users!championship_members_user_id_fkey(email)')
+    .eq('championship_id', championshipId)
     .order('created_at', { ascending: true })
 
   if (error) {
-    Sentry.captureException(error, { tags: { action: 'listOrgMembers.select' } })
+    Sentry.captureException(error, { tags: { action: 'listChampionshipMembers.select' } })
     return { success: false, error: 'Could not load members. Please retry.' }
   }
 
@@ -389,10 +389,10 @@ export async function updateMemberRole(input: {
   // users RLS is self-only (users_select_own), so the email join may return
   // null for other members; the audit row still writes with target_user_id.
   const { data: member } = await supabase
-    .from('org_members')
-    .select('id, user_id, role, users!org_members_user_id_fkey(email)')
+    .from('championship_members')
+    .select('id, user_id, role, users!championship_members_user_id_fkey(email)')
     .eq('id', input.memberId)
-    .eq('org_id', input.championshipId)
+    .eq('championship_id', input.championshipId)
     .single()
 
   if (!member) return { success: false, error: 'Member not found.' }
@@ -403,9 +403,9 @@ export async function updateMemberRole(input: {
   // Prevent demoting last owner
   if (previousRole === 'owner' && input.newRole !== 'owner') {
     const { count } = await supabase
-      .from('org_members')
+      .from('championship_members')
       .select('id', { count: 'exact', head: true })
-      .eq('org_id', input.championshipId)
+      .eq('championship_id', input.championshipId)
       .eq('role', 'owner')
 
     if ((count ?? 0) <= 1) {
@@ -414,7 +414,7 @@ export async function updateMemberRole(input: {
   }
 
   const { error } = await supabase
-    .from('org_members')
+    .from('championship_members')
     .update({ role: input.newRole })
     .eq('id', input.memberId)
 
@@ -458,10 +458,10 @@ export async function removeMember(input: {
   // (users_select_own) may null out the email for non-self rows; audit still
   // writes with target_user_id.
   const { data: member } = await supabase
-    .from('org_members')
-    .select('id, user_id, role, users!org_members_user_id_fkey(email)')
+    .from('championship_members')
+    .select('id, user_id, role, users!championship_members_user_id_fkey(email)')
     .eq('id', input.memberId)
-    .eq('org_id', input.championshipId)
+    .eq('championship_id', input.championshipId)
     .single()
 
   if (!member) return { success: false, error: 'Member not found.' }
@@ -483,9 +483,9 @@ export async function removeMember(input: {
   // Prevent removing last owner
   if (previousRole === 'owner') {
     const { count } = await supabase
-      .from('org_members')
+      .from('championship_members')
       .select('id', { count: 'exact', head: true })
-      .eq('org_id', input.championshipId)
+      .eq('championship_id', input.championshipId)
       .eq('role', 'owner')
 
     if ((count ?? 0) <= 1) {
@@ -494,7 +494,7 @@ export async function removeMember(input: {
   }
 
   const { error } = await supabase
-    .from('org_members')
+    .from('championship_members')
     .delete()
     .eq('id', input.memberId)
 
@@ -538,14 +538,14 @@ export async function listChampionshipInvites(championshipId: string): Promise<A
   if (!authorized) return { success: false, error: 'Only owners can view invites.' }
 
   const { data, error } = await supabase
-    .from('org_invites')
+    .from('championship_invites')
     .select('id, email, role, created_at')
-    .eq('org_id', championshipId)
+    .eq('championship_id', championshipId)
     .is('accepted_at', null)
     .order('created_at', { ascending: false })
 
   if (error) {
-    Sentry.captureException(error, { tags: { action: 'listOrgInvites.select' } })
+    Sentry.captureException(error, { tags: { action: 'listChampionshipInvites.select' } })
     return { success: false, error: 'Could not load pending invites. Please retry.' }
   }
   return { success: true, data: data ?? [] }
@@ -578,9 +578,9 @@ export async function inviteMember(input: {
 
     if (existingUser) {
       const { data: existingMember } = await admin
-        .from('org_members')
+        .from('championship_members')
         .select('id')
-        .eq('org_id', input.championshipId)
+        .eq('championship_id', input.championshipId)
         .eq('user_id', existingUser.id)
         .maybeSingle()
 
@@ -591,9 +591,9 @@ export async function inviteMember(input: {
 
     // Insert invite via admin client — bypasses RLS so RETURNING always works
     const { data: invite, error: insertError } = await admin
-      .from('org_invites')
+      .from('championship_invites')
       .insert({
-        org_id: input.championshipId,
+        championship_id: input.championshipId,
         email,
         role: input.role,
         invited_by: user.id,
@@ -624,7 +624,7 @@ export async function inviteMember(input: {
 
     // Fetch championship name for the email (use user client — RLS allows member read)
     const { data: championship } = await supabase
-      .from('organisations')
+      .from('championships')
       .select('name')
       .eq('id', input.championshipId)
       .maybeSingle()
@@ -679,17 +679,17 @@ export async function revokeInvite(input: {
 
   // Capture email pre-delete so the audit row records who was invited.
   const { data: inviteRow } = await supabase
-    .from('org_invites')
+    .from('championship_invites')
     .select('email')
     .eq('id', input.inviteId)
-    .eq('org_id', input.championshipId)
+    .eq('championship_id', input.championshipId)
     .maybeSingle()
 
   const { error } = await supabase
-    .from('org_invites')
+    .from('championship_invites')
     .delete()
     .eq('id', input.inviteId)
-    .eq('org_id', input.championshipId)
+    .eq('championship_id', input.championshipId)
 
   if (error) {
     Sentry.captureException(error, { tags: { action: 'revokeInvite.delete' } })
@@ -720,8 +720,8 @@ export async function acceptInvite(token: string): Promise<ActionResult<{ champi
 
   // Fetch invite by token
   const { data: invite, error: fetchError } = await admin
-    .from('org_invites')
-    .select('id, org_id, email, role, accepted_at')
+    .from('championship_invites')
+    .select('id, championship_id, email, role, accepted_at')
     .eq('token', token)
     .single()
 
@@ -743,9 +743,9 @@ export async function acceptInvite(token: string): Promise<ActionResult<{ champi
 
   // Check not already a member
   const { data: existingMember } = await admin
-    .from('org_members')
+    .from('championship_members')
     .select('id')
-    .eq('org_id', invite.org_id)
+    .eq('championship_id', invite.championship_id)
     .eq('user_id', user.id)
     .maybeSingle()
 
@@ -754,7 +754,7 @@ export async function acceptInvite(token: string): Promise<ActionResult<{ champi
     // from the pending list. If the update fails, surface it: a silently
     // unchecked update leaves a stale pending invite behind forever.
     const { error: markError } = await admin
-      .from('org_invites')
+      .from('championship_invites')
       .update({ accepted_at: new Date().toISOString() })
       .eq('id', invite.id)
 
@@ -763,14 +763,14 @@ export async function acceptInvite(token: string): Promise<ActionResult<{ champi
       return { success: false, error: 'Could not mark the invite as accepted. Please try again.' }
     }
 
-    return { success: true, data: { championshipId: invite.org_id, role: invite.role } }
+    return { success: true, data: { championshipId: invite.championship_id, role: invite.role } }
   }
 
   // Insert membership
   const { error: memberError } = await admin
-    .from('org_members')
+    .from('championship_members')
     .insert({
-      org_id: invite.org_id,
+      championship_id: invite.championship_id,
       user_id: user.id,
       role: invite.role,
     })
@@ -786,7 +786,7 @@ export async function acceptInvite(token: string): Promise<ActionResult<{ champi
   // forever. Surface the failure so the caller can retry / raise an alert
   // rather than silently reporting success.
   const { error: markError } = await admin
-    .from('org_invites')
+    .from('championship_invites')
     .update({ accepted_at: new Date().toISOString() })
     .eq('id', invite.id)
 
@@ -801,14 +801,14 @@ export async function acceptInvite(token: string): Promise<ActionResult<{ champi
   await writeAuditLog(
     supabase,
     user.id,
-    { championshipId: invite.org_id },
+    { championshipId: invite.championship_id },
     'org_member.invite_accepted',
-    { org_id: invite.org_id, invite_id: invite.id, role: invite.role },
+    { org_id: invite.championship_id, invite_id: invite.id, role: invite.role },
     { via: 'membership' },
   )
 
   // Set active championship to the one they just joined
-  setActiveChampionshipId(invite.org_id)
+  setActiveChampionshipId(invite.championship_id)
 
-  return { success: true, data: { championshipId: invite.org_id, role: invite.role } }
+  return { success: true, data: { championshipId: invite.championship_id, role: invite.role } }
 }

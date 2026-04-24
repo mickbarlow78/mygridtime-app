@@ -55,7 +55,7 @@ async function computeEventSlug(
   const { data, error } = await supabase
     .from('events')
     .select('id')
-    .eq('org_id', championshipId)
+    .eq('championship_id', championshipId)
     .eq('slug', slug)
     .maybeSingle()
   if (error) {
@@ -162,7 +162,7 @@ export async function saveAsTemplate(
   const { data: template, error } = await supabase
     .from('templates')
     .insert({
-      org_id: membership.org_id,
+      championship_id: membership.championship_id,
       name: templateName.trim(),
       data: templateData as unknown as Json,
       created_by: user.id,
@@ -202,7 +202,7 @@ export async function listTemplates(): Promise<ActionResult<TemplateSummary[]>> 
   const { data, error } = await supabase
     .from('templates')
     .select('id, name, data, created_at')
-    .eq('org_id', membership.org_id)
+    .eq('championship_id', membership.championship_id)
     .order('created_at', { ascending: false })
 
   if (error) {
@@ -284,7 +284,7 @@ export async function createEventFromTemplate(
   if (!Array.isArray(templateDays)) return { success: false, error: 'Invalid template data.' }
 
   // Create the event
-  const slugResult = await computeEventSlug(supabase, membership.org_id, input.title)
+  const slugResult = await computeEventSlug(supabase, membership.championship_id, input.title)
   if (!slugResult.ok) {
     return { success: false, error: slugResult.error }
   }
@@ -293,7 +293,7 @@ export async function createEventFromTemplate(
   const { data: event, error: eventErr } = await supabase
     .from('events')
     .insert({
-      org_id: membership.org_id,
+      championship_id: membership.championship_id,
       title: input.title.trim(),
       slug,
       venue: input.venue.trim() || null,
