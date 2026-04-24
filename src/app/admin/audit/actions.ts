@@ -38,7 +38,7 @@ export async function loadAuditLog(
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/auth/login')
 
-  const scopeTag = 'eventId' in scope ? 'event' : 'org'
+  const scopeTag = 'eventId' in scope ? 'event' : 'championship'
 
   let query = supabase
     .from('audit_log')
@@ -48,7 +48,7 @@ export async function loadAuditLog(
 
   query = 'eventId' in scope
     ? query.eq('event_id', scope.eventId)
-    : query.eq('org_id',   scope.championshipId)
+    : query.eq('championship_id', scope.championshipId)
 
   const { data: rows, error } = await query
 
@@ -63,7 +63,7 @@ export async function loadAuditLog(
     id: string
     user_id: string | null
     event_id: string | null
-    org_id: string | null
+    championship_id: string | null
     action: string
     detail: unknown
     actor_context: unknown
@@ -77,7 +77,7 @@ export async function loadAuditLog(
       id: raw.id,
       user_id: raw.user_id,
       event_id: raw.event_id,
-      org_id: raw.org_id,
+      championship_id: raw.championship_id,
       action: raw.action,
       detail: raw.detail as Json | null,
       actor_context: raw.actor_context as Json | null,

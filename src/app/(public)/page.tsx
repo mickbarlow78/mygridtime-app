@@ -21,7 +21,7 @@ import type { Metadata } from 'next'
 import type { ChampionshipBranding } from '@/lib/types/database'
 import { PAGE_BG, HEADER, HEADER_INNER, CONTAINER_FULL, AUTH_EMAIL, AUTH_LINK } from '@/lib/styles'
 
-type OrgInfo = { name: string; slug: string; branding: ChampionshipBranding | null }
+type ChampionshipInfo = { name: string; slug: string; branding: ChampionshipBranding | null }
 
 export const dynamic = 'force-dynamic'
 
@@ -29,12 +29,12 @@ export const dynamic = 'force-dynamic'
 // Org resolver — lightweight fetch for metadata (single org name).
 // ---------------------------------------------------------------------------
 
-async function resolvePublicOrgName(): Promise<string | null> {
+async function resolvePublicChampionshipName(): Promise<string | null> {
   try {
     const supabase = createClient()
     const { data: firstEvent } = await supabase
       .from('events')
-      .select('org_id')
+      .select('championship_id')
       .eq('status', 'published')
       .is('deleted_at', null)
       .limit(1)
@@ -43,13 +43,13 @@ async function resolvePublicOrgName(): Promise<string | null> {
     if (!firstEvent) return null
 
     const admin = createAdminClient()
-    const { data: org } = await admin
-      .from('organisations')
+    const { data: championship } = await admin
+      .from('championships')
       .select('name')
-      .eq('id', firstEvent.org_id)
+      .eq('id', firstEvent.championship_id)
       .maybeSingle()
 
-    return org?.name ?? null
+    return championship?.name ?? null
   } catch {
     return null
   }
@@ -60,7 +60,7 @@ async function resolvePublicOrgName(): Promise<string | null> {
 // ---------------------------------------------------------------------------
 
 export async function generateMetadata(): Promise<Metadata> {
-  const name = await resolvePublicOrgName()
+  const name = await resolvePublicChampionshipName()
   return {
     title: name ?? 'MyGridTime',
     description: 'Race-day timetables for motorsport events.',
@@ -80,39 +80,39 @@ export default async function LandingPage() {
 
   const { data: events } = await supabase
     .from('events')
-    .select('id, title, venue, start_date, end_date, slug, org_id')
+    .select('id, title, venue, start_date, end_date, slug, championship_id')
     .eq('status', 'published')
     .is('deleted_at', null)
     .order('start_date', { ascending: true })
 
   const eventList = events ?? []
 
-  // Batch-fetch org names for all listed events (single query, no N+1).
-  const orgMap = new Map<string, OrgInfo>()
-  const distinctOrgIds = Array.from(new Set(eventList.map((e) => e.org_id)))
-  if (distinctOrgIds.length > 0) {
+  // Batch-fetch championship names for all listed events (single query, no N+1).
+  const championshipMap = new Map<string, ChampionshipInfo>()
+  const distinctChampionshipIds = Array.from(new Set(eventList.map((e) => e.championship_id)))
+  if (distinctChampionshipIds.length > 0) {
     try {
       const admin = createAdminClient()
-      const { data: orgs } = await admin
-        .from('organisations')
+      const { data: championships } = await admin
+        .from('championships')
         .select('id, name, slug, branding')
-        .in('id', distinctOrgIds)
-      for (const o of orgs ?? []) {
-        orgMap.set(o.id, {
-          name: o.name,
-          slug: o.slug,
-          branding: (o.branding ?? null) as ChampionshipBranding | null,
+        .in('id', distinctChampionshipIds)
+      for (const c of championships ?? []) {
+        championshipMap.set(c.id, {
+          name: c.name,
+          slug: c.slug,
+          branding: (c.branding ?? null) as ChampionshipBranding | null,
         })
       }
     } catch {
-      // Graceful degradation — org names will be absent.
+      // Graceful degradation — championship names will be absent.
     }
   }
 
-  // Apply org branding to page header only when every event belongs to one org.
-  const singleOrg = distinctOrgIds.length === 1 ? orgMap.get(distinctOrgIds[0]) : null
-  const branding = singleOrg?.branding ?? null
-  const displayName = (singleOrg ? (branding?.headerText ?? singleOrg.name) : null) ?? 'MyGridTime'
+  // Apply championship branding to page header only when every event belongs to one championship.
+  const singleChampionship = distinctChampionshipIds.length === 1 ? championshipMap.get(distinctChampionshipIds[0]) : null
+  const branding = singleChampionship?.branding ?? null
+  const displayName = (singleChampionship ? (branding?.headerText ?? singleChampionship.name) : null) ?? 'MyGridTime'
 
   return (
     <div className={PAGE_BG}>
@@ -188,13 +188,13 @@ export default async function LandingPage() {
               </thead>
               <tbody className="divide-y divide-gray-200">
                 {eventList.flatMap((event) => {
-                  // MGT-082: event URL requires the owning org's slug. If the
-                  // admin fetch failed and the org slug is unknown, omit the
+                  // MGT-082: event URL requires the owning championship's slug. If the
+                  // admin fetch failed and the championship slug is unknown, omit the
                   // row rather than render a broken link.
-                  const orgInfo = orgMap.get(event.org_id)
-                  if (!orgInfo) return []
-                  const orgName = orgInfo.name
-                  const eventHref = `/${orgInfo.slug}/${event.slug}`
+                  const championshipInfo = championshipMap.get(event.championship_id)
+                  if (!championshipInfo) return []
+                  const championshipName = championshipInfo.name
+                  const eventHref = `/${championshipInfo.slug}/${event.slug}`
                   const sameDay = event.start_date === event.end_date
 
                   return [(
@@ -208,7 +208,7 @@ export default async function LandingPage() {
                         </Link>
                       </td>
                       <td className="py-3.5 pr-6 text-gray-500 whitespace-nowrap">
-                        {orgName ?? <span className="text-gray-300">—</span>}
+                        {championshipName ?? <span className="text-gray-300">—</span>}
                       </td>
                       <td className="py-3.5 pr-6 text-gray-500 whitespace-nowrap">
                         {event.venue ?? <span className="text-gray-300">—</span>}

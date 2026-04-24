@@ -23,7 +23,7 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
-      organisations: {
+      championships: {
         Row: {
           id: string
           name: string
@@ -79,38 +79,38 @@ export type Database = {
         Relationships: []
       }
 
-      org_members: {
+      championship_members: {
         Row: {
           id: string
-          org_id: string
+          championship_id: string
           user_id: string
           role: 'owner' | 'editor'
           created_at: string
         }
         Insert: {
           id?: string
-          org_id: string
+          championship_id: string
           user_id: string
           role: 'owner' | 'editor'
           created_at?: string
         }
         Update: {
           id?: string
-          org_id?: string
+          championship_id?: string
           user_id?: string
           role?: 'owner' | 'editor'
           created_at?: string
         }
         Relationships: [
           {
-            foreignKeyName: "org_members_org_id_fkey"
-            columns: ["org_id"]
+            foreignKeyName: "championship_members_championship_id_fkey"
+            columns: ["championship_id"]
             isOneToOne: false
-            referencedRelation: "organisations"
+            referencedRelation: "championships"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "org_members_user_id_fkey"
+            foreignKeyName: "championship_members_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "users"
@@ -122,7 +122,7 @@ export type Database = {
       events: {
         Row: {
           id: string
-          org_id: string
+          championship_id: string
           title: string
           slug: string
           venue: string | null
@@ -140,7 +140,7 @@ export type Database = {
         }
         Insert: {
           id?: string
-          org_id: string
+          championship_id: string
           title: string
           slug: string
           venue?: string | null
@@ -158,7 +158,7 @@ export type Database = {
         }
         Update: {
           id?: string
-          org_id?: string
+          championship_id?: string
           title?: string
           slug?: string
           venue?: string | null
@@ -176,10 +176,10 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "events_org_id_fkey"
-            columns: ["org_id"]
+            foreignKeyName: "events_championship_id_fkey"
+            columns: ["championship_id"]
             isOneToOne: false
-            referencedRelation: "organisations"
+            referencedRelation: "championships"
             referencedColumns: ["id"]
           }
         ]
@@ -277,7 +277,7 @@ export type Database = {
           id: string
           user_id: string | null
           event_id: string | null
-          org_id: string | null
+          championship_id: string | null
           action: string
           detail: Json | null
           actor_context: Json | null
@@ -287,7 +287,7 @@ export type Database = {
           id?: string
           user_id?: string | null
           event_id?: string | null
-          org_id?: string | null
+          championship_id?: string | null
           action: string
           detail?: Json | null
           actor_context?: Json | null
@@ -297,7 +297,7 @@ export type Database = {
           id?: string
           user_id?: string | null
           event_id?: string | null
-          org_id?: string | null
+          championship_id?: string | null
           action?: string
           detail?: Json | null
           actor_context?: Json | null
@@ -343,7 +343,7 @@ export type Database = {
       templates: {
         Row: {
           id: string
-          org_id: string
+          championship_id: string
           name: string
           data: Json
           created_by: string | null
@@ -351,7 +351,7 @@ export type Database = {
         }
         Insert: {
           id?: string
-          org_id: string
+          championship_id: string
           name: string
           data: Json
           created_by?: string | null
@@ -359,7 +359,7 @@ export type Database = {
         }
         Update: {
           id?: string
-          org_id?: string
+          championship_id?: string
           name?: string
           data?: Json
           created_by?: string | null
@@ -367,10 +367,10 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "templates_org_id_fkey"
-            columns: ["org_id"]
+            foreignKeyName: "templates_championship_id_fkey"
+            columns: ["championship_id"]
             isOneToOne: false
-            referencedRelation: "organisations"
+            referencedRelation: "championships"
             referencedColumns: ["id"]
           },
           {
@@ -383,10 +383,10 @@ export type Database = {
         ]
       }
 
-      org_invites: {
+      championship_invites: {
         Row: {
           id: string
-          org_id: string
+          championship_id: string
           email: string
           role: 'editor'
           token: string
@@ -396,7 +396,7 @@ export type Database = {
         }
         Insert: {
           id?: string
-          org_id: string
+          championship_id: string
           email: string
           role?: 'editor'
           token?: string
@@ -406,7 +406,7 @@ export type Database = {
         }
         Update: {
           id?: string
-          org_id?: string
+          championship_id?: string
           email?: string
           role?: 'editor'
           token?: string
@@ -416,14 +416,14 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "org_invites_org_id_fkey"
-            columns: ["org_id"]
+            foreignKeyName: "championship_invites_championship_id_fkey"
+            columns: ["championship_id"]
             isOneToOne: false
-            referencedRelation: "organisations"
+            referencedRelation: "championships"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "org_invites_invited_by_fkey"
+            foreignKeyName: "championship_invites_invited_by_fkey"
             columns: ["invited_by"]
             isOneToOne: false
             referencedRelation: "users"
@@ -506,7 +506,7 @@ export type Database = {
       ai_extraction_log: {
         Row: {
           id: string
-          org_id: string
+          championship_id: string
           user_id: string | null
           event_id: string | null
           source_mime: string
@@ -521,7 +521,7 @@ export type Database = {
         }
         Insert: {
           id?: string
-          org_id: string
+          championship_id: string
           user_id?: string | null
           event_id?: string | null
           source_mime: string
@@ -536,7 +536,7 @@ export type Database = {
         }
         Update: {
           id?: string
-          org_id?: string
+          championship_id?: string
           user_id?: string | null
           event_id?: string | null
           source_mime?: string
@@ -551,10 +551,10 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "ai_extraction_log_org_id_fkey"
-            columns: ["org_id"]
+            foreignKeyName: "ai_extraction_log_championship_id_fkey"
+            columns: ["championship_id"]
             isOneToOne: false
-            referencedRelation: "organisations"
+            referencedRelation: "championships"
             referencedColumns: ["id"]
           },
           {
@@ -597,20 +597,20 @@ export type Database = {
 }
 
 // Convenience type aliases
-export type Championship   = Database['public']['Tables']['organisations']['Row']
-export type ChampionshipMember = Database['public']['Tables']['org_members']['Row']
+export type Championship   = Database['public']['Tables']['championships']['Row']
+export type ChampionshipMember = Database['public']['Tables']['championship_members']['Row']
 export type AppUser        = Database['public']['Tables']['users']['Row']
 export type Event          = Database['public']['Tables']['events']['Row']
 export type EventDay       = Database['public']['Tables']['event_days']['Row']
 export type TimetableEntry = Database['public']['Tables']['timetable_entries']['Row']
 export type AuditLog       = Database['public']['Tables']['audit_log']['Row']
 export type NotificationLog = Database['public']['Tables']['notification_log']['Row']
-export type ChampionshipInvite = Database['public']['Tables']['org_invites']['Row']
+export type ChampionshipInvite = Database['public']['Tables']['championship_invites']['Row']
 export type TimetableSnapshot = Database['public']['Tables']['timetable_snapshots']['Row']
 export type Template       = Database['public']['Tables']['templates']['Row']
 export type NotificationPreference = Database['public']['Tables']['notification_preferences']['Row']
 
-/** Typed shape of the organisations.branding jsonb column. */
+/** Typed shape of the championships.branding jsonb column. */
 export type ChampionshipBranding = {
   primaryColor?: string | null
   logoUrl?: string | null

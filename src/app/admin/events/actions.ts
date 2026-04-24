@@ -80,10 +80,10 @@ async function requireEditor() {
 }
 
 /**
- * MGT-082: compute an event slug within an organisation and verify it is
+ * MGT-082: compute an event slug within a championship and verify it is
  * free. No auto-suffixing — callers surface the friendly error so users can
  * pick a different title. The DB enforces uniqueness via
- * `events_org_id_slug_key`; this pre-check exists only to replace the
+ * `events_championship_id_slug_key`; this pre-check exists only to replace the
  * generic Postgres error with a human-readable message.
  */
 async function computeEventSlug(
@@ -95,7 +95,7 @@ async function computeEventSlug(
   const { data, error } = await supabase
     .from('events')
     .select('id')
-    .eq('org_id', championshipId)
+    .eq('championship_id', championshipId)
     .eq('slug', slug)
     .maybeSingle()
   if (error) {
@@ -153,7 +153,7 @@ export async function createEvent(input: CreateEventInput): Promise<ActionResult
     }
   }
 
-  const slugResult = await computeEventSlug(supabase, membership.org_id, input.title)
+  const slugResult = await computeEventSlug(supabase, membership.championship_id, input.title)
   if (!slugResult.ok) {
     return { success: false, error: slugResult.error }
   }
@@ -162,7 +162,7 @@ export async function createEvent(input: CreateEventInput): Promise<ActionResult
   const { data: event, error: eventError } = await supabase
     .from('events')
     .insert({
-      org_id: membership.org_id,
+      championship_id: membership.championship_id,
       title: input.title.trim(),
       slug,
       venue: input.venue.trim() || null,
@@ -547,7 +547,7 @@ export async function duplicateEvent(
 
   if (srcErr || !source) return { success: false, error: 'Source event not found' }
 
-  const slugResult = await computeEventSlug(supabase, source.org_id, input.title)
+  const slugResult = await computeEventSlug(supabase, source.championship_id, input.title)
   if (!slugResult.ok) {
     return { success: false, error: slugResult.error }
   }
@@ -557,7 +557,7 @@ export async function duplicateEvent(
   const { data: newEvent, error: newErr } = await supabase
     .from('events')
     .insert({
-      org_id: source.org_id,
+      championship_id: source.championship_id,
       title: input.title.trim(),
       slug,
       venue: source.venue,
@@ -1292,7 +1292,7 @@ export async function loadMoreAuditLog(
     id: string
     user_id: string | null
     event_id: string | null
-    org_id: string | null
+    championship_id: string | null
     action: string
     detail: unknown
     actor_context: unknown
@@ -1306,7 +1306,7 @@ export async function loadMoreAuditLog(
       id: raw.id,
       user_id: raw.user_id,
       event_id: raw.event_id,
-      org_id: raw.org_id,
+      championship_id: raw.championship_id,
       action: raw.action,
       detail: raw.detail as Json | null,
       actor_context: raw.actor_context as Json | null,

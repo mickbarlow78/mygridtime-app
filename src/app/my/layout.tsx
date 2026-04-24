@@ -49,8 +49,8 @@ export default async function ConsumerLayout({
   const displayName = userRow?.display_name ?? null
 
   const activeChampionshipName =
-    activeChampionship && userChampionships.find((o) => o.org_id === activeChampionship.org_id)?.org_name
-      ? userChampionships.find((o) => o.org_id === activeChampionship.org_id)?.org_name ?? null
+    activeChampionship && userChampionships.find((o) => o.championship_id === activeChampionship.championship_id)?.championship_name
+      ? userChampionships.find((o) => o.championship_id === activeChampionship.championship_id)?.championship_name ?? null
       : null
 
   const badge = computeUserBadge(
@@ -69,8 +69,8 @@ export default async function ConsumerLayout({
             </Link>
             {userChampionships.length > 1 && activeChampionship && (
               <ChampionshipSelector
-                championships={userChampionships.map((o) => ({ org_id: o.org_id, org_name: o.org_name }))}
-                activeChampionshipId={activeChampionship.org_id}
+                championships={userChampionships.map((o) => ({ championship_id: o.championship_id, championship_name: o.championship_name }))}
+                activeChampionshipId={activeChampionship.championship_id}
               />
             )}
           </div>
@@ -86,7 +86,7 @@ export default async function ConsumerLayout({
               userDisplayName={displayName}
               subscriptionStatus={subscriptionStatus}
               userChampionships={userChampionships}
-              activeChampionshipId={activeChampionship?.org_id ?? null}
+              activeChampionshipId={activeChampionship?.championship_id ?? null}
             />
           </div>
         </div>

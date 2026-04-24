@@ -40,7 +40,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const { data: event } = await supabase
     .from('events')
     .select('title')
-    .eq('org_id', championship.id)
+    .eq('championship_id', championship.id)
     .eq('slug', params.eventSlug)
     .eq('status', 'published')
     .is('deleted_at', null)
@@ -57,7 +57,7 @@ export default async function PrintTimetablePage({ params }: PageProps) {
   const { data: event } = await supabase
     .from('events')
     .select('id, title, venue, start_date, end_date, slug')
-    .eq('org_id', championship.id)
+    .eq('championship_id', championship.id)
     .eq('slug', params.eventSlug)
     .eq('status', 'published')
     .is('deleted_at', null)

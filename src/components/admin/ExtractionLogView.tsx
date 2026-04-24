@@ -11,7 +11,7 @@ import { CollapsiblePanel } from '@/components/ui/CollapsiblePanel'
 
 interface ExtractionLogViewProps {
   entries: ExtractionLogEntry[]
-  orgId: string
+  championshipId: string
   initialHasMore: boolean
   initialLoadError?: string | null
   /**
@@ -87,7 +87,7 @@ function statusPillClass(status: ExtractionStatus): string {
 
 export function ExtractionLogView({
   entries: initialEntries,
-  orgId,
+  championshipId,
   initialHasMore,
   initialLoadError = null,
   refreshSignal = 0,
@@ -154,7 +154,7 @@ export function ExtractionLogView({
   const loadAll = useCallback(() => {
     setLoadError(null)
     startLoadingAll(async () => {
-      const result = await loadExtractionLog(orgId)
+      const result = await loadExtractionLog(championshipId)
       if (result.success) {
         setAllEntries(result.data.entries)
         setCapped(result.data.capped)
@@ -165,7 +165,7 @@ export function ExtractionLogView({
         setAllLoaded(true)
       }
     })
-  }, [orgId])
+  }, [championshipId])
 
   useEffect(() => {
     if (open && !allLoaded && !loadingAll) {

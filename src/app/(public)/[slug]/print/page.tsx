@@ -31,7 +31,7 @@ async function resolveLegacyEventPrintPath(slug: string): Promise<string | null>
     const admin = createAdminClient()
     const { data: events, error } = await admin
       .from('events')
-      .select('slug, organisations!inner(slug)')
+      .select('slug, championships!inner(slug)')
       .eq('slug', slug)
       .eq('status', 'published')
       .is('deleted_at', null)
@@ -47,13 +47,13 @@ async function resolveLegacyEventPrintPath(slug: string): Promise<string | null>
 
     const row = events[0] as {
       slug: string
-      organisations: { slug: string } | { slug: string }[]
+      championships: { slug: string } | { slug: string }[]
     }
-    const orgSlug = Array.isArray(row.organisations)
-      ? row.organisations[0]?.slug
-      : row.organisations?.slug
-    if (!orgSlug) return null
-    return `/${orgSlug}/${row.slug}/print`
+    const championshipSlug = Array.isArray(row.championships)
+      ? row.championships[0]?.slug
+      : row.championships?.slug
+    if (!championshipSlug) return null
+    return `/${championshipSlug}/${row.slug}/print`
   } catch (err) {
     Sentry.captureException(err, { tags: { action: 'legacyPrint.resolveEvent' } })
     return null

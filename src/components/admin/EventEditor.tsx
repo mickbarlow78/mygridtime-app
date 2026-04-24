@@ -47,9 +47,9 @@ interface EventEditorProps {
   versions: VersionSummary[]
   versionsLoadError?: string | null
   unsubscribedEmails?: string[]
-  /** MGT-082: slug of the owning organisation — required to build the
-   *  canonical public URL `/{orgSlug}/{eventSlug}`. */
-  orgSlug: string
+  /** MGT-082: slug of the owning championship — required to build the
+   *  canonical public URL `/{championshipSlug}/{eventSlug}`. */
+  championshipSlug: string
 }
 
 interface SavedMeta {
@@ -353,7 +353,7 @@ type MetaFieldState = 'unchanged' | 'pending' | 'rejected'
 // Component
 // ---------------------------------------------------------------------------
 
-export function EventEditor({ event, days: initialDays, entries: initialEntries, auditLog, auditHasMore, auditLoadError = null, notificationLog, notificationHasMore, notificationLoadError = null, versions, versionsLoadError = null, unsubscribedEmails = [], orgSlug }: EventEditorProps) {
+export function EventEditor({ event, days: initialDays, entries: initialEntries, auditLog, auditHasMore, auditLoadError = null, notificationLog, notificationHasMore, notificationLoadError = null, versions, versionsLoadError = null, unsubscribedEmails = [], championshipSlug }: EventEditorProps) {
   debugLog('EventEditor', 'loaded')
   const router = useRouter()
   const [, startTransition] = useTransition()
@@ -438,7 +438,7 @@ export function EventEditor({ event, days: initialDays, entries: initialEntries,
   // MGT-082: canonical public URL is nested under the owning org.
   const publicUrl = (() => {
     const base = (process.env.NEXT_PUBLIC_APP_URL ?? '').replace(/\/$/, '')
-    const path = `/${orgSlug}/${event.slug}`
+    const path = `/${championshipSlug}/${event.slug}`
     return base ? `${base}${path}` : path
   })()
 

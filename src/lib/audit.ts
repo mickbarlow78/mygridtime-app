@@ -34,7 +34,7 @@ export function makeActorContext(source: {
  * Exactly one branch must be set per row — enforced at the DB layer by
  * the `audit_log_scope_xor` CHECK constraint (migration
  * `20260417000000_org_audit_log.sql`). Callers choose the branch; the
- * helper never forges an `event_id` or `org_id`. See DEC-025.
+ * helper never forges an `event_id` or `championship_id`. See DEC-025.
  */
 export type AuditScope =
   | { eventId: string }
@@ -52,7 +52,7 @@ export interface AuditLogEntry {
   id: string
   user_id: string | null
   event_id: string | null
-  org_id: string | null
+  championship_id: string | null
   action: string
   detail: Json | null
   actor_context: Json | null
@@ -74,7 +74,7 @@ export interface AuditLogEntry {
  * NULL — read-side tooling should treat NULL as legacy / unknown.
  *
  * MGT-055: `scope` is a discriminated union of `{ eventId }` or
- * `{ championshipId }`. The row writes `event_id` or `org_id` accordingly; the
+ * `{ championshipId }`. The row writes `event_id` or `championship_id` accordingly; the
  * other column is NULL. Always uses the caller's authenticated Supabase
  * client — no admin-client fallback. See DEC-025.
  */
@@ -90,7 +90,7 @@ export async function writeAuditLog(
     const { error } = await supabase.from('audit_log').insert({
       user_id: userId,
       event_id: 'eventId' in scope ? scope.eventId : null,
-      org_id:   'championshipId' in scope ? scope.championshipId : null,
+      championship_id: 'championshipId' in scope ? scope.championshipId : null,
       action,
       detail: (detail ?? null) as Json | null,
       actor_context: (actorContext ?? null) as unknown as Json | null,

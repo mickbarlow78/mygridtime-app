@@ -27,7 +27,7 @@ export default async function ConsumerTimetablePage({ params, searchParams }: Pa
   // Fetch the event — published only
   const { data: event } = await supabase
     .from('events')
-    .select('id, title, venue, start_date, end_date, slug, org_id, branding')
+    .select('id, title, venue, start_date, end_date, slug, championship_id, branding')
     .eq('id', params.timetableId)
     .eq('status', 'published')
     .is('deleted_at', null)
@@ -35,39 +35,39 @@ export default async function ConsumerTimetablePage({ params, searchParams }: Pa
 
   if (!event) notFound()
 
-  // Verify user is a member of this event's org
+  // Verify user is a member of this event's championship
   const { data: membership } = await supabase
-    .from('org_members')
-    .select('org_id')
+    .from('championship_members')
+    .select('championship_id')
     .eq('user_id', user.id)
-    .eq('org_id', event.org_id)
+    .eq('championship_id', event.championship_id)
     .maybeSingle()
 
   if (!membership) notFound()
 
-  // Fetch org branding + slug via admin client (RLS may block anon read on
-  // organisations). MGT-082: slug is needed to build the canonical public
-  // URL (`/{orgSlug}/{eventSlug}`).
-  let orgBranding: Json | null = null
-  let orgSlug: string | null = null
+  // Fetch championship branding + slug via admin client (RLS may block anon read on
+  // championships). MGT-082: slug is needed to build the canonical public
+  // URL (`/{championshipSlug}/{eventSlug}`).
+  let championshipBranding: Json | null = null
+  let championshipSlug: string | null = null
   try {
     const admin = createAdminClient()
-    const { data: orgRow } = await admin
-      .from('organisations')
+    const { data: championshipRow } = await admin
+      .from('championships')
       .select('slug, branding')
-      .eq('id', event.org_id)
+      .eq('id', event.championship_id)
       .maybeSingle()
-    orgBranding = orgRow?.branding ?? null
-    orgSlug = orgRow?.slug ?? null
+    championshipBranding = championshipRow?.branding ?? null
+    championshipSlug = championshipRow?.slug ?? null
   } catch {
     // Admin client unavailable — fall back to event-level branding only
   }
-  // Build the canonical public URL; if we could not resolve the org slug
+  // Build the canonical public URL; if we could not resolve the championship slug
   // (admin client unavailable) fall back to the event admin editor so the
   // link never points at a broken path.
-  const publicHref = orgSlug ? `/${orgSlug}/${event.slug}` : `/admin/events/${event.id}`
+  const publicHref = championshipSlug ? `/${championshipSlug}/${event.slug}` : `/admin/events/${event.id}`
 
-  const branding = resolveEffectiveBranding(event.branding, orgBranding)
+  const branding = resolveEffectiveBranding(event.branding, championshipBranding)
 
   // Fetch event days, sorted
   const { data: days } = await supabase

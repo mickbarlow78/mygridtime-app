@@ -18,8 +18,8 @@ export interface BadgeUser {
 }
 
 export interface BadgeChampionship {
-  org_id: string
-  org_name: string
+  championship_id: string
+  championship_name: string
 }
 
 export function computeUserBadge(
@@ -38,7 +38,7 @@ export function computeUserBadge(
         kind: 'platform',
         role,
         orgName: activeChampionshipName ?? '',
-        orgId: activeChampionship.org_id,
+        orgId: activeChampionship.championship_id,
       }
     }
   }
@@ -49,7 +49,7 @@ export function computeUserBadge(
         kind: 'org',
         role: activeChampionship.role,
         orgName: activeChampionshipName ?? '',
-        orgId: activeChampionship.org_id,
+        orgId: activeChampionship.championship_id,
       }
     }
   }

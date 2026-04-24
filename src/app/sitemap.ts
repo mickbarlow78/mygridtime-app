@@ -17,42 +17,42 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     const supabase = createClient()
     const { data: events } = await supabase
       .from('events')
-      .select('slug, updated_at, org_id')
+      .select('slug, updated_at, championship_id')
       .eq('status', 'published')
       .is('deleted_at', null)
 
     const eventList = events ?? []
 
-    // MGT-082: canonical event URL is `/{orgSlug}/{eventSlug}`. Event rows
-    // alone don't carry the org slug under anon RLS, so resolve it via the
-    // admin client. Events whose org slug can't be resolved are omitted
+    // MGT-082: canonical event URL is `/{championshipSlug}/{eventSlug}`. Event rows
+    // alone don't carry the championship slug under anon RLS, so resolve it via the
+    // admin client. Events whose championship slug can't be resolved are omitted
     // from the sitemap (they'd 404 or produce an ambiguous legacy
     // redirect).
     let eventRoutes: MetadataRoute.Sitemap = []
-    let orgRoutes: MetadataRoute.Sitemap = []
-    const distinctOrgIds = Array.from(new Set(eventList.map((e) => e.org_id)))
-    if (distinctOrgIds.length > 0) {
+    let championshipRoutes: MetadataRoute.Sitemap = []
+    const distinctChampionshipIds = Array.from(new Set(eventList.map((e) => e.championship_id)))
+    if (distinctChampionshipIds.length > 0) {
       try {
         const admin = createAdminClient()
-        const { data: orgs } = await admin
-          .from('organisations')
+        const { data: championships } = await admin
+          .from('championships')
           .select('id, slug')
-          .in('id', distinctOrgIds)
-        const orgSlugById = new Map<string, string>((orgs ?? []).map((o) => [o.id, o.slug]))
+          .in('id', distinctChampionshipIds)
+        const championshipSlugById = new Map<string, string>((championships ?? []).map((c) => [c.id, c.slug]))
 
         eventRoutes = eventList.flatMap((event) => {
-          const orgSlug = orgSlugById.get(event.org_id)
-          if (!orgSlug) return []
+          const championshipSlug = championshipSlugById.get(event.championship_id)
+          if (!championshipSlug) return []
           return [{
-            url: `${baseUrl}/${orgSlug}/${event.slug}`,
+            url: `${baseUrl}/${championshipSlug}/${event.slug}`,
             lastModified: event.updated_at ? new Date(event.updated_at) : new Date(),
             changeFrequency: 'weekly' as const,
             priority: 0.8,
           }]
         })
 
-        orgRoutes = (orgs ?? []).map((org) => ({
-          url: `${baseUrl}/${org.slug}`,
+        championshipRoutes = (championships ?? []).map((championship) => ({
+          url: `${baseUrl}/${championship.slug}`,
           lastModified: new Date(),
           changeFrequency: 'weekly' as const,
           priority: 0.6,
@@ -62,7 +62,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       }
     }
 
-    return [...staticRoutes, ...eventRoutes, ...orgRoutes]
+    return [...staticRoutes, ...eventRoutes, ...championshipRoutes]
   } catch {
     return staticRoutes
   }

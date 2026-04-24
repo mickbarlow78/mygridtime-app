@@ -13,24 +13,24 @@ export default async function MyTimetablesPage() {
 
   if (!user) return null // layout handles redirect
 
-  // Fetch all org memberships for this user. MGT-084: orgless subscribers/
+  // Fetch all championship memberships for this user. MGT-084: championshipless subscribers/
   // members reach /my too — they simply see the empty-state below.
   const { data: memberships } = await supabase
-    .from('org_members')
-    .select('org_id, organisations(name)')
+    .from('championship_members')
+    .select('championship_id, championships(name)')
     .eq('user_id', user.id)
 
-  const orgIds = (memberships ?? []).map((m) => m.org_id)
+  const championshipIds = (memberships ?? []).map((m) => m.championship_id)
 
-  // Build a lookup of org_id → org name
-  const orgNames = new Map<string, string>()
+  // Build a lookup of championship_id → championship name
+  const championshipNames = new Map<string, string>()
   for (const m of memberships ?? []) {
-    const org = m.organisations as unknown as { name: string } | null
-    orgNames.set(m.org_id, org?.name ?? '')
+    const championship = m.championships as unknown as { name: string } | null
+    championshipNames.set(m.championship_id, championship?.name ?? '')
   }
 
-  // Fetch published events for all user's orgs. Skip the query entirely for
-  // orgless users — an empty `.in()` list returns zero rows but still wastes
+  // Fetch published events for all user's championships. Skip the query entirely for
+  // championshipless users — an empty `.in()` list returns zero rows but still wastes
   // a round-trip.
   let eventList: Array<{
     id: string
@@ -38,14 +38,14 @@ export default async function MyTimetablesPage() {
     venue: string | null
     start_date: string
     end_date: string
-    org_id: string
+    championship_id: string
     slug: string
   }> = []
-  if (orgIds.length > 0) {
+  if (championshipIds.length > 0) {
     const { data: events } = await supabase
       .from('events')
-      .select('id, title, venue, start_date, end_date, org_id, slug')
-      .in('org_id', orgIds)
+      .select('id, title, venue, start_date, end_date, championship_id, slug')
+      .in('championship_id', championshipIds)
       .eq('status', 'published')
       .is('deleted_at', null)
       .order('start_date', { ascending: false })
@@ -79,8 +79,8 @@ export default async function MyTimetablesPage() {
                 <p className="text-xs text-gray-500 mt-0.5">
                   {event.venue && <span>{event.venue} · </span>}
                   <span>{dateRange}</span>
-                  {orgNames.get(event.org_id) && (
-                    <span className="text-gray-400"> · {orgNames.get(event.org_id)}</span>
+                  {championshipNames.get(event.championship_id) && (
+                    <span className="text-gray-400"> · {championshipNames.get(event.championship_id)}</span>
                   )}
                 </p>
               </Link>

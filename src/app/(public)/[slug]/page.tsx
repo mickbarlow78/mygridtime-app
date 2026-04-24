@@ -41,9 +41,9 @@ interface PageProps {
 // ---------------------------------------------------------------------------
 
 /**
- * Returns the canonical `/orgSlug/eventSlug` path for a legacy top-level
+ * Returns the canonical `/championshipSlug/eventSlug` path for a legacy top-level
  * event slug, or `null` if the slug does not uniquely identify a published
- * event. Uses the admin client so we can read `organisations.slug` (anon
+ * event. Uses the admin client so we can read `championships.slug` (anon
  * RLS does not expose it).
  */
 async function resolveLegacyEventPath(slug: string): Promise<string | null> {
@@ -51,7 +51,7 @@ async function resolveLegacyEventPath(slug: string): Promise<string | null> {
     const admin = createAdminClient()
     const { data: events, error } = await admin
       .from('events')
-      .select('slug, organisations!inner(slug)')
+      .select('slug, championships!inner(slug)')
       .eq('slug', slug)
       .eq('status', 'published')
       .is('deleted_at', null)
@@ -63,12 +63,12 @@ async function resolveLegacyEventPath(slug: string): Promise<string | null> {
     }
     if (!events || events.length !== 1) return null
 
-    const row = events[0] as { slug: string; organisations: { slug: string } | { slug: string }[] }
-    const orgSlug = Array.isArray(row.organisations)
-      ? row.organisations[0]?.slug
-      : row.organisations?.slug
-    if (!orgSlug) return null
-    return `/${orgSlug}/${row.slug}`
+    const row = events[0] as { slug: string; championships: { slug: string } | { slug: string }[] }
+    const championshipSlug = Array.isArray(row.championships)
+      ? row.championships[0]?.slug
+      : row.championships?.slug
+    if (!championshipSlug) return null
+    return `/${championshipSlug}/${row.slug}`
   } catch (err) {
     Sentry.captureException(err, { tags: { action: 'legacySlug.resolveEvent' } })
     return null
@@ -108,7 +108,7 @@ export default async function PublicSlugPage({ params }: PageProps) {
     const { data: championshipEvents, error: championshipEventsError } = await supabase
       .from('events')
       .select('id, title, venue, start_date, end_date, slug')
-      .eq('org_id', championship.id)
+      .eq('championship_id', championship.id)
       .eq('status', 'published')
       .is('deleted_at', null)
       .order('start_date', { ascending: true })

@@ -2,7 +2,7 @@
  * Server-side helpers for resolving the public championship page.
  *
  * The championship row is loaded via the admin Supabase client because anon
- * users do not have SELECT access on `organisations` under current RLS (Pass
+ * users do not have SELECT access on `championships` under current RLS (Pass
  * C1 does not widen that policy). Matches the existing pattern on the public
  * landing and per-event pages.
  */
@@ -16,7 +16,7 @@ export async function resolvePublicChampionshipBySlug(slug: string): Promise<Pub
   try {
     const admin = createAdminClient()
     const { data: championship, error } = await admin
-      .from('organisations')
+      .from('championships')
       .select('id, name, slug, branding')
       .eq('slug', slug)
       .maybeSingle()

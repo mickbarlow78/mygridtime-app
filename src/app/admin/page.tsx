@@ -39,7 +39,7 @@ export default async function AdminDashboardPage({ searchParams }: PageProps) {
     .order('start_date', { ascending: false })
 
   if (membership) {
-    eventsQuery = eventsQuery.eq('org_id', membership.org_id)
+    eventsQuery = eventsQuery.eq('championship_id', membership.championship_id)
   }
 
   if (activeFilter !== 'all') {
