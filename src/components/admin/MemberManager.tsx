@@ -2,20 +2,20 @@
 
 import { useState, useEffect, useRef, useTransition } from 'react'
 import {
-  listOrgMembers,
-  listOrgInvites,
+  listChampionshipMembers,
+  listChampionshipInvites,
   updateMemberRole,
   removeMember,
   inviteMember,
   revokeInvite,
-} from '@/app/admin/orgs/actions'
+} from '@/app/admin/championships/actions'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { H2, LIST_CARD, LIST_ROW, CARD, CARD_PADDING_COMPACT, LABEL_COMPACT, INPUT, BTN_PRIMARY, ERROR_BANNER, SUCCESS_BANNER } from '@/lib/styles'
 import { FIELD_LIMITS } from '@/lib/constants/field-limits'
 import { CharCounter } from '@/components/ui/CharCounter'
 
 interface MemberManagerProps {
-  orgId: string
+  championshipId: string
   currentUserId: string
   initialMembers: Member[]
   initialInvites: Invite[]
@@ -42,7 +42,7 @@ export type Invite = {
 // constraints now prevent any other value from reappearing.
 const SELECTABLE_ROLES = ['owner', 'editor'] as const
 
-export function MemberManager({ orgId, currentUserId, initialMembers, initialInvites, onSaved }: MemberManagerProps) {
+export function MemberManager({ championshipId, currentUserId, initialMembers, initialInvites, onSaved }: MemberManagerProps) {
   // Initialise from server-fetched props so the list is visible immediately
   // on first paint. No empty state flash while the first async load completes.
   const [members, setMembers] = useState<Member[]>(initialMembers)
@@ -64,11 +64,11 @@ export function MemberManager({ orgId, currentUserId, initialMembers, initialInv
 
   // Invite form state
   // MGT-084: invites only create editors. Owners are only created via
-  // createOrganisation. The UI shows role as a read-only display.
+  // createChampionship. The UI shows role as a read-only display.
   const [inviteEmail, setInviteEmail] = useState('')
 
   // Skip the first-mount effect — data is fresh from the server.
-  // Re-fetch only when orgId changes (org-switching).
+  // Re-fetch only when championshipId changes (championship-switching).
   const isMounted = useRef(false)
   useEffect(() => {
     if (!isMounted.current) {
@@ -78,13 +78,13 @@ export function MemberManager({ orgId, currentUserId, initialMembers, initialInv
     loadData().then((r) => {
       if (!r.success) setError(`Could not load members: ${r.error}`)
     })
-  }, [orgId])
+  }, [championshipId])
 
   async function loadData(): Promise<{ success: true } | { success: false; error: string }> {
     try {
       const [membersResult, invitesResult] = await Promise.all([
-        listOrgMembers(orgId),
-        listOrgInvites(orgId),
+        listChampionshipMembers(championshipId),
+        listChampionshipInvites(championshipId),
       ])
       if (!membersResult.success) return { success: false, error: membersResult.error }
       if (!invitesResult.success) return { success: false, error: invitesResult.error }
@@ -129,7 +129,7 @@ export function MemberManager({ orgId, currentUserId, initialMembers, initialInv
     startTransition(async () => {
       const result = await updateMemberRole({
         memberId,
-        orgId,
+        championshipId,
         newRole,
       })
       if (!result.success) {
@@ -155,7 +155,7 @@ export function MemberManager({ orgId, currentUserId, initialMembers, initialInv
     const { memberId } = removeTarget
     setRemoveTarget(null)
     startTransition(async () => {
-      const result = await removeMember({ memberId, orgId })
+      const result = await removeMember({ memberId, championshipId })
       if (!result.success) {
         setError(result.error)
       } else {
@@ -174,7 +174,7 @@ export function MemberManager({ orgId, currentUserId, initialMembers, initialInv
     clearMessages()
     if (!inviteEmail.trim()) { setError('Email is required.'); return }
     startTransition(async () => {
-      const result = await inviteMember({ orgId, email: inviteEmail, role: 'editor' })
+      const result = await inviteMember({ championshipId, email: inviteEmail, role: 'editor' })
       if (!result.success) {
         setError(result.error)
       } else {
@@ -192,7 +192,7 @@ export function MemberManager({ orgId, currentUserId, initialMembers, initialInv
   function handleRevokeInvite(inviteId: string) {
     clearMessages()
     startTransition(async () => {
-      const result = await revokeInvite({ inviteId, orgId })
+      const result = await revokeInvite({ inviteId, championshipId })
       if (!result.success) {
         setError(result.error)
       } else {

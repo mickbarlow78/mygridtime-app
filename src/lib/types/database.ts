@@ -597,30 +597,30 @@ export type Database = {
 }
 
 // Convenience type aliases
-export type Organisation   = Database['public']['Tables']['organisations']['Row']
-export type OrgMember      = Database['public']['Tables']['org_members']['Row']
+export type Championship   = Database['public']['Tables']['organisations']['Row']
+export type ChampionshipMember = Database['public']['Tables']['org_members']['Row']
 export type AppUser        = Database['public']['Tables']['users']['Row']
 export type Event          = Database['public']['Tables']['events']['Row']
 export type EventDay       = Database['public']['Tables']['event_days']['Row']
 export type TimetableEntry = Database['public']['Tables']['timetable_entries']['Row']
 export type AuditLog       = Database['public']['Tables']['audit_log']['Row']
 export type NotificationLog = Database['public']['Tables']['notification_log']['Row']
-export type OrgInvite        = Database['public']['Tables']['org_invites']['Row']
+export type ChampionshipInvite = Database['public']['Tables']['org_invites']['Row']
 export type TimetableSnapshot = Database['public']['Tables']['timetable_snapshots']['Row']
 export type Template       = Database['public']['Tables']['templates']['Row']
 export type NotificationPreference = Database['public']['Tables']['notification_preferences']['Row']
 
 /** Typed shape of the organisations.branding jsonb column. */
-export type OrgBranding = {
+export type ChampionshipBranding = {
   primaryColor?: string | null
   logoUrl?: string | null
   headerText?: string | null
 }
 
-export type EventStatus         = Event['status']
-export type OrgMemberRole       = OrgMember['role']
-export type NotificationStatus  = NotificationLog['status']
-export type PlatformRole        = NonNullable<AppUser['platform_role']>
+export type EventStatus              = Event['status']
+export type ChampionshipMemberRole   = ChampionshipMember['role']
+export type NotificationStatus       = NotificationLog['status']
+export type PlatformRole             = NonNullable<AppUser['platform_role']>
 
 /**
  * Phase A actor_context shape for audit_log.actor_context.

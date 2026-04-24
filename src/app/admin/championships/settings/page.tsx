@@ -1,21 +1,21 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
-import { getActiveOrg } from '@/lib/utils/active-org'
-import { listOrgMembers, listOrgInvites } from '@/app/admin/orgs/actions'
+import { getActiveChampionship } from '@/lib/utils/active-championship'
+import { listChampionshipMembers, listChampionshipInvites } from '@/app/admin/championships/actions'
 import { loadAuditLog } from '@/app/admin/audit/actions'
 import { loadExtractionLog } from '@/app/admin/extractions/actions'
 import { SettingsPanels } from './SettingsPanels'
-import type { OrgBranding } from '@/lib/types/database'
+import type { ChampionshipBranding } from '@/lib/types/database'
 import { getServerAppUrl } from '@/lib/utils/app-url'
 import { CONTAINER_FORM, BREADCRUMB, BREADCRUMB_LINK, BREADCRUMB_SEP, BREADCRUMB_CURRENT, H1, SUBTITLE } from '@/lib/styles'
 
 /**
- * Org settings page — server component.
+ * Championship settings page — server component.
  * MGT-084: owner-only. Platform staff/support reach this via the
- * `via: 'platform'` short-circuit in getActiveOrg (returns role 'owner').
+ * `via: 'platform'` short-circuit in getActiveChampionship (returns role 'owner').
  */
-export default async function OrgSettingsPage() {
+export default async function ChampionshipSettingsPage() {
   const supabase = createClient()
   const {
     data: { user },
@@ -23,29 +23,29 @@ export default async function OrgSettingsPage() {
 
   if (!user) redirect('/auth/login')
 
-  const activeOrg = await getActiveOrg(supabase, user.id)
-  if (!activeOrg) redirect('/admin')
+  const activeChampionship = await getActiveChampionship(supabase, user.id)
+  if (!activeChampionship) redirect('/admin')
 
-  if (activeOrg.role !== 'owner') {
+  if (activeChampionship.role !== 'owner') {
     redirect('/admin')
   }
 
-  // Fetch org details (include branding for the BrandingForm initial values)
-  const { data: org } = await supabase
+  // Fetch championship details (include branding for the BrandingForm initial values)
+  const { data: championship } = await supabase
     .from('organisations')
     .select('id, name, slug, branding')
-    .eq('id', activeOrg.org_id)
+    .eq('id', activeChampionship.org_id)
     .single()
 
-  if (!org) redirect('/admin')
+  if (!championship) redirect('/admin')
 
   // Fetch members and invites server-side so MemberManager can hydrate
   // immediately without a blank-then-populate flash on first paint.
   const [membersResult, invitesResult, auditResult, extractionResult] = await Promise.all([
-    listOrgMembers(org.id),
-    listOrgInvites(org.id),
-    loadAuditLog({ orgId: org.id }),
-    loadExtractionLog(org.id),
+    listChampionshipMembers(championship.id),
+    listChampionshipInvites(championship.id),
+    loadAuditLog({ championshipId: championship.id }),
+    loadExtractionLog(championship.id),
   ])
   const initialMembers = membersResult.success ? membersResult.data : []
   const initialInvites = invitesResult.success ? invitesResult.data : []
@@ -66,19 +66,19 @@ export default async function OrgSettingsPage() {
       </div>
 
       <div>
-        <h1 className={H1}>{org.name}</h1>
+        <h1 className={H1}>{championship.name}</h1>
         <p className={SUBTITLE}>
           Manage championship details and members.
         </p>
       </div>
 
       <SettingsPanels
-        key={org.id}
-        orgId={org.id}
-        orgSlug={org.slug}
-        orgName={org.name}
-        publicOrgUrl={`${getServerAppUrl()}/${org.slug}`}
-        orgBranding={(org.branding ?? null) as OrgBranding | null}
+        key={championship.id}
+        championshipId={championship.id}
+        championshipSlug={championship.slug}
+        championshipName={championship.name}
+        publicChampionshipUrl={`${getServerAppUrl()}/${championship.slug}`}
+        championshipBranding={(championship.branding ?? null) as ChampionshipBranding | null}
         currentUserId={user.id}
         initialMembers={initialMembers}
         initialInvites={initialInvites}

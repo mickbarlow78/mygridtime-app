@@ -1,19 +1,19 @@
 /**
- * Presentational server component for the public organisation page.
+ * Presentational server component for the public championship page.
  *
- * Receives a fully-resolved org, the org's published events, and the current
- * user (or null). The page route is responsible for the resolve step and the
- * `notFound()` decision — this component renders only.
+ * Receives a fully-resolved championship, the championship's published events,
+ * and the current user (or null). The page route is responsible for the resolve
+ * step and the `notFound()` decision — this component renders only.
  *
  * Used by `/[slug]/page.tsx` when the slug does not match an event but does
- * match an organisation.
+ * match a championship.
  */
 
 import Link from 'next/link'
 import type { User } from '@supabase/supabase-js'
 import { signOut } from '@/app/admin/actions'
 import { formatDate } from '@/lib/utils/slug'
-import type { OrgBranding } from '@/lib/types/database'
+import type { ChampionshipBranding } from '@/lib/types/database'
 import {
   PAGE_BG,
   HEADER,
@@ -23,14 +23,14 @@ import {
   AUTH_LINK,
 } from '@/lib/styles'
 
-export type PublicOrg = {
+export type PublicChampionship = {
   id: string
   name: string
   slug: string
-  branding: OrgBranding | null
+  branding: ChampionshipBranding | null
 }
 
-export type PublicOrgEvent = {
+export type PublicChampionshipEvent = {
   id: string
   title: string
   venue: string | null
@@ -40,14 +40,14 @@ export type PublicOrgEvent = {
 }
 
 interface Props {
-  org: PublicOrg
-  events: PublicOrgEvent[]
+  championship: PublicChampionship
+  events: PublicChampionshipEvent[]
   user: User | null
 }
 
-export function PublicOrgView({ org, events, user }: Props) {
-  const branding = org.branding ?? null
-  const displayName = branding?.headerText ?? org.name
+export function PublicChampionshipView({ championship, events, user }: Props) {
+  const branding = championship.branding ?? null
+  const displayName = branding?.headerText ?? championship.name
 
   return (
     <div className={PAGE_BG}>
@@ -118,7 +118,7 @@ export function PublicOrgView({ org, events, user }: Props) {
                     <tr key={event.id} className="group hover:bg-gray-50 transition-colors">
                       <td className="py-3.5 pr-6 pl-4">
                         <Link
-                          href={`/${org.slug}/${event.slug}`}
+                          href={`/${championship.slug}/${event.slug}`}
                           className="font-medium text-gray-900 group-hover:text-gray-600 hover:underline"
                         >
                           {event.title}
@@ -135,7 +135,7 @@ export function PublicOrgView({ org, events, user }: Props) {
                       </td>
                       <td className="py-3.5 pr-4 text-right">
                         <Link
-                          href={`/${org.slug}/${event.slug}`}
+                          href={`/${championship.slug}/${event.slug}`}
                           className="text-gray-300 group-hover:text-gray-400 transition-colors"
                           aria-hidden="true"
                           tabIndex={-1}

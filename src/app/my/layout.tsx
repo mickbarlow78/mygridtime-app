@@ -1,9 +1,9 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
-import { getActiveOrg, getUserOrgs } from '@/lib/utils/active-org'
+import { getActiveChampionship, getUserChampionships } from '@/lib/utils/active-championship'
 import { computeUserBadge } from '@/lib/utils/role-badge'
-import { OrgSelector } from '@/components/admin/OrgSelector'
+import { ChampionshipSelector } from '@/components/admin/ChampionshipSelector'
 import { UserMenu } from '@/components/admin/UserMenu'
 import { BuildIdentityBadge } from '@/components/BuildIdentityBadge'
 import { PAGE_BG, HEADER, HEADER_INNER, CONTAINER_FULL, HEADER_NAV_LINK } from '@/lib/styles'
@@ -30,10 +30,10 @@ export default async function ConsumerLayout({
   // 2. MGT-084: /my is the subscription-axis surface — any authenticated
   //    user can reach it (member or subscriber). Memberships are only read
   //    to decide whether to show the "Manage events" shortcut.
-  const userOrgs = await getUserOrgs(supabase, user.id)
-  const activeOrg = userOrgs.length > 0 ? await getActiveOrg(supabase, user.id) : null
+  const userChampionships = await getUserChampionships(supabase, user.id)
+  const activeChampionship = userChampionships.length > 0 ? await getActiveChampionship(supabase, user.id) : null
 
-  const hasElevatedRole = userOrgs.some((o) =>
+  const hasElevatedRole = userChampionships.some((o) =>
     (ELEVATED_ROLES as readonly string[]).includes(o.role)
   )
 
@@ -48,15 +48,15 @@ export default async function ConsumerLayout({
   const subscriptionStatus = (userRow?.subscription_status ?? 'member') as 'member' | 'subscriber'
   const displayName = userRow?.display_name ?? null
 
-  const activeOrgName =
-    activeOrg && userOrgs.find((o) => o.org_id === activeOrg.org_id)?.org_name
-      ? userOrgs.find((o) => o.org_id === activeOrg.org_id)?.org_name ?? null
+  const activeChampionshipName =
+    activeChampionship && userChampionships.find((o) => o.org_id === activeChampionship.org_id)?.org_name
+      ? userChampionships.find((o) => o.org_id === activeChampionship.org_id)?.org_name ?? null
       : null
 
   const badge = computeUserBadge(
     { platform_role: platformRole, subscription_status: subscriptionStatus },
-    activeOrg,
-    activeOrgName,
+    activeChampionship,
+    activeChampionshipName,
   )
 
   return (
@@ -67,10 +67,10 @@ export default async function ConsumerLayout({
             <Link href="/my" className="text-sm font-semibold text-gray-900 tracking-tight">
               MyGridTime
             </Link>
-            {userOrgs.length > 1 && activeOrg && (
-              <OrgSelector
-                orgs={userOrgs.map((o) => ({ org_id: o.org_id, org_name: o.org_name }))}
-                activeOrgId={activeOrg.org_id}
+            {userChampionships.length > 1 && activeChampionship && (
+              <ChampionshipSelector
+                championships={userChampionships.map((o) => ({ org_id: o.org_id, org_name: o.org_name }))}
+                activeChampionshipId={activeChampionship.org_id}
               />
             )}
           </div>
@@ -85,8 +85,8 @@ export default async function ConsumerLayout({
               userEmail={user.email ?? ''}
               userDisplayName={displayName}
               subscriptionStatus={subscriptionStatus}
-              userOrgs={userOrgs}
-              activeOrgId={activeOrg?.org_id ?? null}
+              userChampionships={userChampionships}
+              activeChampionshipId={activeChampionship?.org_id ?? null}
             />
           </div>
         </div>

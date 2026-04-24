@@ -2,8 +2,8 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { headers } from 'next/headers'
 import Link from 'next/link'
-import { getActiveOrg, getUserOrgs } from '@/lib/utils/active-org'
-import { OrgSelector } from '@/components/admin/OrgSelector'
+import { getActiveChampionship, getUserChampionships } from '@/lib/utils/active-championship'
+import { ChampionshipSelector } from '@/components/admin/ChampionshipSelector'
 import { UserMenu } from '@/components/admin/UserMenu'
 import { BuildIdentityBadge } from '@/components/BuildIdentityBadge'
 import { computeUserBadge } from '@/lib/utils/role-badge'
@@ -46,11 +46,11 @@ export default async function AdminLayout({
     redirect('/auth/login')
   }
 
-  // 2. Authorisation — must hold an allowed role in at least one org
-  const activeOrg = await getActiveOrg(supabase, user.id)
-  const userOrgs = activeOrg ? await getUserOrgs(supabase, user.id) : []
+  // 2. Authorisation — must hold an allowed role in at least one championship
+  const activeChampionship = await getActiveChampionship(supabase, user.id)
+  const userChampionships = activeChampionship ? await getUserChampionships(supabase, user.id) : []
 
-  const authorized = !!activeOrg
+  const authorized = !!activeChampionship
 
   // Fetch the user's platform_role, subscription_status, and display_name
   // once for the header badge. The row is guaranteed to exist — signup
@@ -65,35 +65,35 @@ export default async function AdminLayout({
   const subscriptionStatus = (userRow?.subscription_status ?? 'member') as 'member' | 'subscriber'
   const displayName = userRow?.display_name ?? null
 
-  // Resolve the active org name for the badge scope label.
-  const activeOrgName =
-    activeOrg && userOrgs.find((o) => o.org_id === activeOrg.org_id)?.org_name
-      ? userOrgs.find((o) => o.org_id === activeOrg.org_id)?.org_name ?? null
+  // Resolve the active championship name for the badge scope label.
+  const activeChampionshipName =
+    activeChampionship && userChampionships.find((o) => o.org_id === activeChampionship.org_id)?.org_name
+      ? userChampionships.find((o) => o.org_id === activeChampionship.org_id)?.org_name ?? null
       : null
 
   const badge = computeUserBadge(
     { platform_role: platformRole, subscription_status: subscriptionStatus },
-    activeOrg,
-    activeOrgName,
+    activeChampionship,
+    activeChampionshipName,
   )
 
   // First-run onboarding: a newly signed-in user with zero memberships is
-  // allowed to reach /admin/orgs/new so they can create their first org.
+  // allowed to reach /admin/championships/new so they can create their first championship.
   // We use the x-pathname header set by middleware to detect the route.
   const pathname = headers().get('x-pathname') ?? ''
-  let allowNoOrgOnboarding = false
-  if (!authorized && pathname === '/admin/orgs/new') {
+  let allowNoChampionshipOnboarding = false
+  if (!authorized && pathname === '/admin/championships/new') {
     const { count } = await supabase
       .from('org_members')
       .select('org_id', { count: 'exact', head: true })
       .eq('user_id', user.id)
-    allowNoOrgOnboarding = (count ?? 0) === 0
+    allowNoChampionshipOnboarding = (count ?? 0) === 0
   }
 
   // Detect "no memberships at all" for the access-denied state so we can
-  // offer a "Create your first organisation" CTA for that case.
+  // offer a "Create your first championship" CTA for that case.
   let hasZeroMemberships = false
-  if (!authorized && !allowNoOrgOnboarding) {
+  if (!authorized && !allowNoChampionshipOnboarding) {
     const { count } = await supabase
       .from('org_members')
       .select('org_id', { count: 'exact', head: true })
@@ -110,10 +110,10 @@ export default async function AdminLayout({
             <span className="text-sm font-semibold text-gray-900 tracking-tight">
               MyGridTime
             </span>
-            {authorized && userOrgs.length > 1 && activeOrg && (
-              <OrgSelector
-                orgs={userOrgs.map((o) => ({ org_id: o.org_id, org_name: o.org_name }))}
-                activeOrgId={activeOrg.org_id}
+            {authorized && userChampionships.length > 1 && activeChampionship && (
+              <ChampionshipSelector
+                championships={userChampionships.map((o) => ({ org_id: o.org_id, org_name: o.org_name }))}
+                activeChampionshipId={activeChampionship.org_id}
               />
             )}
           </div>
@@ -127,9 +127,9 @@ export default async function AdminLayout({
                 Timetables
               </Link>
             )}
-            {authorized && activeOrg && activeOrg.role === 'owner' && (
+            {authorized && activeChampionship && activeChampionship.role === 'owner' && (
               <Link
-                href="/admin/orgs/settings"
+                href="/admin/championships/settings"
                 className={HEADER_NAV_LINK}
                 title="Championship settings"
               >
@@ -138,7 +138,7 @@ export default async function AdminLayout({
             )}
             {authorized && (
               <Link
-                href="/admin/orgs/new"
+                href="/admin/championships/new"
                 className={HEADER_NAV_LINK}
               >
                 + New championship
@@ -149,15 +149,15 @@ export default async function AdminLayout({
               userEmail={user.email ?? ''}
               userDisplayName={displayName}
               subscriptionStatus={subscriptionStatus}
-              userOrgs={userOrgs}
-              activeOrgId={activeOrg?.org_id ?? null}
+              userChampionships={userChampionships}
+              activeChampionshipId={activeChampionship?.org_id ?? null}
             />
           </div>
         </div>
       </header>
 
       <main className={`${CONTAINER_FULL} py-6`}>
-        {authorized || allowNoOrgOnboarding ? (
+        {authorized || allowNoChampionshipOnboarding ? (
           children
         ) : hasZeroMemberships ? (
           /* First-run onboarding state — user is signed in but has no orgs yet */
@@ -173,7 +173,7 @@ export default async function AdminLayout({
               but you do not belong to any championship yet. Create one to start building timetables,
               or ask an existing championship admin to invite you.
             </p>
-            <Link href="/admin/orgs/new" className={BTN_PRIMARY}>
+            <Link href="/admin/championships/new" className={BTN_PRIMARY}>
               Create your first championship
             </Link>
           </div>

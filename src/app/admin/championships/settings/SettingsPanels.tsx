@@ -1,23 +1,23 @@
 'use client'
 
 import { useState } from 'react'
-import { OrgNameForm } from './OrgNameForm'
-import { PublicOrgUrlField } from './PublicOrgUrlField'
+import { ChampionshipNameForm } from './ChampionshipNameForm'
+import { PublicChampionshipUrlField } from './PublicChampionshipUrlField'
 import { BrandingForm } from '@/components/admin/BrandingForm'
 import { MemberManager, type Member, type Invite } from '@/components/admin/MemberManager'
-import { OrgAuditLogView } from '@/components/admin/OrgAuditLogView'
+import { ChampionshipAuditLogView } from '@/components/admin/ChampionshipAuditLogView'
 import { ExtractionLogView } from '@/components/admin/ExtractionLogView'
-import type { OrgBranding } from '@/lib/types/database'
+import type { ChampionshipBranding } from '@/lib/types/database'
 import type { AuditLogEntry } from '@/lib/audit'
 import type { ExtractionLogEntry } from '@/app/admin/extractions/actions'
 import { CARD, CARD_PADDING_COMPACT, H2, HELP_TEXT, ERROR_BANNER } from '@/lib/styles'
 
 interface SettingsPanelsProps {
-  orgId: string
-  orgSlug: string
-  orgName: string
-  publicOrgUrl: string
-  orgBranding: OrgBranding | null
+  championshipId: string
+  championshipSlug: string
+  championshipName: string
+  publicChampionshipUrl: string
+  championshipBranding: ChampionshipBranding | null
   currentUserId: string
   initialMembers: Member[]
   initialInvites: Invite[]
@@ -29,11 +29,11 @@ interface SettingsPanelsProps {
 }
 
 export function SettingsPanels({
-  orgId,
-  orgSlug,
-  orgName,
-  publicOrgUrl,
-  orgBranding,
+  championshipId,
+  championshipSlug,
+  championshipName,
+  publicChampionshipUrl,
+  championshipBranding,
   currentUserId,
   initialMembers,
   initialInvites,
@@ -48,10 +48,10 @@ export function SettingsPanels({
 
   return (
     <>
-      {/* Org name form */}
+      {/* Championship name form */}
       <section>
         <h2 className={`${H2} mb-3`}>Championship name</h2>
-        <OrgNameForm orgId={orgId} currentName={orgName} onSaved={bumpRefresh} />
+        <ChampionshipNameForm championshipId={championshipId} currentName={championshipName} onSaved={bumpRefresh} />
       </section>
 
       {/* Slug (read-only) */}
@@ -59,14 +59,14 @@ export function SettingsPanels({
         <h2 className={`${H2} mb-3`}>Slug</h2>
         <div className={`${CARD} ${CARD_PADDING_COMPACT} space-y-3`}>
           <div>
-            <p className="text-sm font-mono text-gray-600">{orgSlug}</p>
+            <p className="text-sm font-mono text-gray-600">{championshipSlug}</p>
             <p className={HELP_TEXT}>
               The slug cannot be changed after creation. It forms the public
               championship URL below and shares the top-level URL space with
               individual event slugs.
             </p>
           </div>
-          <PublicOrgUrlField publicUrl={publicOrgUrl} />
+          <PublicChampionshipUrlField publicUrl={publicChampionshipUrl} />
         </div>
       </section>
 
@@ -77,8 +77,8 @@ export function SettingsPanels({
           Applied to public timetable pages. Event-level branding overrides these values per field.
         </p>
         <BrandingForm
-          orgId={orgId}
-          currentBranding={orgBranding}
+          championshipId={championshipId}
+          currentBranding={championshipBranding}
           onSaved={bumpRefresh}
         />
       </section>
@@ -92,7 +92,7 @@ export function SettingsPanels({
           </div>
         )}
         <MemberManager
-          orgId={orgId}
+          championshipId={championshipId}
           currentUserId={currentUserId}
           initialMembers={initialMembers}
           initialInvites={initialInvites}
@@ -108,7 +108,7 @@ export function SettingsPanels({
         </p>
         <ExtractionLogView
           entries={initialExtractionEntries}
-          orgId={orgId}
+          orgId={championshipId}
           initialHasMore={false}
           initialLoadError={initialExtractionLoadError}
           refreshSignal={refreshSignal}
@@ -118,9 +118,9 @@ export function SettingsPanels({
       {/* Audit log */}
       <section>
         <h2 className={`${H2} mb-3`}>Audit log</h2>
-        <OrgAuditLogView
+        <ChampionshipAuditLogView
           entries={initialAuditEntries}
-          orgId={orgId}
+          championshipId={championshipId}
           initialHasMore={false}
           initialLoadError={initialAuditLoadError}
           refreshSignal={refreshSignal}

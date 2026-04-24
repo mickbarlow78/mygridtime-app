@@ -25,9 +25,9 @@ import { createClient } from '@/lib/supabase/server'
 import { notFound, permanentRedirect } from 'next/navigation'
 import * as Sentry from '@sentry/nextjs'
 import type { Metadata } from 'next'
-import { PublicOrgView } from '@/components/public/PublicOrgView'
-import type { PublicOrgEvent } from '@/components/public/PublicOrgView'
-import { resolvePublicOrgBySlug } from '@/lib/utils/public-org'
+import { PublicChampionshipView } from '@/components/public/PublicChampionshipView'
+import type { PublicChampionshipEvent } from '@/components/public/PublicChampionshipView'
+import { resolvePublicChampionshipBySlug } from '@/lib/utils/public-championship'
 import { createAdminClient } from '@/lib/supabase/admin'
 
 export const dynamic = 'force-dynamic'
@@ -80,9 +80,9 @@ async function resolveLegacyEventPath(slug: string): Promise<string | null> {
 // ---------------------------------------------------------------------------
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
-  const org = await resolvePublicOrgBySlug(params.slug)
-  if (org) {
-    const displayName = org.branding?.headerText ?? org.name
+  const championship = await resolvePublicChampionshipBySlug(params.slug)
+  if (championship) {
+    const displayName = championship.branding?.headerText ?? championship.name
     return {
       title: displayName,
       description: `Published timetables from ${displayName}.`,
@@ -102,28 +102,28 @@ export default async function PublicSlugPage({ params }: PageProps) {
     data: { user },
   } = await supabase.auth.getUser()
 
-  // 1. Try org first.
-  const org = await resolvePublicOrgBySlug(params.slug)
-  if (org) {
-    const { data: orgEvents, error: orgEventsError } = await supabase
+  // 1. Try championship first.
+  const championship = await resolvePublicChampionshipBySlug(params.slug)
+  if (championship) {
+    const { data: championshipEvents, error: championshipEventsError } = await supabase
       .from('events')
       .select('id, title, venue, start_date, end_date, slug')
-      .eq('org_id', org.id)
+      .eq('org_id', championship.id)
       .eq('status', 'published')
       .is('deleted_at', null)
       .order('start_date', { ascending: true })
 
-    if (orgEventsError) {
-      Sentry.captureException(orgEventsError, {
+    if (championshipEventsError) {
+      Sentry.captureException(championshipEventsError, {
         tags: { action: 'publicOrgPage.listEvents' },
       })
     }
 
-    const eventList: PublicOrgEvent[] = orgEventsError
+    const eventList: PublicChampionshipEvent[] = championshipEventsError
       ? []
-      : ((orgEvents ?? []) as PublicOrgEvent[])
+      : ((championshipEvents ?? []) as PublicChampionshipEvent[])
 
-    return <PublicOrgView org={org} events={eventList} user={user} />
+    return <PublicChampionshipView championship={championship} events={eventList} user={user} />
   }
 
   // 2. Legacy top-level event slug — redirect to canonical nested URL if

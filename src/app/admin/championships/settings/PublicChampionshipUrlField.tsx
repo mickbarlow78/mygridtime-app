@@ -3,16 +3,16 @@
 import { useState } from 'react'
 import { HELP_TEXT } from '@/lib/styles'
 
-interface PublicOrgUrlFieldProps {
+interface PublicChampionshipUrlFieldProps {
   publicUrl: string
 }
 
 /**
- * Read-only display of the public organisation URL (`/{slug}`) with a Copy
+ * Read-only display of the public championship URL (`/{slug}`) with a Copy
  * button. Mirrors the per-event "Public URL" affordance in `EventEditor` so
  * the clipboard interaction stays consistent across surfaces.
  */
-export function PublicOrgUrlField({ publicUrl }: PublicOrgUrlFieldProps) {
+export function PublicChampionshipUrlField({ publicUrl }: PublicChampionshipUrlFieldProps) {
   const [copied, setCopied] = useState(false)
 
   async function handleCopy() {

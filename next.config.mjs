@@ -31,6 +31,15 @@ const nextConfig = {
       },
     ]
   },
+  async redirects() {
+    // MGT-106: admin route segment renamed /admin/orgs → /admin/championships.
+    // 308 permanent redirects preserve existing bookmarks, invite links, and
+    // any external URLs pointing at the legacy path.
+    return [
+      { source: '/admin/orgs', destination: '/admin/championships', permanent: true },
+      { source: '/admin/orgs/:path*', destination: '/admin/championships/:path*', permanent: true },
+    ]
+  },
 }
 
 export default withSentryConfig(nextConfig, {

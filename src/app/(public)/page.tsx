@@ -18,10 +18,10 @@ import Link from 'next/link'
 import { formatDate } from '@/lib/utils/slug'
 import { signOut } from '@/app/admin/actions'
 import type { Metadata } from 'next'
-import type { OrgBranding } from '@/lib/types/database'
+import type { ChampionshipBranding } from '@/lib/types/database'
 import { PAGE_BG, HEADER, HEADER_INNER, CONTAINER_FULL, AUTH_EMAIL, AUTH_LINK } from '@/lib/styles'
 
-type OrgInfo = { name: string; slug: string; branding: OrgBranding | null }
+type OrgInfo = { name: string; slug: string; branding: ChampionshipBranding | null }
 
 export const dynamic = 'force-dynamic'
 
@@ -101,7 +101,7 @@ export default async function LandingPage() {
         orgMap.set(o.id, {
           name: o.name,
           slug: o.slug,
-          branding: (o.branding ?? null) as OrgBranding | null,
+          branding: (o.branding ?? null) as ChampionshipBranding | null,
         })
       }
     } catch {

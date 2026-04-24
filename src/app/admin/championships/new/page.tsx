@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { createOrganisation } from '../actions'
+import { createChampionship } from '../actions'
 import { CONTAINER_NARROW, BREADCRUMB, BREADCRUMB_LINK, BREADCRUMB_SEP, BREADCRUMB_CURRENT, H1, SUBTITLE, CARD, CARD_PADDING, LABEL, INPUT, HELP_TEXT, BTN_PRIMARY, BTN_GHOST, ERROR_BANNER } from '@/lib/styles'
 import { FIELD_LIMITS } from '@/lib/constants/field-limits'
 import { CharCounter } from '@/components/ui/CharCounter'
@@ -41,7 +41,7 @@ export default function NewOrgPage() {
     if (!slug.trim()) { setError('Slug is required.'); return }
 
     setSubmitting(true)
-    const result = await createOrganisation({ name, slug })
+    const result = await createChampionship({ name, slug })
     if (!result.success) {
       setError(result.error)
       setSubmitting(false)
@@ -50,7 +50,7 @@ export default function NewOrgPage() {
     // First-run onboarding: route new owners to settings so they can set up
     // branding before creating events. Subsequent creates keep the existing
     // /admin destination.
-    router.push(result.data.isFirstOrg ? '/admin/orgs/settings' : '/admin')
+    router.push(result.data.isFirstChampionship ? '/admin/championships/settings' : '/admin')
   }
 
   return (

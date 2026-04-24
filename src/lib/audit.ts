@@ -4,7 +4,7 @@ import * as Sentry from '@sentry/nextjs'
 
 /**
  * Pure helper — derives the Phase A actor_context audit payload from an
- * ActiveOrg-style shape.  Kept pure so it can be unit-tested without
+ * ActiveChampionship-style shape.  Kept pure so it can be unit-tested without
  * touching Supabase and re-used by any server action that needs to
  * stamp audit rows with the correct actor provenance.
  *
@@ -38,7 +38,7 @@ export function makeActorContext(source: {
  */
 export type AuditScope =
   | { eventId: string }
-  | { orgId: string }
+  | { championshipId: string }
 
 /**
  * Shape of a single audit_log row as returned by the read layer.
@@ -74,7 +74,7 @@ export interface AuditLogEntry {
  * NULL — read-side tooling should treat NULL as legacy / unknown.
  *
  * MGT-055: `scope` is a discriminated union of `{ eventId }` or
- * `{ orgId }`. The row writes `event_id` or `org_id` accordingly; the
+ * `{ championshipId }`. The row writes `event_id` or `org_id` accordingly; the
  * other column is NULL. Always uses the caller's authenticated Supabase
  * client — no admin-client fallback. See DEC-025.
  */
@@ -90,7 +90,7 @@ export async function writeAuditLog(
     const { error } = await supabase.from('audit_log').insert({
       user_id: userId,
       event_id: 'eventId' in scope ? scope.eventId : null,
-      org_id:   'orgId'   in scope ? scope.orgId   : null,
+      org_id:   'championshipId' in scope ? scope.championshipId : null,
       action,
       detail: (detail ?? null) as Json | null,
       actor_context: (actorContext ?? null) as unknown as Json | null,

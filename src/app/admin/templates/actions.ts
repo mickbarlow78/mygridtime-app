@@ -5,7 +5,7 @@ import { slugify, getDatesInRange, countDaysInRange, MAX_EVENT_DAYS } from '@/li
 import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
 import type { Json } from '@/lib/types/database'
-import { getActiveOrg } from '@/lib/utils/active-org'
+import { getActiveChampionship } from '@/lib/utils/active-championship'
 import { writeAuditLog, makeActorContext } from '@/lib/audit'
 import * as Sentry from '@sentry/nextjs'
 
@@ -37,25 +37,25 @@ async function requireUser() {
 
 async function requireEditor() {
   const { supabase, user } = await requireUser()
-  const membership = await getActiveOrg(supabase, user.id)
+  const membership = await getActiveChampionship(supabase, user.id)
   return { supabase, user, membership }
 }
 
 /**
  * MGT-082: mirrors `computeEventSlug` in events/actions.ts. Scopes the
- * uniqueness check to the target organisation and returns a friendly error
+ * uniqueness check to the target championship and returns a friendly error
  * if the slug is already taken.
  */
 async function computeEventSlug(
   supabase: Awaited<ReturnType<typeof createClient>>,
-  orgId: string,
+  championshipId: string,
   title: string,
 ): Promise<{ ok: true; slug: string } | { ok: false; error: string }> {
   const slug = slugify(title) || `event-${Date.now()}`
   const { data, error } = await supabase
     .from('events')
     .select('id')
-    .eq('org_id', orgId)
+    .eq('org_id', championshipId)
     .eq('slug', slug)
     .maybeSingle()
   if (error) {

@@ -1,15 +1,15 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { updateOrgBranding } from '@/app/admin/orgs/actions'
-import type { OrgBranding } from '@/lib/types/database'
+import { updateChampionshipBranding } from '@/app/admin/championships/actions'
+import type { ChampionshipBranding } from '@/lib/types/database'
 import { CARD, CARD_PADDING, LABEL, INPUT, HELP_TEXT, BTN_PRIMARY, ERROR_BANNER, SUCCESS_BANNER } from '@/lib/styles'
 import { FIELD_LIMITS } from '@/lib/constants/field-limits'
 import { CharCounter } from '@/components/ui/CharCounter'
 
 interface BrandingFormProps {
-  orgId: string
-  currentBranding: OrgBranding | null
+  championshipId: string
+  currentBranding: ChampionshipBranding | null
   onSaved?: () => void
 }
 
@@ -22,7 +22,7 @@ function to6Hex(hex: string): string {
   return hex.trim()
 }
 
-export function BrandingForm({ orgId, currentBranding, onSaved }: BrandingFormProps) {
+export function BrandingForm({ championshipId, currentBranding, onSaved }: BrandingFormProps) {
   const [primaryColor, setPrimaryColor] = useState(currentBranding?.primaryColor ?? '')
   // pickerColor must always be a valid 6-char hex for the native color input
   const [pickerColor, setPickerColor] = useState<string>(() => {
@@ -47,8 +47,8 @@ export function BrandingForm({ orgId, currentBranding, onSaved }: BrandingFormPr
     }
 
     startTransition(async () => {
-      const result = await updateOrgBranding({
-        orgId,
+      const result = await updateChampionshipBranding({
+        championshipId,
         branding: {
           primaryColor: primaryColor.trim() || null,
           logoUrl: logoUrl.trim() || null,

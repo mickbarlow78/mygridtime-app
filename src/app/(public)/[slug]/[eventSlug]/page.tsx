@@ -34,7 +34,7 @@ import { TimetableDay } from '@/components/public/TimetableDay'
 import type { PublicEntry } from '@/components/public/TimetableDay'
 import { formatDate } from '@/lib/utils/slug'
 import { resolveEffectiveBranding } from '@/lib/utils/branding'
-import { resolvePublicOrgBySlug } from '@/lib/utils/public-org'
+import { resolvePublicChampionshipBySlug } from '@/lib/utils/public-championship'
 import type { Json } from '@/lib/types/database'
 import {
   cn,
@@ -59,14 +59,14 @@ interface PageProps {
 // ---------------------------------------------------------------------------
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
-  const org = await resolvePublicOrgBySlug(params.slug)
-  if (!org) return { title: 'Page not found' }
+  const championship = await resolvePublicChampionshipBySlug(params.slug)
+  if (!championship) return { title: 'Page not found' }
 
   const supabase = createClient()
   const { data: event } = await supabase
     .from('events')
     .select('title, venue, start_date, end_date')
-    .eq('org_id', org.id)
+    .eq('org_id', championship.id)
     .eq('slug', params.eventSlug)
     .eq('status', 'published')
     .is('deleted_at', null)
@@ -96,13 +96,13 @@ export default async function PublicEventPage({ params, searchParams }: PageProp
     data: { user },
   } = await supabase.auth.getUser()
 
-  const org = await resolvePublicOrgBySlug(params.slug)
-  if (!org) notFound()
+  const championship = await resolvePublicChampionshipBySlug(params.slug)
+  if (!championship) notFound()
 
   const { data: event } = await supabase
     .from('events')
     .select('id, title, venue, start_date, end_date, slug, org_id, branding')
-    .eq('org_id', org.id)
+    .eq('org_id', championship.id)
     .eq('slug', params.eventSlug)
     .eq('status', 'published')
     .is('deleted_at', null)

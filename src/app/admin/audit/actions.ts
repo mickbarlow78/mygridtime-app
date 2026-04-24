@@ -48,7 +48,7 @@ export async function loadAuditLog(
 
   query = 'eventId' in scope
     ? query.eq('event_id', scope.eventId)
-    : query.eq('org_id',   scope.orgId)
+    : query.eq('org_id',   scope.championshipId)
 
   const { data: rows, error } = await query
 

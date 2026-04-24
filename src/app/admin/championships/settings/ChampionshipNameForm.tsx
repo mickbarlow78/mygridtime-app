@@ -2,18 +2,18 @@
 
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { updateOrganisation } from '@/app/admin/orgs/actions'
+import { updateChampionship } from '@/app/admin/championships/actions'
 import { CARD, CARD_PADDING_COMPACT, INPUT, BTN_PRIMARY, ERROR_BANNER, SUCCESS_BANNER } from '@/lib/styles'
 import { FIELD_LIMITS } from '@/lib/constants/field-limits'
 import { CharCounter } from '@/components/ui/CharCounter'
 
-interface OrgNameFormProps {
-  orgId: string
+interface ChampionshipNameFormProps {
+  championshipId: string
   currentName: string
   onSaved?: () => void
 }
 
-export function OrgNameForm({ orgId, currentName, onSaved }: OrgNameFormProps) {
+export function ChampionshipNameForm({ championshipId, currentName, onSaved }: ChampionshipNameFormProps) {
   const router = useRouter()
   const [name, setName] = useState(currentName)
   const [error, setError] = useState<string | null>(null)
@@ -29,7 +29,7 @@ export function OrgNameForm({ orgId, currentName, onSaved }: OrgNameFormProps) {
     if (name.trim() === currentName) return
 
     startTransition(async () => {
-      const result = await updateOrganisation({ orgId, name: name.trim() })
+      const result = await updateChampionship({ championshipId, name: name.trim() })
       if (!result.success) {
         setError(result.error)
       } else {

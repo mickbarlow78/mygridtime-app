@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { acceptInvite } from '@/app/admin/orgs/actions'
+import { acceptInvite } from '@/app/admin/championships/actions'
 import { CARD, CONTAINER_AUTH, BTN_PRIMARY, ERROR_BANNER, SUCCESS_BANNER } from '@/lib/styles'
 
 interface AcceptInviteFormProps {

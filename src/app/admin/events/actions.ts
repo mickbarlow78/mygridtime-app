@@ -7,7 +7,7 @@ import { revalidatePath } from 'next/cache'
 import type { EventStatus, Json } from '@/lib/types/database'
 import { sendEventNotification } from '@/lib/resend/notifications'
 import { debugLog } from '@/lib/debug'
-import { getActiveOrg } from '@/lib/utils/active-org'
+import { getActiveChampionship } from '@/lib/utils/active-championship'
 import { writeAuditLog, makeActorContext, type AuditLogEntry } from '@/lib/audit'
 import { loadAuditLog } from '@/app/admin/audit/actions'
 import * as Sentry from '@sentry/nextjs'
@@ -65,14 +65,14 @@ async function requireUser() {
  * the user has no qualifying role.  Every mutation action must check
  * membership !== null before proceeding.
  *
- * MGT-084: explicit role gate. `getActiveOrg` already filters to
+ * MGT-084: explicit role gate. `getActiveChampionship` already filters to
  * ('owner','editor'), but platform staff/support short-circuit returns
  * role 'owner' via: 'platform' — still allowed. The explicit check here
  * is defense-in-depth should the resolution contract change.
  */
 async function requireEditor() {
   const { supabase, user } = await requireUser()
-  const membership = await getActiveOrg(supabase, user.id)
+  const membership = await getActiveChampionship(supabase, user.id)
   if (membership && membership.role !== 'owner' && membership.role !== 'editor') {
     return { supabase, user, membership: null }
   }
@@ -88,14 +88,14 @@ async function requireEditor() {
  */
 async function computeEventSlug(
   supabase: Awaited<ReturnType<typeof createClient>>,
-  orgId: string,
+  championshipId: string,
   title: string,
 ): Promise<{ ok: true; slug: string } | { ok: false; error: string }> {
   const slug = slugify(title) || `event-${Date.now()}`
   const { data, error } = await supabase
     .from('events')
     .select('id')
-    .eq('org_id', orgId)
+    .eq('org_id', championshipId)
     .eq('slug', slug)
     .maybeSingle()
   if (error) {

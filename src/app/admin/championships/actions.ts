@@ -4,11 +4,11 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
-import { setActiveOrgId, getActiveOrg } from '@/lib/utils/active-org'
+import { setActiveChampionshipId, getActiveChampionship } from '@/lib/utils/active-championship'
 import { getResendClient, getFromAddress } from '@/lib/resend/client'
 import { getServerAppUrl } from '@/lib/utils/app-url'
 import { orgInviteSubject, orgInviteHtml, orgInviteText } from '@/lib/resend/templates'
-import type { OrgBranding } from '@/lib/types/database'
+import type { ChampionshipBranding } from '@/lib/types/database'
 import { isReservedSlug } from '@/lib/constants/reserved-slugs'
 import { writeAuditLog, makeActorContext } from '@/lib/audit'
 import * as Sentry from '@sentry/nextjs'
@@ -37,13 +37,13 @@ async function requireUser() {
 // ---------------------------------------------------------------------------
 
 /**
- * Creates a new organisation and makes the current user its owner.
+ * Creates a new championship and makes the current user its owner.
  * Uses the admin client to insert the initial org_members row (bypasses RLS).
  */
-export async function createOrganisation(input: {
+export async function createChampionship(input: {
   name: string
   slug: string
-}): Promise<ActionResult<{ id: string; isFirstOrg: boolean }>> {
+}): Promise<ActionResult<{ id: string; isFirstChampionship: boolean }>> {
   try {
     const { supabase, user } = await requireUser()
 
@@ -60,19 +60,20 @@ export async function createOrganisation(input: {
     if (slug.length < 2) return { success: false, error: 'Slug must be at least 2 characters.' }
 
     // Reject slugs that collide with a reserved top-level path (e.g. /admin,
-    // /api, /privacy, /o, …). The public org page lives at `/{orgSlug}` and
-    // shares the top-level namespace with both the per-event public page
-    // (`/{eventSlug}`) and a fixed list of static / framework paths.
+    // /api, /privacy, /o, …). The public championship page lives at
+    // `/{championshipSlug}` and shares the top-level namespace with both the
+    // per-event public page (`/{eventSlug}`) and a fixed list of static /
+    // framework paths.
     if (isReservedSlug(slug)) {
       return { success: false, error: 'That slug is reserved. Please choose a different one.' }
     }
 
-    // Detect whether this will be the user's first organisation BEFORE the
+    // Detect whether this will be the user's first championship BEFORE the
     // new membership row is inserted. Uses the authenticated client — the
     // user can always see their own org_members rows under RLS. A failure
-    // here must not block creation; default to false (subsequent-org
+    // here must not block creation; default to false (subsequent-championship
     // behaviour) so we never route a returning user to the first-run path.
-    let isFirstOrg = false
+    let isFirstChampionship = false
     const { count: priorMembershipCount, error: priorCountError } = await supabase
       .from('org_members')
       .select('id', { count: 'exact', head: true })
@@ -81,23 +82,23 @@ export async function createOrganisation(input: {
     if (priorCountError) {
       Sentry.captureException(priorCountError, { tags: { action: 'createOrganisation.priorCount' } })
     } else {
-      isFirstOrg = (priorMembershipCount ?? 0) === 0
+      isFirstChampionship = (priorMembershipCount ?? 0) === 0
     }
 
     const admin = createAdminClient()
 
-    // Check slug uniqueness across organisations via admin client
-    const { data: existingOrg } = await admin
+    // Check slug uniqueness across championships via admin client
+    const { data: existingChampionship } = await admin
       .from('organisations')
       .select('id')
       .eq('slug', slug)
       .maybeSingle()
 
-    if (existingOrg) return { success: false, error: 'That slug is already taken.' }
+    if (existingChampionship) return { success: false, error: 'That slug is already taken.' }
 
-    // Public organisation pages and per-event public pages share the
-    // top-level route namespace (`/{slug}`), so a new org slug must not
-    // collide with any existing event slug. Soft-deleted events are
+    // Public championship pages and per-event public pages share the
+    // top-level route namespace (`/{slug}`), so a new championship slug must
+    // not collide with any existing event slug. Soft-deleted events are
     // included — their slug rows remain in the table and could be
     // recovered, so the namespace must remain reserved.
     const { data: existingEvent } = await admin
@@ -108,16 +109,16 @@ export async function createOrganisation(input: {
 
     if (existingEvent) return { success: false, error: 'That slug is already taken.' }
 
-    // Insert organisation via admin client (bypasses RLS)
-    const { data: org, error: orgError } = await admin
+    // Insert championship via admin client (bypasses RLS)
+    const { data: championship, error: championshipError } = await admin
       .from('organisations')
       .insert({ name, slug })
       .select('id')
       .single()
 
-    if (orgError || !org) {
-      if (orgError) {
-        Sentry.captureException(orgError, { tags: { action: 'createOrganisation.insertOrg' } })
+    if (championshipError || !championship) {
+      if (championshipError) {
+        Sentry.captureException(championshipError, { tags: { action: 'createOrganisation.insertOrg' } })
       }
       return { success: false, error: 'Could not create the championship. Please retry.' }
     }
@@ -125,11 +126,11 @@ export async function createOrganisation(input: {
     // Insert owner membership via admin client (bypasses RLS)
     const { error: memberError } = await admin
       .from('org_members')
-      .insert({ org_id: org.id, user_id: user.id, role: 'owner' })
+      .insert({ org_id: championship.id, user_id: user.id, role: 'owner' })
 
     if (memberError) {
-      // Clean up the org if membership insert fails
-      await admin.from('organisations').delete().eq('id', org.id)
+      // Clean up the championship if membership insert fails
+      await admin.from('organisations').delete().eq('id', championship.id)
       Sentry.captureException(memberError, { tags: { action: 'createOrganisation.insertMember' } })
       return { success: false, error: 'Could not create the championship. Please retry.' }
     }
@@ -140,9 +141,9 @@ export async function createOrganisation(input: {
     await writeAuditLog(
       supabase,
       user.id,
-      { orgId: org.id },
+      { championshipId: championship.id },
       'organisation.created',
-      { org_id: org.id, name, slug },
+      { org_id: championship.id, name, slug },
       { via: 'membership' },
     )
 
@@ -151,13 +152,13 @@ export async function createOrganisation(input: {
     // exception (cookie write, cache revalidation) is captured to Sentry
     // and swallowed so the caller still sees { success: true }.
     try {
-      setActiveOrgId(org.id)
+      setActiveChampionshipId(championship.id)
       revalidatePath('/admin')
     } catch (postCommitErr) {
       Sentry.captureException(postCommitErr, { tags: { action: 'createOrganisation.postCommit' } })
     }
 
-    return { success: true, data: { id: org.id, isFirstOrg } }
+    return { success: true, data: { id: championship.id, isFirstChampionship } }
   } catch (err) {
     // Catch any unexpected exception so the server action never crashes the page
     Sentry.captureException(err, { tags: { action: 'createOrganisation' } })
@@ -166,54 +167,54 @@ export async function createOrganisation(input: {
 }
 
 /**
- * Switches the active organisation for the current user.
+ * Switches the active championship for the current user.
  * Validates membership before setting the cookie.
  */
-export async function switchOrg(orgId: string): Promise<ActionResult> {
+export async function switchChampionship(championshipId: string): Promise<ActionResult> {
   const { supabase, user } = await requireUser()
 
-  // Verify the user is a member of this org
+  // Verify the user is a member of this championship
   const { data: membership } = await supabase
     .from('org_members')
     .select('org_id')
     .eq('user_id', user.id)
-    .eq('org_id', orgId)
+    .eq('org_id', championshipId)
     .maybeSingle()
 
   if (!membership) return { success: false, error: 'You are not a member of this championship.' }
 
-  setActiveOrgId(orgId)
+  setActiveChampionshipId(championshipId)
   revalidatePath('/admin', 'layout')
 
   return { success: true, data: undefined }
 }
 
 // ---------------------------------------------------------------------------
-// Org Settings
+// Championship Settings
 // ---------------------------------------------------------------------------
 
 /**
- * Require the current user to be owner or admin of the active org.
- * Returns the supabase client, user, and active org.
+ * Require the current user to be owner or admin of the active championship.
+ * Returns the supabase client, user, and active championship.
  */
 async function requireOwner() {
   const { supabase, user } = await requireUser()
-  const activeOrg = await getActiveOrg(supabase, user.id)
-  if (!activeOrg) redirect('/admin')
-  if (activeOrg.role !== 'owner') {
-    return { supabase, user, activeOrg, authorized: false as const }
+  const activeChampionship = await getActiveChampionship(supabase, user.id)
+  if (!activeChampionship) redirect('/admin')
+  if (activeChampionship.role !== 'owner') {
+    return { supabase, user, activeChampionship, authorized: false as const }
   }
-  return { supabase, user, activeOrg, authorized: true as const }
+  return { supabase, user, activeChampionship, authorized: true as const }
 }
 
 /**
- * Updates the organisation name.
+ * Updates the championship name.
  */
-export async function updateOrganisation(input: {
-  orgId: string
+export async function updateChampionship(input: {
+  championshipId: string
   name: string
 }): Promise<ActionResult> {
-  const { supabase, user, activeOrg, authorized } = await requireOwner()
+  const { supabase, user, activeChampionship, authorized } = await requireOwner()
   if (!authorized) return { success: false, error: 'Only owners can update championship settings.' }
 
   const name = input.name.trim()
@@ -224,13 +225,13 @@ export async function updateOrganisation(input: {
   const { data: current } = await supabase
     .from('organisations')
     .select('name')
-    .eq('id', input.orgId)
+    .eq('id', input.championshipId)
     .maybeSingle()
 
   const { error } = await supabase
     .from('organisations')
     .update({ name })
-    .eq('id', input.orgId)
+    .eq('id', input.championshipId)
 
   if (error) {
     Sentry.captureException(error, { tags: { action: 'updateOrganisation.update' } })
@@ -242,10 +243,10 @@ export async function updateOrganisation(input: {
     await writeAuditLog(
       supabase,
       user.id,
-      { orgId: input.orgId },
+      { championshipId: input.championshipId },
       'organisation.updated',
       { changes: { name: { from: previousName, to: name } } },
-      makeActorContext(activeOrg),
+      makeActorContext(activeChampionship),
     )
   }
 
@@ -261,14 +262,14 @@ export async function updateOrganisation(input: {
 const HEX_RE = /^#[0-9A-Fa-f]{3}([0-9A-Fa-f]{3})?$/
 
 /**
- * Updates the organisation branding. Owner/admin only.
+ * Updates the championship branding. Owner/admin only.
  * Stores null when all fields are cleared.
  */
-export async function updateOrgBranding(input: {
-  orgId: string
-  branding: OrgBranding
+export async function updateChampionshipBranding(input: {
+  championshipId: string
+  branding: ChampionshipBranding
 }): Promise<ActionResult> {
-  const { supabase, user, activeOrg, authorized } = await requireOwner()
+  const { supabase, user, activeChampionship, authorized } = await requireOwner()
   if (!authorized) return { success: false, error: 'Only owners can update branding.' }
 
   const { primaryColor, logoUrl, headerText } = input.branding
@@ -282,7 +283,7 @@ export async function updateOrgBranding(input: {
   const { data: currentRow } = await supabase
     .from('organisations')
     .select('branding')
-    .eq('id', input.orgId)
+    .eq('id', input.championshipId)
     .maybeSingle()
 
   // Build the stored object; omit empty fields so jsonb stays clean.
@@ -297,16 +298,16 @@ export async function updateOrgBranding(input: {
   const { error } = await supabase
     .from('organisations')
     .update({ branding: brandingValue })
-    .eq('id', input.orgId)
+    .eq('id', input.championshipId)
 
   if (error) {
     Sentry.captureException(error, { tags: { action: 'updateOrgBranding.update' } })
     return { success: false, error: 'Could not save branding. Please retry.' }
   }
 
-  const previousBranding = (currentRow?.branding ?? null) as OrgBranding | null
-  const nextBranding = brandingValue as OrgBranding | null
-  const fields: Array<keyof OrgBranding> = ['primaryColor', 'logoUrl', 'headerText']
+  const previousBranding = (currentRow?.branding ?? null) as ChampionshipBranding | null
+  const nextBranding = brandingValue as ChampionshipBranding | null
+  const fields: Array<keyof ChampionshipBranding> = ['primaryColor', 'logoUrl', 'headerText']
   const changes: Record<string, { from: string | null; to: string | null }> = {}
   for (const field of fields) {
     const from = (previousBranding?.[field] ?? null) || null
@@ -320,10 +321,10 @@ export async function updateOrgBranding(input: {
     await writeAuditLog(
       supabase,
       user.id,
-      { orgId: input.orgId },
+      { championshipId: input.championshipId },
       'organisation.branding_updated',
       { changes },
-      makeActorContext(activeOrg),
+      makeActorContext(activeChampionship),
     )
   }
 
@@ -336,16 +337,16 @@ export async function updateOrgBranding(input: {
 // ---------------------------------------------------------------------------
 
 /**
- * Lists members of the active org. Owner/admin only.
+ * Lists members of the active championship. Owner/admin only.
  */
-export async function listOrgMembers(orgId: string): Promise<ActionResult<Array<{
+export async function listChampionshipMembers(championshipId: string): Promise<ActionResult<Array<{
   id: string
   user_id: string
   role: string
   email: string
   created_at: string
 }>>> {
-  const { supabase, authorized } = await requireOwner()
+  const { authorized } = await requireOwner()
   if (!authorized) return { success: false, error: 'Only owners can view members.' }
 
   // Use admin client so the users join returns emails for all members,
@@ -354,7 +355,7 @@ export async function listOrgMembers(orgId: string): Promise<ActionResult<Array<
   const { data, error } = await admin
     .from('org_members')
     .select('id, user_id, role, created_at, users!org_members_user_id_fkey(email)')
-    .eq('org_id', orgId)
+    .eq('org_id', championshipId)
     .order('created_at', { ascending: true })
 
   if (error) {
@@ -378,10 +379,10 @@ export async function listOrgMembers(orgId: string): Promise<ActionResult<Array<
  */
 export async function updateMemberRole(input: {
   memberId: string
-  orgId: string
+  championshipId: string
   newRole: 'owner' | 'editor'
 }): Promise<ActionResult> {
-  const { supabase, user, activeOrg, authorized } = await requireOwner()
+  const { supabase, user, activeChampionship, authorized } = await requireOwner()
   if (!authorized) return { success: false, error: 'Only owners can change roles.' }
 
   // Fetch the member being changed — include email join for audit detail.
@@ -391,7 +392,7 @@ export async function updateMemberRole(input: {
     .from('org_members')
     .select('id, user_id, role, users!org_members_user_id_fkey(email)')
     .eq('id', input.memberId)
-    .eq('org_id', input.orgId)
+    .eq('org_id', input.championshipId)
     .single()
 
   if (!member) return { success: false, error: 'Member not found.' }
@@ -404,7 +405,7 @@ export async function updateMemberRole(input: {
     const { count } = await supabase
       .from('org_members')
       .select('id', { count: 'exact', head: true })
-      .eq('org_id', input.orgId)
+      .eq('org_id', input.championshipId)
       .eq('role', 'owner')
 
     if ((count ?? 0) <= 1) {
@@ -426,15 +427,15 @@ export async function updateMemberRole(input: {
     await writeAuditLog(
       supabase,
       user.id,
-      { orgId: input.orgId },
+      { championshipId: input.championshipId },
       'org_member.role_updated',
       {
-        org_id: input.orgId,
+        org_id: input.championshipId,
         target_user_id: member.user_id,
         target_email: targetEmail,
         changes: { role: { from: previousRole, to: input.newRole } },
       },
-      makeActorContext(activeOrg),
+      makeActorContext(activeChampionship),
     )
   }
 
@@ -443,13 +444,13 @@ export async function updateMemberRole(input: {
 }
 
 /**
- * Removes a member from the org. Cannot remove last owner.
+ * Removes a member from the championship. Cannot remove last owner.
  */
 export async function removeMember(input: {
   memberId: string
-  orgId: string
+  championshipId: string
 }): Promise<ActionResult> {
-  const { supabase, user, activeOrg, authorized } = await requireOwner()
+  const { supabase, user, activeChampionship, authorized } = await requireOwner()
   if (!authorized) return { success: false, error: 'Only owners can remove members.' }
 
   // Fetch the member being removed — include user_id + email join for audit
@@ -460,7 +461,7 @@ export async function removeMember(input: {
     .from('org_members')
     .select('id, user_id, role, users!org_members_user_id_fkey(email)')
     .eq('id', input.memberId)
-    .eq('org_id', input.orgId)
+    .eq('org_id', input.championshipId)
     .single()
 
   if (!member) return { success: false, error: 'Member not found.' }
@@ -484,7 +485,7 @@ export async function removeMember(input: {
     const { count } = await supabase
       .from('org_members')
       .select('id', { count: 'exact', head: true })
-      .eq('org_id', input.orgId)
+      .eq('org_id', input.championshipId)
       .eq('role', 'owner')
 
     if ((count ?? 0) <= 1) {
@@ -505,15 +506,15 @@ export async function removeMember(input: {
   await writeAuditLog(
     supabase,
     user.id,
-    { orgId: input.orgId },
+    { championshipId: input.championshipId },
     'org_member.removed',
     {
-      org_id: input.orgId,
+      org_id: input.championshipId,
       target_user_id: targetUserId,
       target_email: targetEmail,
       previous_role: previousRole,
     },
-    makeActorContext(activeOrg),
+    makeActorContext(activeChampionship),
   )
 
   revalidatePath('/admin')
@@ -525,9 +526,9 @@ export async function removeMember(input: {
 // ---------------------------------------------------------------------------
 
 /**
- * Lists pending invites for the org.
+ * Lists pending invites for the championship.
  */
-export async function listOrgInvites(orgId: string): Promise<ActionResult<Array<{
+export async function listChampionshipInvites(championshipId: string): Promise<ActionResult<Array<{
   id: string
   email: string
   role: string
@@ -539,7 +540,7 @@ export async function listOrgInvites(orgId: string): Promise<ActionResult<Array<
   const { data, error } = await supabase
     .from('org_invites')
     .select('id, email, role, created_at')
-    .eq('org_id', orgId)
+    .eq('org_id', championshipId)
     .is('accepted_at', null)
     .order('created_at', { ascending: false })
 
@@ -551,16 +552,16 @@ export async function listOrgInvites(orgId: string): Promise<ActionResult<Array<
 }
 
 /**
- * Invites a user by email to the org. Sends invite email via Resend.
+ * Invites a user by email to the championship. Sends invite email via Resend.
  * Uses the admin client for all DB writes to avoid RLS ambiguity on new tables.
  */
 export async function inviteMember(input: {
-  orgId: string
+  championshipId: string
   email: string
   role: 'editor'
 }): Promise<ActionResult> {
   try {
-    const { supabase, user, activeOrg, authorized } = await requireOwner()
+    const { supabase, user, activeChampionship, authorized } = await requireOwner()
     if (!authorized) return { success: false, error: 'Only owners can invite members.' }
 
     const email = input.email.trim().toLowerCase()
@@ -579,7 +580,7 @@ export async function inviteMember(input: {
       const { data: existingMember } = await admin
         .from('org_members')
         .select('id')
-        .eq('org_id', input.orgId)
+        .eq('org_id', input.championshipId)
         .eq('user_id', existingUser.id)
         .maybeSingle()
 
@@ -592,7 +593,7 @@ export async function inviteMember(input: {
     const { data: invite, error: insertError } = await admin
       .from('org_invites')
       .insert({
-        org_id: input.orgId,
+        org_id: input.championshipId,
         email,
         role: input.role,
         invited_by: user.id,
@@ -615,37 +616,37 @@ export async function inviteMember(input: {
     await writeAuditLog(
       supabase,
       user.id,
-      { orgId: input.orgId },
+      { championshipId: input.championshipId },
       'org_member.invited',
-      { org_id: input.orgId, email, role: input.role, invite_id: invite.id },
-      makeActorContext(activeOrg),
+      { org_id: input.championshipId, email, role: input.role, invite_id: invite.id },
+      makeActorContext(activeChampionship),
     )
 
-    // Fetch org name for the email (use user client — RLS allows member read)
-    const { data: org } = await supabase
+    // Fetch championship name for the email (use user client — RLS allows member read)
+    const { data: championship } = await supabase
       .from('organisations')
       .select('name')
-      .eq('id', input.orgId)
+      .eq('id', input.championshipId)
       .maybeSingle()
 
     // Send invite email — failure never blocks invite creation
     const resend = getResendClient()
-    if (resend && org) {
+    if (resend && championship) {
       const acceptUrl = `${getServerAppUrl()}/invites/${invite.token}`
 
       try {
         await resend.emails.send({
           from: getFromAddress(),
           to: email,
-          subject: orgInviteSubject(org.name),
+          subject: orgInviteSubject(championship.name),
           html: orgInviteHtml({
-            orgName: org.name,
+            orgName: championship.name,
             inviterEmail: user.email ?? 'unknown',
             role: input.role,
             acceptUrl,
           }),
           text: orgInviteText({
-            orgName: org.name,
+            orgName: championship.name,
             inviterEmail: user.email ?? 'unknown',
             role: input.role,
             acceptUrl,
@@ -671,9 +672,9 @@ export async function inviteMember(input: {
  */
 export async function revokeInvite(input: {
   inviteId: string
-  orgId: string
+  championshipId: string
 }): Promise<ActionResult> {
-  const { supabase, user, activeOrg, authorized } = await requireOwner()
+  const { supabase, user, activeChampionship, authorized } = await requireOwner()
   if (!authorized) return { success: false, error: 'Only owners can revoke invites.' }
 
   // Capture email pre-delete so the audit row records who was invited.
@@ -681,14 +682,14 @@ export async function revokeInvite(input: {
     .from('org_invites')
     .select('email')
     .eq('id', input.inviteId)
-    .eq('org_id', input.orgId)
+    .eq('org_id', input.championshipId)
     .maybeSingle()
 
   const { error } = await supabase
     .from('org_invites')
     .delete()
     .eq('id', input.inviteId)
-    .eq('org_id', input.orgId)
+    .eq('org_id', input.championshipId)
 
   if (error) {
     Sentry.captureException(error, { tags: { action: 'revokeInvite.delete' } })
@@ -698,10 +699,10 @@ export async function revokeInvite(input: {
   await writeAuditLog(
     supabase,
     user.id,
-    { orgId: input.orgId },
+    { championshipId: input.championshipId },
     'org_member.invite_revoked',
-    { org_id: input.orgId, invite_id: input.inviteId, email: inviteRow?.email ?? null },
-    makeActorContext(activeOrg),
+    { org_id: input.championshipId, invite_id: input.inviteId, email: inviteRow?.email ?? null },
+    makeActorContext(activeChampionship),
   )
 
   revalidatePath('/admin')
@@ -712,7 +713,7 @@ export async function revokeInvite(input: {
  * Accepts an invite by token. Uses service-role client for insert.
  * Validates: token exists, not already accepted, email matches user.
  */
-export async function acceptInvite(token: string): Promise<ActionResult<{ orgId: string; role: string }>> {
+export async function acceptInvite(token: string): Promise<ActionResult<{ championshipId: string; role: string }>> {
   const { supabase, user } = await requireUser()
 
   const admin = createAdminClient()
@@ -762,7 +763,7 @@ export async function acceptInvite(token: string): Promise<ActionResult<{ orgId:
       return { success: false, error: 'Could not mark the invite as accepted. Please try again.' }
     }
 
-    return { success: true, data: { orgId: invite.org_id, role: invite.role } }
+    return { success: true, data: { championshipId: invite.org_id, role: invite.role } }
   }
 
   // Insert membership
@@ -800,14 +801,14 @@ export async function acceptInvite(token: string): Promise<ActionResult<{ orgId:
   await writeAuditLog(
     supabase,
     user.id,
-    { orgId: invite.org_id },
+    { championshipId: invite.org_id },
     'org_member.invite_accepted',
     { org_id: invite.org_id, invite_id: invite.id, role: invite.role },
     { via: 'membership' },
   )
 
-  // Set active org to the one they just joined
-  setActiveOrgId(invite.org_id)
+  // Set active championship to the one they just joined
+  setActiveChampionshipId(invite.org_id)
 
-  return { success: true, data: { orgId: invite.org_id, role: invite.role } }
+  return { success: true, data: { championshipId: invite.org_id, role: invite.role } }
 }

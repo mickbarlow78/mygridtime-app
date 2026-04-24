@@ -9,7 +9,7 @@
 //   3. real org member   -> { kind: 'org', role: 'owner' | 'editor', orgName, orgId }
 //   4. no active org     -> { kind: 'subscription', level: 'member' | 'subscriber' }
 
-import type { ActiveOrg } from '@/lib/utils/active-org'
+import type { ActiveChampionship } from '@/lib/utils/active-championship'
 import type { UserBadge } from '@/lib/types/roles'
 
 export interface BadgeUser {
@@ -17,39 +17,39 @@ export interface BadgeUser {
   subscription_status: 'member' | 'subscriber'
 }
 
-export interface BadgeOrg {
+export interface BadgeChampionship {
   org_id: string
   org_name: string
 }
 
 export function computeUserBadge(
   user: BadgeUser,
-  activeOrg: ActiveOrg | null,
-  activeOrgName: string | null
+  activeChampionship: ActiveChampionship | null,
+  activeChampionshipName: string | null
 ): UserBadge {
   if (user.platform_role === 'admin') {
     return { kind: 'admin' }
   }
 
-  if (activeOrg && activeOrg.via === 'platform') {
-    const role = (user.platform_role ?? activeOrg.platform_role) as 'staff' | 'support' | null
+  if (activeChampionship && activeChampionship.via === 'platform') {
+    const role = (user.platform_role ?? activeChampionship.platform_role) as 'staff' | 'support' | null
     if (role === 'staff' || role === 'support') {
       return {
         kind: 'platform',
         role,
-        orgName: activeOrgName ?? '',
-        orgId: activeOrg.org_id,
+        orgName: activeChampionshipName ?? '',
+        orgId: activeChampionship.org_id,
       }
     }
   }
 
-  if (activeOrg && activeOrg.via === 'membership') {
-    if (activeOrg.role === 'owner' || activeOrg.role === 'editor') {
+  if (activeChampionship && activeChampionship.via === 'membership') {
+    if (activeChampionship.role === 'owner' || activeChampionship.role === 'editor') {
       return {
         kind: 'org',
-        role: activeOrg.role,
-        orgName: activeOrgName ?? '',
-        orgId: activeOrg.org_id,
+        role: activeChampionship.role,
+        orgName: activeChampionshipName ?? '',
+        orgId: activeChampionship.org_id,
       }
     }
   }

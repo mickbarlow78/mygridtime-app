@@ -24,7 +24,7 @@ import { TimetableDay } from '@/components/public/TimetableDay'
 import type { PublicEntry } from '@/components/public/TimetableDay'
 import { PrintButton } from '@/components/public/PrintButton'
 import { formatDate } from '@/lib/utils/slug'
-import { resolvePublicOrgBySlug } from '@/lib/utils/public-org'
+import { resolvePublicChampionshipBySlug } from '@/lib/utils/public-championship'
 
 export const dynamic = 'force-dynamic'
 
@@ -33,14 +33,14 @@ interface PageProps {
 }
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
-  const org = await resolvePublicOrgBySlug(params.slug)
-  if (!org) return { title: 'Event not found' }
+  const championship = await resolvePublicChampionshipBySlug(params.slug)
+  if (!championship) return { title: 'Event not found' }
 
   const supabase = createClient()
   const { data: event } = await supabase
     .from('events')
     .select('title')
-    .eq('org_id', org.id)
+    .eq('org_id', championship.id)
     .eq('slug', params.eventSlug)
     .eq('status', 'published')
     .is('deleted_at', null)
@@ -50,14 +50,14 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 }
 
 export default async function PrintTimetablePage({ params }: PageProps) {
-  const org = await resolvePublicOrgBySlug(params.slug)
-  if (!org) notFound()
+  const championship = await resolvePublicChampionshipBySlug(params.slug)
+  if (!championship) notFound()
 
   const supabase = createClient()
   const { data: event } = await supabase
     .from('events')
     .select('id, title, venue, start_date, end_date, slug')
-    .eq('org_id', org.id)
+    .eq('org_id', championship.id)
     .eq('slug', params.eventSlug)
     .eq('status', 'published')
     .is('deleted_at', null)

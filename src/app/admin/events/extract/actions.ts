@@ -4,7 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
-import { getActiveOrg } from '@/lib/utils/active-org'
+import { getActiveChampionship } from '@/lib/utils/active-championship'
 import { writeAuditLog, makeActorContext } from '@/lib/audit'
 import {
   MOCK_EXTRACTED_EVENT,
@@ -59,7 +59,7 @@ async function requireUser() {
 
 async function requireEditor() {
   const { supabase, user } = await requireUser()
-  const membership = await getActiveOrg(supabase, user.id)
+  const membership = await getActiveChampionship(supabase, user.id)
   return { supabase, user, membership }
 }
 

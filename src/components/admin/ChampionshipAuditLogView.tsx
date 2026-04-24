@@ -5,9 +5,9 @@ import { loadAuditLog } from '@/app/admin/audit/actions'
 import type { AuditLogEntry } from '@/lib/audit'
 import { CollapsiblePanel } from '@/components/ui/CollapsiblePanel'
 
-interface OrgAuditLogViewProps {
+interface ChampionshipAuditLogViewProps {
   entries: AuditLogEntry[]
-  orgId: string
+  championshipId: string
   initialHasMore: boolean
   /**
    * If the server-side initial audit_log query failed, the page passes its
@@ -294,13 +294,13 @@ function MemberActionSummary({ action, detail }: { action: string; detail: unkno
 
 // ── Main component ───────────────────────────────────────────────────────────
 
-export function OrgAuditLogView({
+export function ChampionshipAuditLogView({
   entries: initialEntries,
-  orgId,
+  championshipId,
   initialHasMore,
   initialLoadError = null,
   refreshSignal = 0,
-}: OrgAuditLogViewProps) {
+}: ChampionshipAuditLogViewProps) {
   const [open, setOpen] = useState(false)
   const [allEntries, setAllEntries] = useState(initialEntries)
   const [loadingAll, startLoadingAll] = useTransition()
@@ -316,7 +316,7 @@ export function OrgAuditLogView({
   const loadAll = useCallback(() => {
     setLoadError(null)
     startLoadingAll(async () => {
-      const result = await loadAuditLog({ orgId })
+      const result = await loadAuditLog({ championshipId })
       if (result.success) {
         setAllEntries(result.data.entries)
         setCapped(result.data.capped)
@@ -326,7 +326,7 @@ export function OrgAuditLogView({
         setAllLoaded(true)
       }
     })
-  }, [orgId])
+  }, [championshipId])
 
   useEffect(() => {
     if (open && !allLoaded && !loadingAll) {

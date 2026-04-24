@@ -13,18 +13,18 @@
 import { useEffect, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { switchOrg } from '@/app/admin/orgs/actions'
+import { switchChampionship } from '@/app/admin/championships/actions'
 import { signOut } from '@/app/admin/actions'
 import type { UserBadge } from '@/lib/types/roles'
-import type { UserOrg } from '@/lib/utils/active-org'
+import type { UserChampionship } from '@/lib/utils/active-championship'
 
 interface UserMenuProps {
   badge: UserBadge
   userEmail: string
   userDisplayName: string | null
   subscriptionStatus: 'member' | 'subscriber'
-  userOrgs: UserOrg[]
-  activeOrgId: string | null
+  userChampionships: UserChampionship[]
+  activeChampionshipId: string | null
 }
 
 // Tailwind classes keyed by badge kind / role. Kept inline rather than
@@ -80,8 +80,8 @@ export function UserMenu({
   userEmail,
   userDisplayName,
   subscriptionStatus,
-  userOrgs,
-  activeOrgId,
+  userChampionships,
+  activeChampionshipId,
 }: UserMenuProps) {
   const router = useRouter()
   const [open, setOpen] = useState(false)
@@ -107,13 +107,13 @@ export function UserMenu({
     }
   }, [open])
 
-  function handleSwitchOrg(orgId: string) {
-    if (orgId === activeOrgId) {
+  function handleSwitchChampionship(championshipId: string) {
+    if (championshipId === activeChampionshipId) {
       setOpen(false)
       return
     }
     startTransition(async () => {
-      await switchOrg(orgId)
+      await switchChampionship(championshipId)
       setOpen(false)
       router.refresh()
     })
@@ -166,11 +166,11 @@ export function UserMenu({
             <p className="text-[11px] uppercase tracking-wide text-gray-400 mb-2">
               Championships
             </p>
-            {userOrgs.length === 0 ? (
+            {userChampionships.length === 0 ? (
               <div className="text-xs text-gray-500 space-y-2">
                 <p>You do not belong to any championship yet.</p>
                 <Link
-                  href="/admin/orgs/new"
+                  href="/admin/championships/new"
                   onClick={() => setOpen(false)}
                   className="text-gray-700 hover:text-gray-900 underline underline-offset-2 min-h-[40px] py-2 inline-flex items-center sm:min-h-0 sm:py-0 sm:inline"
                 >
@@ -179,14 +179,14 @@ export function UserMenu({
               </div>
             ) : (
               <ul className="space-y-1">
-                {userOrgs.map((o) => (
+                {userChampionships.map((o) => (
                   <li key={o.org_id}>
                     <button
                       type="button"
-                      onClick={() => handleSwitchOrg(o.org_id)}
+                      onClick={() => handleSwitchChampionship(o.org_id)}
                       disabled={pending}
                       className={`w-full text-left text-xs px-2 rounded transition-colors disabled:opacity-50 min-h-[40px] py-2 inline-flex items-center sm:min-h-0 sm:py-1 ${
-                        o.org_id === activeOrgId
+                        o.org_id === activeChampionshipId
                           ? 'bg-gray-100 text-gray-900 font-medium'
                           : 'text-gray-700 hover:bg-gray-50'
                       }`}

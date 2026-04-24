@@ -4,7 +4,7 @@ import * as Sentry from '@sentry/nextjs'
 import { StatusBadge } from '@/components/ui/StatusBadge'
 import { formatDate } from '@/lib/utils/slug'
 import type { EventStatus } from '@/lib/types/database'
-import { getActiveOrg } from '@/lib/utils/active-org'
+import { getActiveChampionship } from '@/lib/utils/active-championship'
 import { cn, H1, SUBTITLE, BTN_PRIMARY, TAB_BAR, TAB_ACTIVE, TAB_INACTIVE, LIST_CARD, ERROR_BANNER } from '@/lib/styles'
 
 // Next.js: re-render this page on every request (never cache stale event data)
@@ -25,7 +25,7 @@ export default async function AdminDashboardPage({ searchParams }: PageProps) {
     data: { user },
   } = await supabase.auth.getUser()
 
-  const membership = user ? await getActiveOrg(supabase, user.id) : null
+  const membership = user ? await getActiveChampionship(supabase, user.id) : null
 
   const activeFilter: StatusFilter =
     STATUS_FILTERS.includes(searchParams.status as StatusFilter)

@@ -92,7 +92,7 @@ export async function GET(request: NextRequest) {
   // handles its own viewer routing after accept.
   // For a plain login with no return path, branch on membership state:
   //   - elevated role in any org → /admin
-  //   - zero memberships           → /admin/orgs/new (first-run onboarding,
+  //   - zero memberships           → /admin/championships/new (first-run onboarding,
   //                                  permitted by the admin layout when the
   //                                  user has no orgs at all)
   //
@@ -116,7 +116,7 @@ export async function GET(request: NextRequest) {
       if (!hasElevatedRole && roles.length === 0) {
         // No orgs at all — drop into the first-run onboarding page so the
         // user can create their first organisation immediately.
-        destination = '/admin/orgs/new'
+        destination = '/admin/championships/new'
       }
     }
   }
