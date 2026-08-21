@@ -1,6 +1,6 @@
 # Known Issues
 
-## MGT-109: MGT-107 migration applied to production ahead of matching code deploy — two-month outage on public championship/legacy-event pages — OPEN (fix merged, not yet deployed)
+## MGT-109: MGT-107 migration applied to production ahead of matching code deploy — two-month outage on public championship/legacy-event pages — RESOLVED 2026-08-20 (monitoring gap closed 2026-08-21)
 
 **Description**: The MGT-107 Phase 4 migration (`supabase/migrations/20260424000000_mgt_107_rename_org_to_championship.sql`) was applied directly to production Supabase (`supabase db push --linked`, ref `hxxderwxxpfzdxlmsqpl`) on 2026-06-19, but the matching code — commit `e6e6ebc`, which contains both the migration file and the ~25-file application code rename — was never merged/deployed to `origin/main` at the same time. `origin/main` remained at `3c4220b` ("MGT-105+106: championship rename internals and admin routes"), whose data-access code for two public routes still queried the pre-rename schema (`organisations` table, `org_id` column). From the moment the migration applied, every request to those two routes failed.
 
@@ -11,7 +11,7 @@
 
 **Fix**: already written and merged locally — MGT-107 Phase 4 (commit `e6e6ebc` on `mgt-107-rehearsal`) renames every data-access call site to `championships`/`championship_id`, including both routes above (`championships!inner(slug)`, `.eq('championship_id', ...)`). 2026-08-20 session re-verified exhaustively: reconciled all `organisations`/`org_id`/`org_members`/`org_invites`/`orgId` references between `origin/main` (68 files, ~1,168 occurrences, noise-dirs excluded) and `mgt-107-rehearsal` (47 files, ~979 occurrences) — every remaining match on the branch is either a comment/JSDoc reference to the old name, a JSON-blob key inside `audit_log.detail` payloads (not a DB column — see DEC-041 scoped deferral #2), the intentionally-unrenamed `get_user_org_role(p_org_id)` RLS function (see the residual entry below), historical pre-rename migration files (must never be edited), or already-documented doc/seed drift. No genuine remaining miss found in either Sentry-implicated code path or anywhere else. Confirmed no compatibility view named `organisations` exists and no migration after `20260424000000` touches these tables again. `mgt-107-rehearsal` fast-forward-merged into local `main` with zero conflicts; `npm run typecheck` / `npm test` (83/83) / `npm run build` all pass on the merged `main`.
 
-**Status**: fix is merged to local `main` (2 commits ahead of `origin/main`: `e6e6ebc`, `b661be9`) but **NOT pushed and NOT deployed** as of 2026-08-20. Production is still serving the broken `3c4220b` build. OPEN until pushed, deployed, and post-deploy verification (below) confirms the Sentry event rate has dropped and both routes render real data.
+**Status**: RESOLVED. `b661be9` deployed to production 2026-08-20 (Netlify deploy `6a86e111`). Public championship and event pages verified 2026-08-21 returning 200 with real data and no `PGRST` errors. `JAVASCRIPT-NEXTJS-R` and `JAVASCRIPT-NEXTJS-S` marked resolved in Sentry so any recurrence surfaces as a regression rather than being buried in an already-open issue.
 
 **Post-deploy verification checklist**:
 1. Push local `main` to `origin/main` (only after explicit go-ahead) and confirm Netlify's live deploy commit SHA matches `b661be9`.
@@ -19,6 +19,26 @@
 3. Visit a real event page (`https://app.mygridtime.com/{slug}/{eventSlug}`) and confirm the timetable renders.
 4. In Sentry, compare the event rate for `JAVASCRIPT-NEXTJS-R` / `JAVASCRIPT-NEXTJS-S` in the hour after deploy vs. the hour before — should drop to ~zero.
 5. Once 2–4 confirm the fix, manually mark `JAVASCRIPT-NEXTJS-R` and `JAVASCRIPT-NEXTJS-S` resolved in Sentry so any future recurrence surfaces as a regression rather than being buried in an already-open issue.
+
+**Monitoring gap — closed 2026-08-21**: the outage was *detected and missed*, not undetected. Issue alert rule **481169** fired **once**, at 2026-06-20T04:55:40Z, and then went silent for two months while roughly 6,460 events accumulated. Sentry issue alerts deduplicate — once an issue is no longer new and its priority does not escalate, they stop firing even while the underlying failure continues. A two-month outage therefore produced a single notification on its first night.
+
+Closed by a Sentry **metric** alert rule, id **25180**, created 2026-08-21T11:13:52Z (HTTP 201). Config, verified by reading the stored rule back from the Sentry API: dataset `events`, eventTypes `error`, aggregate `count()`, empty query, `timeWindow` 60 minutes, `thresholdType` above, critical `alertThreshold` 5, resolves below 5, environment `production`, project `javascript-nextjs`, owner `user:4431781`, action email to mickbarlow@kiontechnology.co.uk. <https://lb42-ltd.sentry.io/issues/alerts/rules/details/25180/>
+
+Metric alerts are **stateful** (critical / warning / resolved), so an ongoing outage stays in critical rather than deduplicating into silence. Verified separately: the historic outage events *are* tagged `environment:production`, so the environment scoping on 25180 is not a blind spot.
+
+Issue rule **481169 is still enabled and must stay enabled.** The two rules cover different failure shapes: 25180 catches **volume** (≥5 errors/hour), 481169 catches **novelty** (a brand-new issue at any volume). A slow drip below 5 errors/hour would slip past 25180 alone. Deleting either rule reopens a gap.
+
+**Remaining weakness — OPEN**: 25180 notifies by **email**, which is precisely the channel that was missed in June. Slack has been ruled out. Planned mitigation is a dedicated Gmail label plus a phone notification scoped to that label only. **Not yet done** — until it is, the alert is only as good as inbox attention.
+
+**Three controls, not one — none of them sufficient alone**: it is tempting to read the CI schema gate (DEC-045) as "this can't happen again". It cannot prevent a recurrence by itself, and believing it can is worse than not having it. MGT-109 needed all three of the following, and they cover genuinely different halves of the problem:
+
+| Control | Kind | Catches | Blind to |
+|---|---|---|---|
+| DEC-042 apply-order rule | **Prevention** (procedural) | A rename migration being pushed to production ahead of the matching code deploy | Anything that bypasses the checklist — it is a human rule, not an enforced one |
+| DEC-045 schema gate (`npm run check:schema`) | **Deploy-time verification** | Deploying code that does not match the **current production schema** | A schema change with **no accompanying build** — see below |
+| Metric alert 25180 | **Detection** | Production schema changing **underneath already-deployed code** — the MGT-109 shape | Anything below 5 errors/hour (481169 covers novelty) |
+
+The schema gate's scope limit is specific and must not be glossed: **it runs at build time, and MGT-109 was triggered by a `supabase db push` with no accompanying build.** Had the gate existed on 2026-06-19, no build would have run that day, so it would not have fired. It would have blocked the *next* deploy of broken code — valuable, but the outage had already started. Only alert 25180 detects the window between "schema changed" and "someone next builds".
 
 **Rollback risk**: if `origin/main` is ever reverted past `e6e6ebc` after this deploy (e.g. `git revert` or resetting to `3c4220b`), production DB will already be on the post-rename schema (migration `20260424000000` is applied and not reversible via a code-only rollback) — the reverted code would reproduce this exact outage immediately. Any rollback plan for this deploy must keep the code at or after `e6e6ebc`, or restore the pre-rename schema first (not recommended — no down-migration exists for `20260424000000`).
 

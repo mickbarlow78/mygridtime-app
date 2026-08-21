@@ -1,5 +1,37 @@
 # Decisions
 
+## DEC-044: Production error monitoring uses a stateful metric alert for volume, alongside — not instead of — the existing issue alert for novelty
+
+**Decision**: A Sentry **metric** alert rule (id **25180**, created 2026-08-21T11:13:52Z) is the primary production error-monitoring control for the `javascript-nextjs` project. Config, verified by reading the stored rule back from the Sentry API: dataset `events`, eventTypes `error`, aggregate `count()`, empty query, `timeWindow` 60 minutes, `thresholdType` above, critical `alertThreshold` 5, resolves below 5, environment `production`, owner `user:4431781`, action email to mickbarlow@kiontechnology.co.uk. Rule URL: <https://lb42-ltd.sentry.io/issues/alerts/rules/details/25180/>. The pre-existing **issue** alert rule **481169** is deliberately retained and must remain enabled.
+
+**Why a metric alert and not another issue alert**: during the MGT-109 outage, issue rule 481169 fired **exactly once** — 2026-06-20T04:55:40Z — and then went silent for two months while roughly 6,460 events accumulated across `JAVASCRIPT-NEXTJS-R` and `JAVASCRIPT-NEXTJS-S`. Sentry issue alerts are **deduplicating by design**: they fire on issue *state transitions* (new issue, regression, priority escalation), not on ongoing volume. Once an issue is no longer new and its priority does not escalate, the rule stops notifying even though the failure is continuing at full rate. The failure mode this produced is the worst kind — the outage was **detected and then missed**, so a monitoring system that appeared to be working produced one notification for a two-month production outage. Metric alerts are **stateful**: they hold a critical / warning / resolved status derived from a windowed aggregate, so an ongoing outage stays in critical and does not decay into silence.
+
+**Why 481169 is kept rather than replaced**: the two rules cover complementary and non-overlapping failure shapes.
+
+- **25180 catches volume** — any error rate above 5/hour in production, regardless of whether the issue is new. This is the MGT-109 shape.
+- **481169 catches novelty** — a brand-new issue at *any* volume, including its first occurrence.
+
+A slow drip below the 5/hour threshold — a rarely-hit route, an edge-case regression, a low-traffic admin surface — would never trip 25180 but would trip 481169 on its first event. Conversely a known, already-triaged issue that suddenly spikes trips 25180 but not 481169. Deleting either rule leaves a real gap; this is deliberate redundancy, not duplication.
+
+**Why threshold 5/hour and a 60-minute window**: the MGT-109 outage ran at roughly 4,966 + 1,494 events over ~62 days, i.e. well above 4 events/hour sustained, and its opening night was far denser. A 5/hour threshold clears normal background noise (the project's steady state is near zero unresolved production errors) while tripping within one window of an outage of MGT-109's shape. A 60-minute window trades a slightly slower first notification for immunity to single-minute spikes from a crawler or a transient upstream blip.
+
+**Why environment scoping is safe**: verified separately against the historic outage events — they **are** tagged `environment: production`. Scoping 25180 to `environment: production` therefore excludes preview/branch noise without creating a blind spot for the exact class of incident it was built for.
+
+**Known remaining weakness (open, not resolved by this decision)**: 25180 notifies by **email** — the same channel that was missed in June 2026. The alerting *logic* gap is closed; the *delivery* gap is not. Slack has been explicitly ruled out. The planned mitigation is a dedicated Gmail label plus a phone notification scoped to that label only. Until that is in place, the control is only as reliable as inbox attention, and this DEC should not be read as closing MGT-109's monitoring story completely.
+
+**Where this sits among the three controls**: MGT-109 required three separate controls and no one of them is sufficient. **DEC-042** is *prevention* (a rename migration must never be applied to production ahead of the matching code deploy). **DEC-045** is *deploy-time verification* (the build fails if code references tables or relationships the live production schema does not have). **DEC-044** — this decision — is *detection*, and it is the only one of the three that covers the specific MGT-109 trigger: a `supabase db push` with **no accompanying build**. The schema gate runs at build time, so on 2026-06-19 it would never have executed; only a volume alert notices production schema changing underneath already-deployed code. See the comparison table in [KNOWN_ISSUES.md MGT-109](KNOWN_ISSUES.md).
+
+**Rejected alternatives**:
+
+1. *Add a second, tighter issue alert rule* — rejected. It inherits the same deduplication semantics that caused the miss; a second rule with the same blind spot is not a control.
+2. *Replace 481169 with 25180* — rejected. Loses novelty coverage; a slow-drip regression under 5 events/hour would go entirely unnotified.
+3. *Rely on the Sentry weekly digest / dashboard review* — rejected. Requires someone to remember to look, which is exactly what did not happen for two months.
+4. *Slack integration* — ruled out by the product owner.
+
+**References**: [KNOWN_ISSUES.md MGT-109](KNOWN_ISSUES.md); DEC-042 (prevention leg); DEC-045 (deploy-time verification leg); DEC-007 (original decision to adopt Sentry).
+
+---
+
 ## DEC-043: Sentry source map upload uses an EU **organization** auth token, set only in the Netlify Production context; `silent` is conditional so upload failures are visible
 
 **Decision**: Source map upload to Sentry is enabled by setting `SENTRY_ORG` (`lb42-ltd`), `SENTRY_PROJECT` (`javascript-nextjs`) and `SENTRY_AUTH_TOKEN` in the Netlify build environment (scope: Builds). Three constraints are deliberate and must be preserved:
