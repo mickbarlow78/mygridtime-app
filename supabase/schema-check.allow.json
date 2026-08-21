@@ -1,0 +1,27 @@
+{
+  "_readme": [
+    "Escape hatch for the CI schema-drift gate (DEC-045, scripts/check-schema.mjs).",
+    "A gate that blocks deploys on false positives is worse than the disease, so",
+    "suppressions live here — committed, so every suppression is visible in the",
+    "diff and greppable, rather than hidden behind an env var or a CLI flag.",
+    "",
+    "Every entry MUST carry a reason and the ticket that added it. The gate",
+    "reports entries that no longer suppress anything as stale, so this file",
+    "cannot silently accumulate.",
+    "",
+    "tables[]  : { name, reason, addedBy } — a table the live schema legitimately",
+    "            lacks (e.g. created outside the migration set, or referenced",
+    "            only on a code path that is dead in this environment).",
+    "embeds[]  : { from, select, reason, addedBy } — an exact (table, select-string)",
+    "            pair whose relationship the live schema legitimately lacks.",
+    "dynamicFromBaseline : how many non-literal .from() calls on a Supabase client",
+    "            are tolerated. A dynamic table name cannot be probed, so it is an",
+    "            unchecked hole in the gate. Baseline is 0 — all 13 non-literal",
+    "            .from() sites in this codebase are Array.from / Buffer.from /",
+    "            storage.from and are excluded structurally by receiver, not by",
+    "            this number."
+  ],
+  "tables": [],
+  "embeds": [],
+  "dynamicFromBaseline": 0
+}

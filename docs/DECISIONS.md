@@ -1,5 +1,60 @@
 # Decisions
 
+## DEC-045: The schema-drift gate probes the LIVE schema over PostgREST, not the repo's migration files, and fails on exactly two error codes
+
+**Decision**: `npm run check:schema` ([scripts/check-schema.mjs](../scripts/check-schema.mjs), pure core in [src/lib/schema-check/core.mjs](../src/lib/schema-check/core.mjs)) fails the build when application code references a database table or a relationship embed that the **live target schema** does not have. It runs as an npm `prebuild` script, so every `npm run build` — local and Netlify — is gated with no `netlify.toml` change. Credentials come from `NEXT_PUBLIC_SUPABASE_URL` + `NEXT_PUBLIC_SUPABASE_ANON_KEY` (both `level: 'required'` in [src/lib/env.ts](../src/lib/env.ts), so guaranteed present in any build environment), preferring `SUPABASE_SERVICE_ROLE_KEY` when set. No supabase CLI, no Docker, no new credentials.
+
+**Why the live schema and not the repo's migrations**: this is the finding that determined the design, and it contradicts the obvious approach. At commit `3c4220b` — the build that ran broken in production for two months — `supabase/migrations/` contained **16** migrations; `20260424000000` was **not among them** (it arrived with `e6e6ebc`, which was never merged). Verified with `git ls-tree --name-only 3c4220b supabase/migrations/`. So at `3c4220b` the repo was **internally consistent**: the migrations defined `organisations` and the code queried `organisations`. Any gate that compares *code in this commit* against *migrations in this commit* passes cleanly on the exact commit that caused the outage. The divergence was never inside the repo — it was between the repo and the live production database, because `db push` was run from a different branch.
+
+**Fail surface is exactly two PostgREST codes**, both produced verbatim by MGT-109 and both re-captured live from production on 2026-08-21 while building this gate:
+
+- `PGRST205` — *"Could not find the table 'public.organisations' in the schema cache"* (HTTP 404). Probe: `GET /rest/v1/<table>?select=*&limit=0`.
+- `PGRST200` — *"Could not find a relationship between 'events' and 'organisations' in the schema cache"* (HTTP 400). Probe: replay the literal `select()` string, `GET /rest/v1/<table>?select=<the exact string>&limit=0`.
+
+Everything else passes or skips. A `401`/`403` means the table exists and the role simply cannot read it — **verified live: PostgREST resolves the schema cache before permissions, so a missing table returns PGRST205 under the anon key, not a permission error.** Had that not held, a missing table would have been indistinguishable from a permission denial and this whole approach would have been unsound.
+
+**How relationship embeds are handled — the constraint that a naive design misses**: MGT-109 produced *two* distinct errors, and a gate that only scans `.from()` would have caught one and shipped the other. `PGRST200` came from a relationship embed inside a `select()` projection, not from a `.from()` call. This codebase uses **three** embed syntaxes — `championships!inner(slug)`, `users:user_id ( email )` (alias form, whitespace before the paren), and `users!championship_members_user_id_fkey(email)` (FK-hint form). Rather than maintain a parser for that grammar, the gate extracts `(table, selectString)` pairs and **replays the whole select string through PostgREST**, which is the exact component that emitted `PGRST200`. Aliases, hints, `!inner`, nesting and spread syntax therefore work for free, and embed coverage is structural rather than a parsing rule that can be outgrown.
+
+**The gate proves it can fail before reporting a pass**. A gate nobody has seen fail is not known to work. Every run first probes the sentinel table `organisations` — the exact table migration `20260424000000` removed, which can never legitimately resolve again:
+
+- sentinel returns `PGRST205` → the gate is proven able to fail; proceed.
+- sentinel is unverifiable (network, non-JSON) → **skip the whole run, loudly**.
+- sentinel returns a clean JSON response that is **not** `PGRST205` → **refuse to report a pass and exit 1**. Either the table has been recreated or PostgREST no longer signals a missing table the way this gate assumes; in both cases the gate would always pass, and a gate that cannot fail is worse than no gate.
+
+This is backed by committed tests ([src/lib/schema-check/core.test.ts](../src/lib/schema-check/core.test.ts)) whose fixtures are the **verbatim** live PostgREST bodies, not hand-written approximations. If PostgREST ever changes those shapes, those tests are what tells us.
+
+**Skipping is loud, never silent**. Degrading to pass on network failure is deliberate — a gate that blocks deploys on transient network trouble is worse than the disease. But this project has a *known, live* condition that lands in exactly that branch: `JAVASCRIPT-NEXTJS-6`, where Cloudflare's WAF returns an HTML block page for `supabase.co` against the production egress IP. An HTML body is not a PostgREST body, so it is classified `unverifiable`. The skip path therefore prints a delimited `SCHEMA CHECK SKIPPED - NOTHING WAS VERIFIED` banner stating the reason, the HTTP status, the content type, and explicitly that **0 tables and 0 embeds were probed**. The pass banner likewise names how many tables and embeds were actually probed — a pass that verified zero things must not look like a pass that verified nineteen. A probe that becomes unverifiable *part-way* through converts the whole run to a skip, because a partial pass is a false pass. This workstream exists because a monitoring control failed silently; it must not ship another one.
+
+**Scope limit — state this plainly, it is the most likely thing for a future reader to get wrong**: the gate runs at **build time**, and MGT-109 was triggered by a `supabase db push` with **no accompanying build**. Had this gate existed on 2026-06-19 it would never have executed that day, and the outage would still have started. It would have blocked the *next* deploy of broken code — valuable, but after the fact. **The gate alone does not prevent a recurrence.** MGT-109 needed three separate controls:
+
+| Control | Kind | Catches | Blind to |
+|---|---|---|---|
+| DEC-042 apply-order rule | Prevention (procedural) | Rename migration applied to production ahead of the matching code deploy | Anything that bypasses the checklist — it is a human rule, not enforced |
+| **DEC-045** (this gate) | Deploy-time verification | Deploying code that does not match the **current production schema** | A schema change with **no accompanying build** — the exact MGT-109 trigger |
+| DEC-044 metric alert 25180 | Detection | Production schema changing **underneath already-deployed code** | Anything below 5 errors/hour (issue rule 481169 covers novelty) |
+
+**Rejected — Option 1, generated Supabase types**: run `supabase gen types typescript` against the migration set, commit the result, and let the existing `tsc` gate catch unknown names. Rejected for three independent reasons.
+
+1. It derives from repo migrations, so it inherits the fatal blind spot above — it would have passed on `3c4220b`.
+2. Generation needs a live Postgres with the migrations applied; `supabase gen types --local` requires `supabase start`, i.e. **Docker**. The Netlify build image has neither Docker nor the supabase CLI (it is not a devDependency), so the gate could not run where the only CI is. It would need a `.github/workflows` that does not exist.
+3. **It is a net regression in type precision.** [src/lib/types/database.ts](../src/lib/types/database.ts) is hand-written and encodes CHECK constraints as real union types — `role: 'owner' | 'editor'`, `status: 'draft' | 'published' | 'archived'`, `platform_role`. `supabase gen types` emits **`string`** for CHECK constraints; only true PG enums become unions, and this schema has none. Adopting generated types would silently widen those unions to `string` across the whole app, and drop the hand-authored `ActorContext`, `ChampionshipBranding`, and 12 convenience aliases. **Do not revisit this without re-checking that specific point** — it is the reason, not a preference.
+
+Note that the type system is *not* the gap: postgrest-js 2.100.1 already constrains `.from()` to `string & keyof Schema['Tables']` and resolves `select()` embeds against each table's `Relationships`. The gap is that `database.ts` is hand-written and drifts freely from both the migrations and the live DB — at `3c4220b` it was pre-rename, so everything typechecked.
+
+**Rejected — Option 2, bespoke SQL scanner**: parse `supabase/migrations/*.sql` in order to derive the final table set and diff against code. Same fatal blind spot (repo-internal consistency), plus a SQL parser that must track `CREATE TABLE` / `ALTER TABLE … RENAME TO` / `DROP TABLE` / `CREATE VIEW` forever, where every unhandled DDL form becomes a false positive that blocks a deploy. Still worth ~50 lines later as an offline, credential-free *local* lint that catches a typo'd table name before commit; it does not replace this gate and must not gate the build on its own.
+
+**Escape hatch**: [supabase/schema-check.allow.json](../supabase/schema-check.allow.json), committed so every suppression is visible in the diff and greppable rather than hidden behind an env var or CLI flag. Entries carry a `reason` and `addedBy`. The gate reports allowlist entries that no longer suppress anything as **stale**, so the file cannot silently accumulate. `dynamicFromBaseline` (currently `0`) caps how many non-literal `.from()` calls on a Supabase client are tolerated — a dynamic table name cannot be probed and is therefore an unchecked hole. All 13 non-literal `.from()` sites in the codebase today are `Array.from` / `Buffer.from` / `storage.from` and are excluded **structurally by receiver**, not by a name blocklist, so a new `Array.from` never becomes a false positive.
+
+**Where it runs, and the trade-off**: `.github/workflows` does not exist, so the Netlify production build is the only gate. Failing there is **late** — the bad code is already merged to `main`. It prevents the *deploy*, which is what MGT-109 needed, but not the merge. The proper earlier gate is a minimal GitHub Actions workflow running `typecheck` + `test` + `check:schema` on PRs; that is deliberately **out of scope** here and flagged as a follow-up ticket.
+
+**Measured cost**: 13 tables + 9 embeds + 1 sentinel = 23 zero-row probes at concurrency 8. **573ms** inside a 2m51s local production build — well under 1%.
+
+**Baseline**: clean. Code references exactly the 13 tables the live schema has, and all 9 embed shapes resolve. Nothing to triage before turning it on, and no latent bug hiding behind it.
+
+**References**: [KNOWN_ISSUES.md MGT-109](KNOWN_ISSUES.md); DEC-042 (prevention leg); DEC-044 (detection leg); DEC-041 (the phased rename this gate guards).
+
+---
+
 ## DEC-044: Production error monitoring uses a stateful metric alert for volume, alongside — not instead of — the existing issue alert for novelty
 
 **Decision**: A Sentry **metric** alert rule (id **25180**, created 2026-08-21T11:13:52Z) is the primary production error-monitoring control for the `javascript-nextjs` project. Config, verified by reading the stored rule back from the Sentry API: dataset `events`, eventTypes `error`, aggregate `count()`, empty query, `timeWindow` 60 minutes, `thresholdType` above, critical `alertThreshold` 5, resolves below 5, environment `production`, owner `user:4431781`, action email to mickbarlow@kiontechnology.co.uk. Rule URL: <https://lb42-ltd.sentry.io/issues/alerts/rules/details/25180/>. The pre-existing **issue** alert rule **481169** is deliberately retained and must remain enabled.
