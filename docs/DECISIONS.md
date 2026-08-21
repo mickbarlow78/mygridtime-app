@@ -1,5 +1,47 @@
 # Decisions
 
+## DEC-043: Sentry source map upload uses an EU **organization** auth token, set only in the Netlify Production context; `silent` is conditional so upload failures are visible
+
+**Decision**: Source map upload to Sentry is enabled by setting `SENTRY_ORG` (`lb42-ltd`), `SENTRY_PROJECT` (`javascript-nextjs`) and `SENTRY_AUTH_TOKEN` in the Netlify build environment (scope: Builds). Three constraints are deliberate and must be preserved:
+
+1. **The token is an organization auth token (`sntrys_`), not a personal one (`sntryu_`).** The `lb42-ltd` org lives in Sentry's **EU region** (`https://de.sentry.io`), not the default `https://sentry.io`. An org auth token embeds its region URL, so `sentry-cli` targets `de.sentry.io` automatically. A personal token carries no region information: with one, `SENTRY_URL=https://de.sentry.io` **must** also be set in the Netlify build env, or the upload targets US `sentry.io`, fails to find the org, and produces no usable source maps. `SENTRY_URL` is therefore intentionally *absent* today — its absence is correct, not an oversight, and it must be added if and only if the token type ever changes.
+2. **`SENTRY_AUTH_TOKEN` is scoped to the Production deploy context only.** Deploy previews and branch builds have no token, so they skip upload and stay quiet. This is intended: it keeps preview builds fast and avoids polluting the Sentry project with artifacts from throwaway builds. The consequence is that **source map upload can only ever be verified against a production deploy from `origin/main`** — a deploy preview proves nothing either way.
+3. **`silent` is conditional on the token, not hardcoded `true`** ([next.config.mjs](../next.config.mjs)): `silent: !process.env.SENTRY_AUTH_TOKEN`.
+
+**Why (3) matters**: `silent: true` suppresses *all* Sentry build output — including `sentry-cli` upload **failures**. A wrong-region, expired, or under-scoped token would fail with a build log identical to a successful one, and the only symptom would be stack traces silently staying minified. Tying `silent` to the token's presence keeps local builds quiet (no token locally, so behaviour is unchanged) while making CI builds report success *and* failure.
+
+**Also removed**: `hideSourceMaps: true`. That option was removed in `@sentry/nextjs` v9 and is a silent no-op in the installed v10.48.0 — it appears nowhere in the package's build output. The comment above it claimed client source maps were wiped after upload, so the config actively misled about a protection that line was not providing. Deletion after upload is now the v10 default (`sourcemaps.deleteSourcemapsAfterUpload`), verified empirically: `.map` requests against deployed chunks return 404.
+
+**Required token scopes**: `project:releases`, `project:read`, `org:read`.
+
+**Verification performed (2026-08-21, deploy `6a881e71`, commit `5092273`)**: deployed client chunks contain injected Sentry debug IDs (e.g. `sentry-dbid-1edf886a-e98c-4139-8380-8f0b1df2293c`) with no `sourceMappingURL` comment — debug-ID injection only occurs when the upload path is active; `.map` files return 404 publicly; Sentry release `50922739740fe0824f3f37ec0f2326994ce7565d` exists on `javascript-nextjs`.
+
+**Note on artifact counts**: v10 uploads are **debug-ID based artifact bundles**, not legacy release files. The Releases → Artifacts tab can legitimately read **0** while source maps are present and working. Check **Settings → Source Maps** (artifact bundles) instead; do not treat a 0 on the Releases tab as a failure.
+
+**Not changed, noted for later**: `widenClientFileUpload` remains unset (default `false`). Server-side frames are unaffected, and the MGT-109 schema-drift errors were all server-side. If *browser*-side frames are still minified after this, that is the knob — it increases upload volume, so enable it only against an actual observed case.
+
+**References**: RECON-2026-06-19 item G6 (resolved); DEC-021 (original Sentry configuration).
+
+---
+
+## DEC-042: A migration that renames tables/columns must never be applied to production ahead of the matching code deploy
+
+**Decision**: For any migration that renames or drops a table, column, or relationship an application queries by name (as opposed to additive migrations — new tables/columns/nullable additions — which are safe to apply ahead of code), the migration and the code that depends on the new names must land in production **atomically, code first or simultaneously, never migration first**. Concretely: `supabase db push` (or equivalent) against production is only permitted once the corresponding application code is merged to the branch that production deploys from and a deploy is queued or already live. A rename migration must never be run against production while the matching code still sits on an unmerged feature/rehearsal branch.
+
+**Why**: MGT-107 Phase 4 (the `organisation → championship` DB rename, migration `20260424000000`) was applied directly to production on 2026-06-19 while the matching code (`e6e6ebc`, ~25 files) was still unmerged on `mgt-107-rehearsal`. `origin/main` stayed on pre-rename code (`3c4220b`) querying `organisations`/`org_id` against a database that, from that moment, only had `championships`/`championship_id`. This caused a ~2-month production outage on the public championship page and legacy event-slug redirects (Sentry `JAVASCRIPT-NEXTJS-R`, 4,966 events; `JAVASCRIPT-NEXTJS-S`, 1,494 events; first seen 2026-06-19T18:39:01Z) that went undetected until a full recon session on 2026-08-20 — see [KNOWN_ISSUES.md MGT-109](KNOWN_ISSUES.md). The DEC-041 plan for MGT-107 explicitly called for "staging rehearsal + rollback drill → production cutover (snapshot + migration + merge + smoke)" as one coordinated gate; this incident is exactly the failure mode that plan intended to prevent — the migration step ran in isolation, without the merge/smoke steps immediately either side of it.
+
+**Rule going forward**:
+- Rename/drop migrations are written and reviewed together with the code PR that depends on them, and the PR description states the required apply order explicitly.
+- `supabase db push --linked` against production is a checklist item inside the deploy of the dependent code PR, not a standalone action taken whenever the migration file happens to be ready.
+- If a rename migration must be rehearsed on staging ahead of the production cutover (as DEC-041 specified for MGT-107), the staging apply is fine — the constraint is specifically about **production**, since that's what real traffic depends on.
+- Additive-only migrations (new nullable column, new table, new index) remain safe to apply ahead of code, per existing practice — this rule is scoped to renames/drops that break existing query strings.
+
+**Rejected alternative**: rely on commit-message discipline alone (e.g. `[NOT YET APPLIED]` tags, as `e6e6ebc`'s message used). Rejected because a commit message is not enforced by anything — it is easy for the tag to go stale (as it did: the commit permanently reads `[NOT YET APPLIED]` even after the migration was, in fact, applied) and nothing stops a `db push` from being run against production independent of the commit's merge state. The rule above is procedural (apply order tied to the deploy checklist) rather than relying on a label that can drift from reality.
+
+**References**: [KNOWN_ISSUES.md MGT-109](KNOWN_ISSUES.md); DEC-041 (original MGT-107 phased-rename plan and its Phase 4 cutover gate).
+
+---
+
 ## DEC-041: Tenant entity is renamed to "championship" in user-facing copy via a phased migration; Phase 1 ships copy-only with technical identifiers frozen
 
 **Decision**: MGT-104 begins a phased global rename of the multi-tenant entity from **organisation** to **championship**. Phase 1 is strictly a user-visible-copy change: every string rendered to users (headings, breadcrumbs, button labels, subtitles, error messages, table headers, nav labels, email bodies, audit-log action labels, legal-document paragraphs) now reads "championship" (sentence case, British English) or the plural "championships". Every technical identifier — DB tables (`organisations`, `org_members`, `org_invites`, `org_audit_log`), FK column `org_id`, TypeScript types (`Organisation`, `OrgBranding`, `OrgMemberRole`, `OrgInvite`, `ActiveOrg`, `UserOrg`, `PublicOrg`), helper files (`src/lib/utils/active-org.ts`, `src/lib/utils/public-org.ts`), component file names (`OrgAuditLogView.tsx`, `OrgSelector.tsx`, `PublicOrgView.tsx`), admin URL segment `/admin/orgs/...`, server-action names (`createOrganisation`, `updateOrganisation`), audit-log event-type values (`organisation.created`, `organisation.updated`, `organisation.branding_updated`), Sentry tag values, `.from('organisations')` query strings, and all code comments — is deliberately left **unchanged** in this phase. The short-form button label `+ New org` becomes `+ New championship` (sentence case, full word) per the locked Phase 1 decision.
