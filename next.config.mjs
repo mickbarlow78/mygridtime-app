@@ -45,13 +45,17 @@ const nextConfig = {
 export default withSentryConfig(nextConfig, {
   // Only upload source maps when SENTRY_AUTH_TOKEN is available (CI/deploy).
   // Local builds work fine without it — they just skip source map upload.
-  silent: true,
+  // Stay quiet locally (no token), but log in CI so upload success *and
+  // failure* are visible in the Netlify build log. `silent: true` suppresses
+  // sentry-cli errors too, which would hide a failed upload entirely.
+  silent: !process.env.SENTRY_AUTH_TOKEN,
   org: process.env.SENTRY_ORG,
   project: process.env.SENTRY_PROJECT,
   authToken: process.env.SENTRY_AUTH_TOKEN,
 
-  // Wipe source maps from the client bundle after upload
-  hideSourceMaps: true,
+  // No `hideSourceMaps` here: it was removed in @sentry/nextjs v9 and is a
+  // silent no-op in v10. Client source maps are deleted from the build output
+  // after upload by the v10 default (`sourcemaps.deleteSourcemapsAfterUpload`).
 
   // Disable telemetry
   telemetry: false,
